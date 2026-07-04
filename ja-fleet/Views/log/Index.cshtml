@@ -1,0 +1,157 @@
+@model jafleet.Models.LogModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = $"アクセスログ {Model.SearchDate:yyyy/MM/dd}";
+    var prevId  = Model.SearchDate.AddDays(-1).ToString("yyMMdd");
+    var nextId  = Model.SearchDate.AddDays(1).ToString("yyMMdd");
+    var isToday = Model.SearchDate.Date == DateTime.Now.Date;
+
+    var typeColors = new Dictionary<string, string>
+    {
+        { "1", "#3b82f6" }, // 検索
+        { "2", "#06b6d4" }, // DETAIL
+        { "3", "#22c55e" }, // LINE
+        { "4", "#ef4444" }, // 例外
+        { "5", "#10b981" }, // LINEフォロー
+        { "6", "#f59e0b" }, // LINEアンフォロー
+        { "7", "#8b5cf6" }, // LINEリンク
+        { "9", "#64748b" }, // 稼働状況通知用テキスト
+    };
+}
+
+@section CssPartial {
+<style>
+/* ===== log ===== */
+.log-page { padding: 16px 0 60px; }
+
+.log-header {
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap; margin-bottom: 16px;
+}
+.log-header h2 {
+    margin: 0; font-size: 1.3rem; font-weight: 700;
+    color: #1e293b; flex: 1 1 auto;
+}
+.log-header h2 .date-label {
+    font-size: 1rem; font-weight: 400; color: #64748b; margin-left: 6px;
+}
+.log-nav-btn {
+    display: inline-flex; align-items: center;
+    padding: 6px 14px; border-radius: 6px;
+    border: 1px solid #cbd5e1; background: #fff;
+    color: #334155; font-size: 0.88rem; font-weight: 600;
+    text-decoration: none; white-space: nowrap; transition: background .15s;
+}
+.log-nav-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.log-nav-btn.today { background: #0f172a; color: #fff; border-color: #0f172a; }
+.log-nav-btn.today:hover { background: #1e293b; }
+
+.log-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.log-stat-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px 4px 10px; border-radius: 99px;
+    font-size: 0.88rem; font-weight: 600; color: #fff;
+}
+.log-stat-chip .cnt {
+    background: rgba(0,0,0,.22); border-radius: 99px;
+    padding: 1px 8px; font-size: 0.82rem;
+}
+
+.log-list {
+    border: 1px solid #e2e8f0; border-radius: 10px;
+    overflow: hidden; background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.log-row {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 10px 16px; border-bottom: 1px solid #f1f5f9;
+}
+.log-row:last-child { border-bottom: none; }
+.log-row:hover { background: #f8fafc; }
+
+.log-time { flex: 0 0 78px; font-size: 0.85rem; color: #64748b; font-weight: 600; white-space: nowrap; padding-top: 2px; }
+.log-type-badge {
+    flex: 0 0 auto; align-self: flex-start;
+    padding: 2px 10px; border-radius: 99px;
+    font-size: 0.78rem; font-weight: 700; color: #fff; white-space: nowrap;
+}
+.log-user { flex: 0 0 auto; font-size: 0.80rem; color: #94a3b8; align-self: flex-start; padding-top: 3px; white-space: nowrap; }
+.log-detail {
+    flex: 1 1 auto; min-width: 0;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 0.85rem; color: #334155;
+    white-space: pre-wrap; word-break: break-word;
+}
+
+.log-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 1rem; }
+.log-empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+@@media (max-width: 600px) {
+    .log-header h2 { font-size: 1.1rem; }
+    .log-row { flex-wrap: wrap; padding: 9px 10px; }
+    .log-detail { flex-basis: 100%; }
+}
+</style>
+}
+
+<div class="log-page">
+
+    @* ヘッダーナビ *@
+    <div class="log-header">
+        <h2>📜 アクセスログ<span class="date-label">@Model.SearchDate.ToString("yyyy年MM月dd日")</span></h2>
+        <a href="/log/Index/@prevId" class="log-nav-btn">← 前日</a>
+        @if (!isToday)
+        {
+            <a href="/log/Index/@nextId" class="log-nav-btn">翌日 →</a>
+        }
+        <a href="/log/Index" class="log-nav-btn today">今日</a>
+    </div>
+
+    @* 統計チップ *@
+    @{
+        var typeGroups = Model.Entries
+            .GroupBy(e => new { e.LogTypeCode, e.LogTypeName })
+            .OrderByDescending(g => g.Count())
+            .ToList();
+    }
+    @if (typeGroups.Any())
+    {
+        <div class="log-stats">
+            @foreach (var grp in typeGroups)
+            {
+                var color = typeColors.ContainsKey(grp.Key.LogTypeCode ?? "") ? typeColors[grp.Key.LogTypeCode!] : "#64748b";
+                <span class="log-stat-chip" style="background:@color">
+                    @grp.Key.LogTypeName <span class="cnt">@grp.Count()</span>
+                </span>
+            }
+        </div>
+    }
+
+    @* データなし *@
+    @if (!Model.Entries.Any())
+    {
+        <div class="log-empty">
+            <div class="log-empty-icon">📭</div>
+            <div>@Model.SearchDate.ToString("yyyy/MM/dd") のログはありません</div>
+        </div>
+    }
+    else
+    {
+        <div class="log-list">
+            @foreach (var e in Model.Entries)
+            {
+                var color = typeColors.ContainsKey(e.LogTypeCode ?? "") ? typeColors[e.LogTypeCode!] : "#64748b";
+                <div class="log-row">
+                    <div class="log-time">@e.LogDate?.ToString("HH:mm:ss")</div>
+                    <span class="log-type-badge" style="background:@color">@e.LogTypeName</span>
+                    @if (!string.IsNullOrEmpty(e.UserId))
+                    {
+                        <div class="log-user">@e.UserId</div>
+                    }
+                    <div class="log-detail">@e.Detail</div>
+                </div>
+            }
+        </div>
+    }
+
+</div>

@@ -1,5 +1,4 @@
-﻿using System.Text;
-using jafleet.Commons.Constants;
+﻿using jafleet.Commons.Constants;
 using jafleet.Commons.EF;
 using jafleet.Manager;
 using jafleet.Models;
@@ -47,25 +46,23 @@ namespace jafleet.Controllers
             var logScKeys = logs.Where(sc => sc.LogType == LogType.SEARCH).Select(scc => scc.LogDetail).Distinct();
             var scCache = GetSearchConditionDisps(logScKeys!);
 
-            var retsb = new StringBuilder();
-            foreach (var log in logs)
+            var entries = logs.Select(log => new LogEntry
             {
-                string logDetail;
-                if (log.LogType == LogType.SEARCH)
-                {
-                    logDetail = scCache[log.LogDetail!] + log.Additional;
-                }
-                else
-                {
-                    logDetail = log.LogDetail!;
-                }
-                retsb.Append($"[{log.LogDate?.ToString("HH:mm:ss")}][{LogType.GetLogTypeName(log.LogType!)}]{logDetail}{Environment.NewLine}");
-            }
+                LogDate     = log.LogDate,
+                LogTypeCode = log.LogType,
+                LogTypeName = LogType.GetLogTypeName(log.LogType!),
+                UserId      = log.UserId,
+                Detail      = log.LogType == LogType.SEARCH ? scCache[log.LogDetail!] + log.Additional : log.LogDetail,
+            }).ToList();
 
-            string head = DateTime.Now.ToString($"--HH:mm:ss--{Environment.NewLine}");
+            var model = new LogModel
+            {
+                Title      = $"アクセスログ {targetDate:yyyy/MM/dd}",
+                SearchDate = targetDate!.Value,
+                Entries    = entries,
+            };
 
-            return Content(head + retsb.ToString());
-
+            return View(model);
         }
 
         public Dictionary<string, string> GetSearchConditionDisps(IEnumerable<string> scKeys)
