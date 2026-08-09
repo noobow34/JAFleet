@@ -21,7 +21,9 @@
 
 @section CssPartial {
 <style>
-/* ===== log ===== */
+/* ===== log =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
 .log-page { padding: 16px 0 60px; }
 
 .log-header {
@@ -29,17 +31,17 @@
     flex-wrap: wrap; margin-bottom: 16px;
 }
 .log-header h2 {
-    margin: 0; font-size: 1.3rem; font-weight: 700;
+    margin: 0; font-size: 22px; font-weight: 700;
     color: #1e293b; flex: 1 1 auto;
 }
 .log-header h2 .date-label {
-    font-size: 1rem; font-weight: 400; color: #64748b; margin-left: 6px;
+    font-size: 16px; font-weight: 400; color: #64748b; margin-left: 6px;
 }
 .log-nav-btn {
     display: inline-flex; align-items: center;
-    padding: 6px 14px; border-radius: 6px;
+    padding: 7px 16px; border-radius: 6px;
     border: 1px solid #cbd5e1; background: #fff;
-    color: #334155; font-size: 0.88rem; font-weight: 600;
+    color: #334155; font-size: 14px; font-weight: 600;
     text-decoration: none; white-space: nowrap; transition: background .15s;
 }
 .log-nav-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
@@ -49,12 +51,12 @@
 .log-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 .log-stat-chip {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 12px 4px 10px; border-radius: 99px;
-    font-size: 0.88rem; font-weight: 600; color: #fff;
+    padding: 5px 13px 5px 12px; border-radius: 99px;
+    font-size: 14px; font-weight: 600; color: #fff;
 }
 .log-stat-chip .cnt {
     background: rgba(0,0,0,.22); border-radius: 99px;
-    padding: 1px 8px; font-size: 0.82rem;
+    padding: 1px 8px; font-size: 13px;
 }
 
 .log-list {
@@ -69,27 +71,29 @@
 .log-row:last-child { border-bottom: none; }
 .log-row:hover { background: #f8fafc; }
 
-.log-time { flex: 0 0 78px; font-size: 0.85rem; color: #64748b; font-weight: 600; white-space: nowrap; padding-top: 2px; }
+/* HH:mm:ss を14pxで折り返さない幅 */
+.log-time { flex: 0 0 84px; font-size: 14px; color: #64748b; font-weight: 600; white-space: nowrap; padding-top: 2px; }
 .log-type-badge {
     flex: 0 0 auto; align-self: flex-start;
-    padding: 2px 10px; border-radius: 99px;
-    font-size: 0.78rem; font-weight: 700; color: #fff; white-space: nowrap;
+    padding: 3px 11px; border-radius: 99px;
+    font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap;
 }
-.log-user { flex: 0 0 auto; font-size: 0.80rem; color: #94a3b8; align-self: flex-start; padding-top: 3px; white-space: nowrap; }
+.log-user { flex: 0 0 auto; font-size: 13px; color: #94a3b8; align-self: flex-start; padding-top: 3px; white-space: nowrap; }
 .log-detail {
     flex: 1 1 auto; min-width: 0;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 0.85rem; color: #334155;
+    font-size: 14px; line-height: 1.5; color: #334155;
     white-space: pre-wrap; word-break: break-word;
 }
 
-.log-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 1rem; }
-.log-empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
+.log-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 16px; }
+.log-empty-icon { font-size: 40px; margin-bottom: 10px; }
 
 @@media (max-width: 600px) {
-    .log-header h2 { font-size: 1.1rem; }
-    .log-row { flex-wrap: wrap; padding: 9px 10px; }
-    .log-detail { flex-basis: 100%; }
+    .log-header h2 { font-size: 18px; }
+    .log-header h2 .date-label { font-size: 14px; }
+    .log-row { flex-wrap: wrap; padding: 10px 10px; }
+    .log-detail { flex-basis: 100%; font-size: 13px; }
 }
 </style>
 }

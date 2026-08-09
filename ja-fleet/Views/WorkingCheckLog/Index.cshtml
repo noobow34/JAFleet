@@ -23,7 +23,9 @@
 
 @section CssPartial {
 <style>
-/* ===== WorkingCheckLog ===== */
+/* ===== WorkingCheckLog =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
 .wcl-page { padding: 16px 0 60px; }
 
 /* ヘッダー */
@@ -32,17 +34,17 @@
     flex-wrap: wrap; margin-bottom: 16px;
 }
 .wcl-header h2 {
-    margin: 0; font-size: 1.3rem; font-weight: 700;
+    margin: 0; font-size: 22px; font-weight: 700;
     color: #1e293b; flex: 1 1 auto;
 }
 .wcl-header h2 .date-label {
-    font-size: 1rem; font-weight: 400; color: #64748b; margin-left: 6px;
+    font-size: 16px; font-weight: 400; color: #64748b; margin-left: 6px;
 }
 .wcl-nav-btn {
     display: inline-flex; align-items: center;
-    padding: 6px 14px; border-radius: 6px;
+    padding: 7px 16px; border-radius: 6px;
     border: 1px solid #cbd5e1; background: #fff;
-    color: #334155; font-size: 0.88rem; font-weight: 600;
+    color: #334155; font-size: 14px; font-weight: 600;
     text-decoration: none; white-space: nowrap; transition: background .15s;
 }
 .wcl-nav-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
@@ -53,12 +55,12 @@
 .wcl-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 .wcl-stat-chip {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 12px 4px 10px; border-radius: 99px;
-    font-size: 0.88rem; font-weight: 600; color: #fff;
+    padding: 5px 13px 5px 12px; border-radius: 99px;
+    font-size: 14px; font-weight: 600; color: #fff;
 }
 .wcl-stat-chip .cnt {
     background: rgba(0,0,0,.22); border-radius: 99px;
-    padding: 1px 8px; font-size: 0.82rem;
+    padding: 1px 8px; font-size: 13px;
 }
 
 /* バッチカード */
@@ -72,9 +74,9 @@
     padding: 10px 18px; background: #f8fafc;
     border-bottom: 1px solid #e2e8f0; flex-wrap: wrap;
 }
-.wcl-batch-title { font-size: 0.95rem; font-weight: 700; color: #475569; flex: 1 1 auto; }
-.wcl-batch-time  { font-size: 0.88rem; color: #64748b; }
-.wcl-batch-count { font-size: 0.85rem; color: #94a3b8; }
+.wcl-batch-title { font-size: 16px; font-weight: 700; color: #475569; flex: 1 1 auto; }
+.wcl-batch-time  { font-size: 14px; color: #64748b; }
+.wcl-batch-count { font-size: 13px; color: #94a3b8; }
 
 /* セクション */
 .wcl-section { border-top: 2px solid #f1f5f9; }
@@ -83,83 +85,88 @@
     display: flex; align-items: center; gap: 8px;
     padding: 11px 18px 9px; background: #fafbfc;
 }
-.wcl-section-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.wcl-section-title { font-size: 0.95rem; font-weight: 700; color: #374151; }
-.wcl-section-badge { margin-left: auto; font-size: 0.85rem; color: #94a3b8; white-space: nowrap; }
+.wcl-section-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.wcl-section-title { font-size: 16px; font-weight: 700; color: #374151; }
+.wcl-section-badge { margin-left: auto; font-size: 13px; color: #94a3b8; white-space: nowrap; }
 
 /* エントリ一覧 */
 .wcl-entries { padding: 2px 10px 10px; }
 
 .wcl-entry {
     display: grid;
-    /* レジ | 型式 | 日時 | ルート＋便名＋状態 */
-    grid-template-columns: 115px 140px 155px 1fr;
+    /* レジ | 型式 | 日時(yyyy/MM/dd HH:mm) | ルート＋便名＋状態 */
+    grid-template-columns: 120px 145px 155px 1fr;
     gap: 0 14px;
     align-items: center;
-    padding: 9px 8px;
+    padding: 10px 8px;
     border-bottom: 1px solid #f1f5f9;
-    font-size: 0.95rem;
-    line-height: 1.4;
+    font-size: 15px;
+    line-height: 1.5;
 }
 .wcl-entry:last-child { border-bottom: none; }
 .wcl-entry:hover { background: #f8fafc; border-radius: 6px; }
 
 /* レジ番号 */
 .reg-link {
-    font-weight: 700; font-size: 1.0rem;
+    font-weight: 700; font-size: 17px;
     color: #1d4ed8; text-decoration: none; white-space: nowrap;
 }
 .reg-link:hover { text-decoration: underline; color: #1e40af; }
 .reg-mark {
-    display: inline-block; font-size: 0.68rem; font-weight: 700;
+    display: inline-block; font-size: 11px; font-weight: 700;
     padding: 1px 5px; border-radius: 4px; margin-left: 3px; vertical-align: middle;
 }
 .reg-mark.special { background: #fef3c7; color: #92400e; }
 .reg-mark.mainte  { background: #ede9fe; color: #5b21b6; }
 
 /* 型式 */
-.type-name { font-size: 0.85rem; color: #64748b; }
+.type-name { font-size: 14px; color: #64748b; }
 
 /* 日時 */
-.flight-date { font-size: 0.90rem; color: #334155; font-weight: 500; white-space: nowrap; }
-.prev-date   { font-size: 0.78rem; color: #94a3b8; margin-top: 2px; }
+.flight-date { font-size: 15px; color: #334155; font-weight: 500; white-space: nowrap; }
+.prev-date   { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 
 /* ルート＋便名 */
 .entry-route { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
 .ap-pair     { display: flex; align-items: center; gap: 5px; }
-.ap-code     { font-weight: 700; font-size: 0.95rem; color: #0f172a; }
-.ap-name     { font-size: 0.80rem; color: #94a3b8; }
-.route-arrow { color: #94a3b8; font-size: 0.80rem; }
-.flight-num  { font-weight: 600; color: #0f766e; font-size: 0.90rem; white-space: nowrap; }
-.flight-status { font-size: 0.85rem; color: #64748b; }
+.ap-code     { font-weight: 700; font-size: 16px; color: #0f172a; }
+.ap-name     { font-size: 12px; color: #94a3b8; }
+.route-arrow { color: #94a3b8; font-size: 12px; }
+.flight-num  { font-weight: 600; color: #0f766e; font-size: 15px; white-space: nowrap; }
+.flight-status { font-size: 13px; color: #64748b; }
 
 /* 生テキスト */
-.raw-line { font-family: monospace; font-size: 0.85rem; color: #64748b; word-break: break-all; padding: 8px 4px; }
+.raw-line { font-family: monospace; font-size: 13px; color: #64748b; word-break: break-all; padding: 8px 4px; }
 
 /* 空状態 */
-.wcl-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 1rem; }
-.wcl-empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
+.wcl-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 16px; }
+.wcl-empty-icon { font-size: 40px; margin-bottom: 10px; }
 
 /* ========= レスポンシブ ========= */
 /* タブレット縦 (〜900px) */
 @@media (max-width: 900px) {
     .wcl-entry {
-        grid-template-columns: 105px 115px 140px 1fr;
-        font-size: 0.90rem; gap: 0 10px;
+        grid-template-columns: 112px 128px 148px 1fr;
+        font-size: 14px; gap: 0 10px;
     }
-    .type-name { font-size: 0.80rem; }
+    .reg-link   { font-size: 16px; }
+    .type-name  { font-size: 13px; }
+    .flight-date { font-size: 14px; }
+    .ap-code    { font-size: 15px; }
+    .flight-num { font-size: 14px; }
 }
 
 /* スマホ (〜600px): 2行レイアウト */
 @@media (max-width: 600px) {
-    .wcl-header h2 { font-size: 1.1rem; }
+    .wcl-header h2 { font-size: 18px; }
+    .wcl-header h2 .date-label { font-size: 14px; }
     .wcl-entries { padding: 2px 4px 8px; }
     .wcl-entry {
         grid-template-columns: 1fr 1fr;
         grid-template-rows: auto auto;
         gap: 3px 8px;
-        padding: 10px 6px;
-        font-size: 0.90rem;
+        padding: 11px 6px;
+        font-size: 14px;
     }
     /* 1行目: レジ | 型式 */
     .entry-reg   { grid-column: 1; grid-row: 1; }
@@ -235,7 +242,7 @@
 
             @if (!batch.Sections.Any())
             {
-                <div style="padding:16px 20px;color:#94a3b8;font-size:0.95rem;">変化なし</div>
+                <div style="padding:16px 20px;color:#94a3b8;font-size:14px;">変化なし</div>
             }
 
             @foreach (var sec in batch.Sections)
