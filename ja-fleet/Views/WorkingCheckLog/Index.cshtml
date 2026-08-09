@@ -1,3 +1,4 @@
+@using jafleet.Commons.Constants
 @model jafleet.Models.WorkingCheckLogModel
 @{
     Layout = "_LayoutNoHead";
@@ -94,8 +95,8 @@
 
 .wcl-entry {
     display: grid;
-    /* レジ | 型式 | 日時(yyyy/MM/dd HH:mm) | ルート＋便名＋状態 */
-    grid-template-columns: 120px 145px 155px 1fr;
+    /* レジ+FR24 | 型式 | 日時(yyyy/MM/dd HH:mm) | ルート＋便名＋状態 */
+    grid-template-columns: 170px 145px 155px 1fr;
     gap: 0 14px;
     align-items: center;
     padding: 10px 8px;
@@ -118,6 +119,15 @@
 }
 .reg-mark.special { background: #fef3c7; color: #92400e; }
 .reg-mark.mainte  { background: #ede9fe; color: #5b21b6; }
+
+/* Flightradar24リンク */
+.fr24-link {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 1px 6px; border-radius: 4px; margin-left: 4px;
+    background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;
+    text-decoration: none; vertical-align: middle; white-space: nowrap;
+}
+.fr24-link:hover { background: #ffedd5; color: #9a3412; text-decoration: none; }
 
 /* 型式 */
 .type-name { font-size: 14px; color: #64748b; }
@@ -146,7 +156,7 @@
 /* タブレット縦 (〜900px) */
 @@media (max-width: 900px) {
     .wcl-entry {
-        grid-template-columns: 112px 128px 148px 1fr;
+        grid-template-columns: 158px 128px 148px 1fr;
         font-size: 14px; gap: 0 10px;
     }
     .reg-link   { font-size: 16px; }
@@ -273,6 +283,13 @@
                                         else if (e.NotifyMark == "☆")
                                         {
                                             <span class="reg-mark mainte">整備</span>
+                                        }
+                                        @if (!string.IsNullOrEmpty(e.RegistrationNumber))
+                                        {
+                                            @* FR24はRefererを見て451を返すことがあるためnoreferrerでRefererを送らない *@
+                                            <a href="@(FlightradarConstant.FR24_DATA_URL + e.RegistrationNumber)"
+                                               class="fr24-link" target="_blank" rel="noopener noreferrer"
+                                               title="Flightradar24で見る">FR24</a>
                                         }
                                     </div>
                                     <div class="entry-type type-name">@e.TypeName</div>
