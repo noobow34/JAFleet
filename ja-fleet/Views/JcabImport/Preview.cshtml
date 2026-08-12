@@ -120,6 +120,30 @@
 .imp-field .imp-was { font-size: 11px; color: #94a3b8; }
 .imp-field.wide { grid-column: 1 / -1; }
 
+.imp-addtype {
+    align-self: flex-start; margin-top: 2px; padding: 0;
+    border: none; background: none; color: #1d4ed8;
+    font-size: 11px; font-weight: 600; text-decoration: underline; cursor: pointer;
+}
+.imp-addtype:hover { color: #1e40af; }
+
+/* 詳細型式の新規登録モーダル */
+.tdm-field { margin-bottom: 12px; }
+.tdm-field label { display: block; margin: 0 0 3px; font-size: 12px; font-weight: 600; color: #64748b; }
+.tdm-field select, .tdm-field input[type=text] {
+    width: 100%; height: 34px; padding: 4px 10px; font-size: 14px;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b;
+}
+.tdm-source {
+    background: #f1f5f9; border-radius: 6px; padding: 8px 12px; margin-bottom: 14px;
+    font-size: 13px; color: #475569;
+}
+.tdm-source b { color: #0f172a; font-family: monospace; }
+.tdm-error {
+    display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;
+    padding: 8px 12px; font-size: 13px; color: #b91c1c; font-weight: 600;
+}
+
 /* DBの現在値から変わる項目 */
 .imp-field.changed label { color: #b45309; }
 .imp-field.changed select,
@@ -328,6 +352,16 @@
                                         {
                                             <span class="imp-was">Excel: @item.TypeDisplay</span>
                                         }
+                                        @if (item.EditTypeDetailId is null or 0)
+                                        {
+                                            @* マスタに無い型式はここから直接登録できるようにする *@
+                                            <button type="button" class="imp-addtype"
+                                                    data-select="Rows[@index].TypeDetailId"
+                                                    data-source="@item.TypeDisplay"
+                                                    data-name="@TextUtil.Widen(item.TypeNameRaw)">
+                                                ＋ 詳細型式を新規登録
+                                            </button>
+                                        }
                                     </div>
 
                                     <div class="imp-field @(operationChanged ? "changed" : "")">
@@ -397,6 +431,48 @@
             <button type="submit" class="imp-btn primary" style="margin-left:auto">取込を実行</button>
         </div>
     </form>
+
+    @* 取込フォームの中に置くと入力値まで送信されてしまうのでフォームの外に出す *@
+    <div class="modal fade" id="typeDetailModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="閉じる"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">詳細型式の新規登録</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="tdm-source">Excelの型式: <b id="tdSource"></b></div>
+
+                    <div class="tdm-field">
+                        <label for="tdTypeCode">型式</label>
+                        <select id="tdTypeCode">
+                            <option value="">　</option>
+                            @foreach (var type in Model.TypeList ?? [])
+                            {
+                                <option value="@type.TypeCode">@type.TypeName</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="tdm-field">
+                        <label for="tdName">詳細型式名</label>
+                        <input type="text" id="tdName" />
+                    </div>
+
+                    <div class="tdm-field">
+                        <label for="tdCode">詳細型式コード（任意）</label>
+                        <input type="text" id="tdCode" />
+                    </div>
+
+                    <div class="tdm-error" id="tdError"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="imp-btn" data-dismiss="modal">キャンセル</button>
+                    <button type="button" class="imp-btn primary" id="tdSubmit">登録して選択</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section ScriptsPartial{
@@ -424,6 +500,61 @@
 
         $(document).on('change', '.imp-select', refreshCount);
         refreshCount();
+
+        // ---- 詳細型式の新規登録モーダル ----
+        let targetSelectName = null;
+
+        $('.imp-addtype').on('click', function () {
+            targetSelectName = $(this).data('select');
+            $('#tdSource').text($(this).data('source') || '');
+            $('#tdName').val($(this).data('name') || '');
+            $('#tdCode').val($(this).data('name') || '');
+            $('#tdTypeCode').val('');
+            $('#tdError').hide().text('');
+            $('#typeDetailModal').modal('show');
+        });
+
+        $('#tdSubmit').on('click', function () {
+            const button = $(this);
+            button.prop('disabled', true);
+
+            $.ajax({
+                url: '/JcabImport/CreateTypeDetail',
+                type: 'POST',
+                data: {
+                    typeCode: $('#tdTypeCode').val(),
+                    typeDetailCode: $('#tdCode').val(),
+                    typeDetailName: $('#tdName').val()
+                }
+            }).done(function (data) {
+                if (data.error) {
+                    $('#tdError').text(data.error).show();
+                    return;
+                }
+
+                // 追加した詳細型式をページ内の全セレクトに反映し、呼び出し元の行で選択する
+                $('select[name$=".TypeDetailId"]').each(function () {
+                    if ($(this).find('option[value="' + data.id + '"]').length === 0) {
+                        $(this).append($('<option>').val(data.id).text(data.name));
+                    }
+                });
+
+                const target = $('select[name="' + targetSelectName + '"]');
+                target.val(data.id);
+
+                // 型式が決まったので、その行を取込対象にしておく
+                const row = target.closest('.imp-item');
+                row.find('.imp-select').prop('checked', true);
+                row.find('.imp-addtype').remove();
+                refreshCount();
+
+                $('#typeDetailModal').modal('hide');
+            }).fail(function (xhr) {
+                $('#tdError').text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
+            }).always(function () {
+                button.prop('disabled', false);
+            });
+        });
     });
 </script>
 }

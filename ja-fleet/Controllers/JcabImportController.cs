@@ -214,7 +214,62 @@ namespace jafleet.Controllers
         {
             model.AirlineList = MasterManager.AllAirline;
             model.OperationList = MasterManager.Operation;
+            model.TypeList = MasterManager.Type;
             model.TypeDetailList = _context.TypeDetails.AsNoTracking().OrderBy(t => t.TypeDetailName).ToArray();
+        }
+
+        /// <summary>
+        /// プレビュー画面のモーダルから詳細型式を新規登録する。
+        /// Excelの型式がマスタに無いとき、別画面に移らずその場で追加できるようにするためのもの。
+        /// </summary>
+        [HttpPost]
+        public IActionResult CreateTypeDetail(string? typeCode, string? typeDetailCode, string? typeDetailName)
+        {
+            if (!CookieUtil.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            typeCode = typeCode?.Trim();
+            typeDetailCode = typeDetailCode?.Trim();
+            typeDetailName = typeDetailName?.Trim();
+
+            if (string.IsNullOrEmpty(typeCode))
+            {
+                return Json(new { error = "型式を選択してください。" });
+            }
+            if (string.IsNullOrEmpty(typeDetailName))
+            {
+                return Json(new { error = "詳細型式名を入力してください。" });
+            }
+
+            //同じ名前が既にあるなら作らずにそれを返す
+            TypeDetail? duplicated = _context.TypeDetails.AsNoTracking()
+                .FirstOrDefault(t => t.TypeDetailName == typeDetailName);
+            if (duplicated != null)
+            {
+                return Json(new { id = duplicated.TypeDetailId, name = duplicated.TypeDetailName, duplicated = true });
+            }
+
+            TypeDetail created = new()
+            {
+                TypeCode = typeCode,
+                TypeDetailCode = string.IsNullOrEmpty(typeDetailCode) ? null : typeDetailCode,
+                TypeDetailName = typeDetailName,
+            };
+            _context.TypeDetails.Add(created);
+            _context.SaveChanges();
+
+            try
+            {
+                MasterManager.ReadAll(_context);
+            }
+            catch (Exception)
+            {
+                //キャッシュの更新に失敗しても登録自体は成功しているので、画面はそのまま進める
+            }
+
+            return Json(new { id = created.TypeDetailId, name = created.TypeDetailName });
         }
 
         /// <summary>解析せず、解除したファイルをそのまま返す</summary>

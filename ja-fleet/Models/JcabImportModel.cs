@@ -54,6 +54,10 @@ namespace jafleet.Models
         [BindNever]
         public TypeDetail[]? TypeDetailList { get; set; }
 
+        /// <summary>詳細型式を新規登録するモーダルで選ぶ型式</summary>
+        [BindNever]
+        public Commons.EF.Type[]? TypeList { get; set; }
+
         [BindNever]
         public Code[]? OperationList { get; set; }
     }

@@ -42,6 +42,9 @@ namespace jafleet.Classes.JcabImport
 
         public string? TypeDisplay { get; set; }
 
+        /// <summary>Excelの型式2行目。詳細型式の新規登録の初期値に使う。</summary>
+        public string? TypeNameRaw { get; set; }
+
         public string? SuggestedAirlineCode { get; set; }
 
         public string? SuggestedAirlineName { get; set; }
@@ -159,6 +162,7 @@ namespace jafleet.Classes.JcabImport
                 item.SuggestedAirlineName = airlineName;
 
                 string? typeName = events.Select(e => e.TypeName).LastOrDefault(t => !string.IsNullOrEmpty(t));
+                item.TypeNameRaw = typeName;
                 TypeDetail? typeDetail = MatchTypeDetail(typeName, typeDetails);
                 item.SuggestedTypeDetailId = typeDetail?.TypeDetailId;
                 item.SuggestedTypeDetailName = typeDetail?.TypeDetailName;
