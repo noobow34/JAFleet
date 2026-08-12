@@ -6,6 +6,8 @@
     var prevDate = Model.SearchDate.AddDays(-1).ToString("yyyyMMdd");
     var nextDate = Model.SearchDate.AddDays(1).ToString("yyyyMMdd");
     var isToday  = Model.SearchDate.Date == DateTime.Now.Date;
+    //日付を移動しても管理コンソールへの戻るボタンが消えないように引き継ぐ
+    var adminQuery = Model.FromAdmin ? "?fromAdmin=true" : "";
 
     var sectionColors = new Dictionary<string, string>
     {
@@ -196,12 +198,12 @@
     @* ヘッダーナビ *@
     <div class="wcl-header">
         <h2>✈ 稼働チェックログ<span class="date-label">@Model.SearchDate.ToString("yyyy年MM月dd日")</span></h2>
-        <a href="/WorkingCheckLog/Index/@prevDate" class="wcl-nav-btn">← 前日</a>
+        <a href="/WorkingCheckLog/Index/@prevDate@adminQuery" class="wcl-nav-btn">← 前日</a>
         @if (!isToday)
         {
-            <a href="/WorkingCheckLog/Index/@nextDate" class="wcl-nav-btn">翌日 →</a>
+            <a href="/WorkingCheckLog/Index/@nextDate@adminQuery" class="wcl-nav-btn">翌日 →</a>
         }
-        <a href="/WorkingCheckLog/Index" class="wcl-nav-btn today">今日</a>
+        <a href="/WorkingCheckLog/Index@adminQuery" class="wcl-nav-btn today">今日</a>
     </div>
 
     @* 統計チップ *@

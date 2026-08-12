@@ -87,11 +87,16 @@ namespace jafleet.Controllers
             model.TypeList = MasterManager.Type!;
             model.OperationList = MasterManager.Operation!;
             model.WiFiList = MasterManager.Wifi!;
-            string noheadString = string.Empty;
+            List<string> query = [];
             if (model.NoHead)
             {
-                noheadString = "?nohead=" + model.NoHead.ToString();
+                query.Add("nohead=true");
             }
+            if (model.FromAdmin)
+            {
+                query.Add("fromAdmin=true");
+            }
+            string noheadString = query.Count == 0 ? string.Empty : "?" + string.Join("&", query);
 
             //写真を更新
             _ = HttpClientManager.GetInstance().GetStringAsync($"http://localhost:5000/Aircraft/Photo/{model.Aircraft!.RegistrationNumber}?force=true");

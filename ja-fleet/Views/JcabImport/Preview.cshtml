@@ -181,7 +181,7 @@
             {
                 <a class="imp-btn" href="@Url.Action("Download", "JcabImport", new { id = Model.CacheKey })">復号版をダウンロード</a>
             }
-            <a class="imp-btn primary" href="@Url.Action("Index", "JcabImport")">別のファイル</a>
+            <a class="imp-btn primary" href="@Url.Action("Index", "JcabImport", new { fromAdmin = Model.FromAdmin })">別のファイル</a>
         </span>
     </div>
 
@@ -209,6 +209,7 @@
     <form method="post" asp-controller="JcabImport" asp-action="Execute">
         <input type="hidden" name="CacheKey" value="@Model.CacheKey" />
         <input type="hidden" name="FileName" value="@Model.FileName" />
+        <input type="hidden" name="FromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
 
         @foreach (var group in groups)
         {

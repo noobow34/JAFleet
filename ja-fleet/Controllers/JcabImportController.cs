@@ -31,7 +31,7 @@ namespace jafleet.Controllers
         /// <param name="Bytes">復号済みのxlsx</param>
         private sealed record CachedFile(string FileName, string DownloadName, byte[] Bytes);
 
-        public IActionResult Index()
+        public IActionResult Index([FromQuery] bool fromAdmin)
         {
             if (!CookieUtil.IsAdmin(HttpContext))
             {
@@ -42,6 +42,7 @@ namespace jafleet.Controllers
             {
                 Title = "Excel取込",
                 Extension = LoadExtension(),
+                FromAdmin = fromAdmin,
             };
             return View(model);
         }

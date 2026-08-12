@@ -134,6 +134,6 @@
         {
             <a class="imp-btn" href="@Url.Action("Download", "JcabImport", new { id = Model.CacheKey })">復号版をダウンロード</a>
         }
-        <a class="imp-btn primary" href="@Url.Action("Index", "JcabImport")">別のファイルを取り込む</a>
+        <a class="imp-btn primary" href="@Url.Action("Index", "JcabImport", new { fromAdmin = Model.FromAdmin })">別のファイルを取り込む</a>
     </div>
 </div>

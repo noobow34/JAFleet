@@ -84,6 +84,7 @@
     }
 
     <form method="post" enctype="multipart/form-data" asp-controller="JcabImport" asp-action="Analyze">
+        <input type="hidden" name="FromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
         <div class="imp-card">
             <div class="imp-drop">
                 <div class="imp-drop-title">航空局のExcelを選択</div>
