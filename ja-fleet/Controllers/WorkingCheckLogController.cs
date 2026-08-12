@@ -13,7 +13,7 @@ namespace jafleet.Controllers
 
         public WorkingCheckLogController(JafleetContext context) => _context = context;
 
-        public IActionResult Index(string id)
+        public IActionResult Index(string id, [FromQuery] bool fromAdmin)
         {
             DateTime searchDate;
             if (string.IsNullOrEmpty(id))
@@ -40,7 +40,8 @@ namespace jafleet.Controllers
             {
                 Title      = $"稼働チェックログ {searchDate:yyyy/MM/dd}",
                 SearchDate = searchDate,
-                Batches    = rawLogs.Select(ToViewModel).ToList()
+                Batches    = rawLogs.Select(ToViewModel).ToList(),
+                FromAdmin  = fromAdmin,
             };
 
             return View(model);

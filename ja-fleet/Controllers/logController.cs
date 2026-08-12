@@ -16,13 +16,13 @@ namespace jafleet.Controllers
 
         public logController(JafleetContext context) => _context = context;
 
-        public IActionResult Yesterday()
+        public IActionResult Yesterday([FromQuery] bool fromAdmin)
         {
-            return Index("y");
+            return Index("y", fromAdmin);
         }
 
         [Authorize]
-        public IActionResult Index(string id)
+        public IActionResult Index(string id, [FromQuery] bool fromAdmin)
         {
             DateTime? targetDate = null;
             if (string.IsNullOrEmpty(id))
@@ -60,6 +60,7 @@ namespace jafleet.Controllers
                 Title      = $"アクセスログ {targetDate:yyyy/MM/dd}",
                 SearchDate = targetDate!.Value,
                 Entries    = entries,
+                FromAdmin  = fromAdmin,
             };
 
             return View(model);

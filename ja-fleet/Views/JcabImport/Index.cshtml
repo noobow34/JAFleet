@@ -1,0 +1,168 @@
+@model jafleet.Models.JcabImportModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "Excel取込";
+}
+
+@section CssPartial {
+<style>
+/* ===== Excel取込 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
+.imp-page { padding: 16px 0 60px; max-width: 720px; }
+.imp-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
+.imp-lead { font-size: 14px; color: #64748b; margin-bottom: 18px; }
+
+.imp-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.imp-drop {
+    border: 2px dashed #cbd5e1; border-radius: 10px; background: #f8fafc;
+    padding: 22px; text-align: center; margin-bottom: 18px;
+}
+.imp-drop .imp-drop-title { font-size: 15px; color: #334155; margin-bottom: 4px; }
+.imp-drop .imp-drop-note { font-size: 13px; color: #94a3b8; margin-bottom: 12px; }
+
+.imp-section-title {
+    font-size: 15px; font-weight: 700; color: #334155;
+    margin: 0 0 12px; display: flex; align-items: center; gap: 6px;
+}
+.imp-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.imp-row label.imp-label {
+    width: 96px; flex: 0 0 96px; margin: 0;
+    font-size: 13px; font-weight: 600; color: #64748b;
+}
+.imp-row input[type=text], .imp-row input[type=date], .imp-row input[type=password] {
+    height: 34px; padding: 4px 10px; font-size: 14px;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b;
+}
+.imp-hint { font-size: 12px; color: #94a3b8; }
+.imp-pw {
+    font-family: monospace; font-size: 14px; color: #0f172a;
+    background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px;
+}
+.imp-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #64748b; margin-top: 4px; }
+.imp-check input { margin: 0; }
+
+.imp-actions {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    border-top: 1px solid #e2e8f0; padding-top: 14px; margin-top: 16px;
+}
+.imp-btn {
+    display: inline-flex; align-items: center; padding: 8px 18px; border-radius: 6px;
+    border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.imp-btn:hover { background: #f1f5f9; }
+.imp-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.imp-btn.primary:hover { background: #1e293b; }
+
+.imp-error {
+    border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 16px;
+}
+.imp-error-title { font-size: 14px; font-weight: 700; color: #b91c1c; margin-bottom: 6px; }
+.imp-error-body { font-size: 13px; color: #b91c1c; line-height: 1.6; }
+
+@@media (max-width: 600px) {
+    .imp-row label.imp-label { width: 100%; flex: 1 1 100%; }
+}
+</style>
+}
+
+<div class="imp-page">
+    <h2>📥 Excel取込</h2>
+    <div class="imp-lead">航空局から届くパスワード付きExcelを解除して、取込内容を確認します。</div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="imp-error">
+            <div class="imp-error-title">解除できませんでした</div>
+            <div class="imp-error-body">@Model.ErrorMessage</div>
+        </div>
+    }
+
+    <form method="post" enctype="multipart/form-data" asp-controller="JcabImport" asp-action="Analyze">
+        <input type="hidden" name="FromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
+        <div class="imp-card">
+            <div class="imp-drop">
+                <div class="imp-drop-title">航空局のExcelを選択</div>
+                <div class="imp-drop-note">パスワード付きのままで構いません</div>
+                <input type="file" name="file" accept=".xlsx,.xls" required />
+            </div>
+
+            <div class="imp-section-title">🔒 パスワード</div>
+
+            <div class="imp-row">
+                <label class="imp-label" for="SendDate">送信年月日</label>
+                <input type="date" id="SendDate" name="SendDate" value="@Model.SendDate.ToString("yyyy-MM-dd")" />
+                <span class="imp-hint">メールの送信日。通常は対象月の翌月10日前後です</span>
+            </div>
+
+            <div class="imp-row">
+                <label class="imp-label" for="Extension">内線番号</label>
+                <input type="text" id="Extension" name="Extension" value="@Model.Extension" inputmode="numeric" style="width:120px" />
+                <span class="imp-hint">@(string.IsNullOrEmpty(Model.Extension) ? "未登録です。入力して登録してください" : "登録済みの値を表示中")</span>
+            </div>
+
+            <div class="imp-row">
+                <label class="imp-label">組み立て結果</label>
+                <span class="imp-pw" id="pwPreview">********</span>
+                <button type="button" class="imp-btn" id="pwToggle" style="padding:4px 12px;font-size:13px">表示</button>
+            </div>
+
+            <label class="imp-check">
+                <input type="checkbox" name="SaveExtension" value="true" />
+                内線番号を変更したので登録し直す
+            </label>
+
+            <div class="imp-row" style="margin-top:14px">
+                <label class="imp-label" for="ManualPassword">直接指定</label>
+                <input type="password" id="ManualPassword" name="ManualPassword" autocomplete="off" style="width:220px" />
+                <span class="imp-hint">入力するとこちらを優先します（自動組み立てが当たらないとき用）</span>
+            </div>
+
+            <div class="imp-actions">
+                <span class="imp-hint">解除できない場合は送信年月日を@(jafleet.Classes.JcabImport.JcabImportConstant.PASSWORD_RETRY_DAYS)日前まで遡って自動で試します</span>
+                <div style="margin-left:auto;display:flex;gap:10px">
+                    <button type="submit" class="imp-btn" formaction="@Url.Action("Decrypt", "JcabImport")">解除してダウンロード</button>
+                    <button type="submit" class="imp-btn primary">解除して解析</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section ScriptsPartial{
+<script>
+    $(function () {
+        let shown = false;
+
+        const buildPassword = function () {
+            const date = ($('#SendDate').val() || '').replace(/-/g, '');
+            const ext = ($('#Extension').val() || '').trim();
+            if (!date || !ext) { return ''; }
+            return date + '_' + ext;
+        };
+
+        const render = function () {
+            const pw = buildPassword();
+            if (!pw) {
+                $('#pwPreview').text('送信年月日と内線番号を入力してください');
+                return;
+            }
+            $('#pwPreview').text(shown ? pw : '*'.repeat(pw.length));
+        };
+
+        $('#pwToggle').on('click', function () {
+            shown = !shown;
+            $(this).text(shown ? '隠す' : '表示');
+            render();
+        });
+
+        $('#SendDate, #Extension').on('input change', render);
+        render();
+    });
+</script>
+}

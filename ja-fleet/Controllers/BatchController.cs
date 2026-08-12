@@ -1,7 +1,6 @@
 ﻿using EnumStringValues;
 using jafleet.Commons.Constants;
 using jafleet.Commons.EF;
-using jafleet.Util;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,15 +15,6 @@ namespace jafleet.Controllers
         private readonly IServiceScopeFactory _services;
 
         public BatchController(IServiceScopeFactory serviceScopeFactory) => _services = serviceScopeFactory;
-
-        public IActionResult Index()
-        {
-            if (!CookieUtil.IsAdmin(HttpContext))
-            {
-                return NotFound();
-            }
-            return View();
-        }
 
         [Authorize]
         [HttpPost]
@@ -49,6 +39,7 @@ namespace jafleet.Controllers
             return Content("RefreshWorkingStatusAndPhoto Launch!");
         }
 
+        [Authorize]
         public async Task<IActionResult> RefreshPhotoAsync(int? interval,int mode)
         {
             if (jafleet.RefreshPhoto.Processing)

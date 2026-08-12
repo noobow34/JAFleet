@@ -1,0 +1,139 @@
+@using jafleet.Classes.JcabImport
+@model jafleet.Models.JcabImportModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "Excel取込結果";
+    JcabImportResult result = Model.Result!;
+}
+
+@section CssPartial {
+<style>
+/* ===== Excel取込結果 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため remは使わずpxで指定すること。 */
+.imp-page { padding: 16px 0 60px; }
+.imp-page h2 { margin: 0 0 14px; font-size: 22px; font-weight: 700; color: #1e293b; }
+
+.imp-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.imp-sum {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 99px; font-size: 14px; font-weight: 600; color: #fff;
+}
+
+.imp-note { font-size: 13px; color: #64748b; margin-bottom: 16px; }
+
+.imp-row {
+    display: grid; grid-template-columns: 74px 64px minmax(0, 1fr);
+    gap: 0 12px; align-items: center;
+    border-bottom: 1px solid #f1f5f9; padding: 10px 6px; font-size: 14px;
+}
+.imp-row:last-child { border-bottom: none; }
+.imp-row.failed { background: #fef2f2; }
+.imp-reg { font-size: 16px; font-weight: 700; color: #1d4ed8; text-decoration: none; }
+.imp-reg:hover { text-decoration: underline; }
+.imp-tag {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px; text-align: center;
+}
+.imp-tag.created { background: #dcfce7; color: #166534; }
+.imp-tag.updated { background: #e0f2fe; color: #075985; }
+.imp-tag.failed  { background: #fee2e2; color: #991b1b; }
+.imp-detail { font-size: 13px; color: #475569; }
+.imp-detail.error { color: #b91c1c; font-weight: 600; }
+
+.imp-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 6px 12px; margin-bottom: 20px;
+}
+
+.imp-btn {
+    display: inline-flex; align-items: center; padding: 7px 16px; border-radius: 6px;
+    border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.imp-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.imp-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.imp-btn.primary:hover { background: #1e293b; color: #fff; }
+
+.imp-empty { font-size: 14px; color: #94a3b8; padding: 16px 6px; }
+
+@@media (max-width: 600px) {
+    .imp-row { grid-template-columns: 1fr 1fr; }
+    .imp-detail { grid-column: 1 / -1; }
+}
+</style>
+}
+
+<div class="imp-page">
+    <h2>📥 Excel取込結果</h2>
+
+    <div class="imp-summary">
+        <span class="imp-sum" style="background:#22c55e">新規登録 @result.CreatedCount</span>
+        <span class="imp-sum" style="background:#3b82f6">更新 @result.UpdatedCount</span>
+        @if (result.FailedCount > 0)
+        {
+            <span class="imp-sum" style="background:#ef4444">失敗 @result.FailedCount</span>
+        }
+    </div>
+
+    <div class="imp-note">
+        @Model.FileName
+        @{
+            int historyCount = result.Rows.Count(r => r.HistoryWritten);
+        }
+        @($" ／ 更新前の内容を履歴に残したもの {historyCount} 件")
+    </div>
+
+    <div class="imp-card">
+        @if (!result.Rows.Any())
+        {
+            <div class="imp-empty">取込対象が選択されていませんでした。</div>
+        }
+        @foreach (JcabImportResultRow row in result.Rows.OrderBy(r => r.Success).ThenBy(r => r.RegistrationNumber, StringComparer.Ordinal))
+        {
+            <div class="imp-row @(row.Success ? "" : "failed")">
+                <div>
+                    @if (row.Success)
+                    {
+                        <a class="imp-reg" href="/AD/@row.RegistrationNumber" target="_blank">@row.RegistrationNumber</a>
+                    }
+                    else
+                    {
+                        <span class="imp-reg" style="color:#0f172a">@row.RegistrationNumber</span>
+                    }
+                </div>
+                <div>
+                    @if (!row.Success)
+                    {
+                        <span class="imp-tag failed">失敗</span>
+                    }
+                    else if (row.IsNew)
+                    {
+                        <span class="imp-tag created">新規</span>
+                    }
+                    else
+                    {
+                        <span class="imp-tag updated">更新</span>
+                    }
+                </div>
+                <div class="imp-detail @(row.Success ? "" : "error")">
+                    @if (row.Success)
+                    {
+                        @string.Join(" / ", new[] { row.Airline, row.TypeDetailName, row.OperationName, row.RegisterDate }.Where(s => !string.IsNullOrEmpty(s)))
+                    }
+                    else
+                    {
+                        @row.Message
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        @if (!string.IsNullOrEmpty(Model.CacheKey))
+        {
+            <a class="imp-btn" href="@Url.Action("Download", "JcabImport", new { id = Model.CacheKey })">復号版をダウンロード</a>
+        }
+        <a class="imp-btn primary" href="@Url.Action("Index", "JcabImport", new { fromAdmin = Model.FromAdmin })">別のファイルを取り込む</a>
+    </div>
+</div>

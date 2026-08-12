@@ -95,7 +95,7 @@
                         <li><a href="#" data-toggle="modal" data-target="#sendMessage">📬</a></li>
                         @if (Context.User.Identity!.IsAuthenticated){
                             <li><a href="/Account/Logout" id="logout-link">🔓</a></li>
-                            <li><a href="/ql" id="ql-link">🔗</a></li>
+                            <li><a href="/Admin" id="admin-link" title="管理コンソール">🛠</a></li>
                         }else{
                             <li><a href="/Account/Login" id="login-link" style="display: none;">🔒</a></li>
                         }
@@ -110,6 +110,13 @@
     <div class="modal fade" id="donate" tabindex="-1" data-loadtarget="@Url.Content("~/donate.html?q=20191231")" data-loaded=""></div>
 
     <div class="container">
+        @{
+            var backModel = Model as jafleet.Models.BaseModel;
+        }
+        @if (backModel is { FromAdmin: true })
+        {
+            @await Html.PartialAsync("_BackToAdmin", backModel)
+        }
         @RenderBody()
     </div>
 

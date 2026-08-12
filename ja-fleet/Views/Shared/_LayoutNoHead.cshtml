@@ -29,6 +29,13 @@
 
 <body>
     <div class="container">
+        @{
+            var backModel = Model as jafleet.Models.BaseModel;
+        }
+        @if (backModel is { FromAdmin: true })
+        {
+            @await Html.PartialAsync("_BackToAdmin", backModel)
+        }
         @RenderBody()
     </div>
 
