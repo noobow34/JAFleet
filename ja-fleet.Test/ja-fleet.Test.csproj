@@ -13,7 +13,7 @@
     <PackageReference Include="MSTest" Version="4.2.3" />
     <PackageReference Include="NuGet.Packaging" Version="7.6.0" />
     <PackageReference Include="NuGet.Protocol" Version="7.6.0" />
-    <PackageReference Include="Quartz" Version="3.18.1" />
+    <PackageReference Include="Quartz" Version="3.18.2" />
   </ItemGroup>
 
   <ItemGroup>
