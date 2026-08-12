@@ -2,11 +2,11 @@ namespace jafleet.Classes.JcabImport
 {
     public static class JcabImportConstant
     {
-        /// <summary>codeテーブルに取込設定を持たせるためのcode_type</summary>
-        public const string CODE_TYPE = "IMPORT";
+        /// <summary>codeテーブルに取込設定を持たせるためのcode_type。この列は3桁までしか入らない。</summary>
+        public const string CODE_TYPE = "IMP";
 
-        /// <summary>内線番号のキー</summary>
-        public const string KEY_EXTENSION = "EXTENSION";
+        /// <summary>内線番号のキー。keyもOPEなど既存コードと同じく1文字で運用する。</summary>
+        public const string KEY_EXTENSION = "1";
 
         public const string XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
