@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "";
 }
 <!DOCTYPE html>
@@ -27,6 +27,9 @@
             $('#logButton').click(function () {
                 location.href = 'https://ja-fleet.noobow.me/log';
             });
+            $('#importButton').click(function () {
+                location.href = '/JcabImport';
+            });
             $.ajax({
                 url: "/Master/GetAllReg",
                 dataType: "json",
@@ -48,7 +51,7 @@
         <div class="input-group" style="width:200px;margin-top:15px;">
             <input type="text" id="reg" class="form-control">
             <span class="input-group-btn">
-                <input id="eButton" type="button" value="E" class="btn" style="margin-left:5px"><input id="adButton" type="button" value="AD" class="btn" style="margin-left:5px"><input id="logButton" type="button" value="log" class="btn" style="margin-left:5px">
+                <input id="eButton" type="button" value="E" class="btn" style="margin-left:5px"><input id="adButton" type="button" value="AD" class="btn" style="margin-left:5px"><input id="logButton" type="button" value="log" class="btn" style="margin-left:5px"><input id="importButton" type="button" value="取込" class="btn" style="margin-left:5px">
             </span>
         </div>
     </div>

@@ -20,6 +20,9 @@ Console.WriteLine($"ADMIN_KEY:{adminKey.Length}");
 string adminValue = Environment.GetEnvironmentVariable("ADMIN_VALUE") ?? "";
 Console.WriteLine($"ADMIN_VALUE:{adminValue.Length}");
 
+//EPPlusは非商用ライセンス。設定しないと初回利用時に例外になる
+OfficeOpenXml.ExcelPackage.License.SetNonCommercialPersonal("noobow34");
+
 var builder = WebApplication.CreateBuilder(args);
 var config = new ConfigurationBuilder().SetBasePath(Environment.CurrentDirectory).AddJsonFile("appsettings.json").Build();
 
@@ -31,6 +34,7 @@ builder.Services.Configure<WebEncoderOptions>(options =>
     options.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All);
 });
 builder.Services.AddControllersWithViews();
+builder.Services.AddMemoryCache();
 builder.Services.AddProgressiveWebApp();
 builder.Services.AddAuth0WebAppAuthentication(options =>
 {

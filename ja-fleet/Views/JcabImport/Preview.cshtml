@@ -1,0 +1,428 @@
+@using jafleet.Classes.JcabImport
+@model jafleet.Models.JcabImportModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "Excel取込プレビュー";
+    ImportPreview preview = Model.Preview!;
+
+    var typeColors = new Dictionary<JcabRecordType, string>
+    {
+        { JcabRecordType.New,         "#22c55e" },
+        { JcabRecordType.Delete,      "#ef4444" },
+        { JcabRecordType.Transfer,    "#3b82f6" },
+        { JcabRecordType.Change,      "#f59e0b" },
+        { JcabRecordType.Reservation, "#8b5cf6" },
+        { JcabRecordType.Cancel,      "#64748b" },
+    };
+
+    string Summarize(JcabRecord r) => r.RecordType switch
+    {
+        JcabRecordType.New => string.Join(" / ", new[] { r.Owner, r.TypeDisplay, r.SerialNumber == null ? null : $"sn {r.SerialNumber}", r.BasePlace }.Where(s => !string.IsNullOrEmpty(s))),
+        JcabRecordType.Delete => string.Join(" / ", new[] { r.Owner, r.Reason }.Where(s => !string.IsNullOrEmpty(s))),
+        JcabRecordType.Transfer => $"{r.PreviousOwner ?? "―"} → {r.Owner ?? "―"}",
+        JcabRecordType.Change => $"{r.ChangeItem}：{r.ChangeOld ?? "―"} → {r.ChangeNew ?? "―"}",
+        _ => string.Join(" / ", new[] { r.Owner, r.TypeDisplay, r.ScheduledDate == null ? null : $"納入予定 {r.ScheduledDate}" }.Where(s => !string.IsNullOrEmpty(s))),
+    };
+
+    var groups = new (ImportCategory Category, string Id, string Icon, string Title, string Note, bool Collapsed)[]
+    {
+        (ImportCategory.Ready, "group-ready", "✔", "自動判定OK", "マスタと突き合わせできました", false),
+        (ImportCategory.Transfer, "group-transfer", "⇄", "移転登録", "所有者が変わりました。航空会社を変えるかどうか確認してください", false),
+        (ImportCategory.NeedsReview, "group-review", "⚠", "要確認", "航空会社や詳細型式を自動判定できませんでした", true),
+        (ImportCategory.OutOfScope, "group-outofscope", "－", "対象外", "jafleetで更新する項目がないもの", true),
+    };
+
+    int rowIndex = 0;
+}
+
+@section CssPartial {
+<style>
+/* ===== Excel取込プレビュー =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため remは使わずpxで指定すること。 */
+.imp-page { padding: 16px 0 90px; }
+.imp-page h2 { margin: 0; font-size: 22px; font-weight: 700; color: #1e293b; }
+
+.imp-filebar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 12px 16px; margin: 14px 0 16px;
+}
+.imp-filename { font-size: 15px; font-weight: 700; color: #1e293b; }
+.imp-filemeta { font-size: 13px; color: #64748b; }
+
+.imp-btn {
+    display: inline-flex; align-items: center; padding: 7px 16px; border-radius: 6px;
+    border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer;
+}
+.imp-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.imp-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.imp-btn.primary:hover { background: #1e293b; color: #fff; }
+
+.imp-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.imp-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 13px 5px 12px; border-radius: 99px;
+    font-size: 14px; font-weight: 600; color: #fff;
+}
+.imp-chip .cnt { background: rgba(0,0,0,.22); border-radius: 99px; padding: 1px 8px; font-size: 13px; }
+
+.imp-warn {
+    border: 1px solid #fde68a; background: #fffbeb; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #92400e; line-height: 1.7;
+}
+
+.imp-group { margin-bottom: 26px; }
+.imp-group-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.imp-group-title { font-size: 16px; font-weight: 700; color: #334155; }
+.imp-group-note { font-size: 13px; color: #94a3b8; }
+.imp-group-tools { margin-left: auto; display: flex; gap: 8px; }
+
+.imp-item {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 12px 16px; margin-bottom: 8px;
+}
+.imp-item.review { border-color: #fcd34d; }
+.imp-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.imp-item-head input[type=checkbox] { width: 16px; height: 16px; margin: 0; }
+.imp-reg {
+    font-size: 17px; font-weight: 700; color: #1d4ed8; text-decoration: none; white-space: nowrap;
+}
+.imp-reg:hover { text-decoration: underline; }
+.imp-reg.plain { color: #0f172a; }
+.imp-badge {
+    display: inline-block; font-size: 11px; font-weight: 700; color: #fff;
+    padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+.imp-state {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+.imp-state.exist { background: #e0f2fe; color: #075985; }
+.imp-state.new   { background: #dcfce7; color: #166534; }
+.imp-date { margin-left: auto; font-size: 13px; color: #94a3b8; white-space: nowrap; }
+
+.imp-event { font-size: 13px; color: #475569; line-height: 1.7; padding-left: 2px; }
+.imp-event .ev-type { font-weight: 600; color: #334155; }
+.imp-event .ev-date { color: #94a3b8; font-family: monospace; margin-right: 6px; }
+
+/* その場編集フォーム */
+.imp-edit {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 8px 14px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0;
+}
+.imp-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.imp-field label { margin: 0; font-size: 12px; font-weight: 600; color: #64748b; }
+.imp-field select, .imp-field input[type=text] {
+    height: 32px; max-width: 100%; padding: 3px 8px; font-size: 13px;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b;
+}
+.imp-field .imp-was { font-size: 11px; color: #94a3b8; }
+.imp-field.wide { grid-column: 1 / -1; }
+
+/* DBの現在値から変わる項目 */
+.imp-field.changed label { color: #b45309; }
+.imp-field.changed select,
+.imp-field.changed input[type=text] { border-color: #f59e0b; background: #fffbeb; }
+.imp-field .imp-was.changed { color: #b45309; font-weight: 600; }
+.imp-field label.imp-inline {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600; color: #475569;
+}
+.imp-field label.imp-inline input[type=checkbox] { width: 15px; height: 15px; margin: 0; }
+
+.imp-meta { font-size: 13px; color: #64748b; margin-top: 6px; display: flex; gap: 14px; flex-wrap: wrap; }
+.imp-meta b { color: #334155; font-weight: 600; }
+.imp-reason { font-size: 13px; color: #b45309; margin-top: 6px; }
+
+.imp-empty { font-size: 13px; color: #94a3b8; padding: 8px 2px; }
+
+/* 実行バー */
+.imp-footer {
+    position: sticky; bottom: 0; z-index: 10;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: #fff; border-top: 2px solid #e2e8f0;
+    padding: 12px 4px; margin-top: 20px;
+}
+.imp-footer label { margin: 0; font-size: 13px; color: #475569; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.imp-footer .imp-count { font-size: 14px; color: #0f172a; font-weight: 700; }
+
+@@media (max-width: 600px) {
+    .imp-date { margin-left: 0; width: 100%; }
+    .imp-edit { grid-template-columns: 1fr; }
+}
+</style>
+}
+
+<div class="imp-page">
+    <h2>📥 Excel取込プレビュー</h2>
+
+    <div class="imp-filebar">
+        <span class="imp-filename">@Model.FileName</span>
+        <span class="imp-filemeta">
+            @if (preview.Parsed.TargetMonth != null)
+            {
+                @($"対象月 {preview.Parsed.TargetMonth:yyyy年M月}　")
+            }
+            @($"{preview.Parsed.Records.Count}件のレコード / {preview.Items.Count}レジ")
+        </span>
+        <span class="imp-filemeta">
+            @if (!Model.WasEncrypted)
+            {
+                <text>暗号化なし</text>
+            }
+            else if (Model.MatchedSendDate != null)
+            {
+                @($"解除済み（送信年月日 {Model.MatchedSendDate:yyyy/MM/dd}）")
+            }
+        </span>
+        <span style="margin-left:auto;display:flex;gap:10px">
+            @if (!string.IsNullOrEmpty(Model.CacheKey))
+            {
+                <a class="imp-btn" href="@Url.Action("Download", "JcabImport", new { id = Model.CacheKey })">復号版をダウンロード</a>
+            }
+            <a class="imp-btn primary" href="@Url.Action("Index", "JcabImport")">別のファイル</a>
+        </span>
+    </div>
+
+    @* 区分ごとの件数 *@
+    <div class="imp-stats">
+        @foreach (JcabRecordType type in Enum.GetValues<JcabRecordType>())
+        {
+            int count = preview.Parsed.CountOf(type);
+            <span class="imp-chip" style="background:@typeColors[type]">
+                @type.ToJapanese() <span class="cnt">@count</span>
+            </span>
+        }
+    </div>
+
+    @if (preview.Parsed.Warnings.Any())
+    {
+        <div class="imp-warn">
+            @foreach (string warning in preview.Parsed.Warnings)
+            {
+                <div>⚠ @warning</div>
+            }
+        </div>
+    }
+
+    <form method="post" asp-controller="JcabImport" asp-action="Execute">
+        <input type="hidden" name="CacheKey" value="@Model.CacheKey" />
+        <input type="hidden" name="FileName" value="@Model.FileName" />
+
+        @foreach (var group in groups)
+        {
+            List<ImportPreviewItem> items = preview.Of(group.Category).ToList();
+            bool collapsed = group.Collapsed;
+            <div class="imp-group">
+                <div class="imp-group-head">
+                    <span class="imp-group-title">@group.Icon @group.Title</span>
+                    <span class="imp-group-note">@items.Count 件 — @group.Note</span>
+                    <span class="imp-group-tools">
+                        @if (items.Count > 0 && group.Category != ImportCategory.OutOfScope)
+                        {
+                            <button type="button" class="imp-btn" style="padding:4px 12px;font-size:13px"
+                                    data-select-target="@group.Id" data-select-value="1">全選択</button>
+                            <button type="button" class="imp-btn" style="padding:4px 12px;font-size:13px"
+                                    data-select-target="@group.Id" data-select-value="0">全解除</button>
+                        }
+                        @if (collapsed && items.Count > 0)
+                        {
+                            <button type="button" class="imp-btn" style="padding:4px 14px;font-size:13px"
+                                    data-toggle-target="@group.Id">表示</button>
+                        }
+                    </span>
+                </div>
+
+                @if (items.Count == 0)
+                {
+                    <div class="imp-empty">該当なし</div>
+                }
+
+                <div id="@group.Id" style="@(collapsed ? "display:none" : "")">
+                    @foreach (ImportPreviewItem item in items)
+                    {
+                        int index = rowIndex;
+                        if (item.Editable)
+                        {
+                            rowIndex++;
+                        }
+                        <div class="imp-item @(group.Category == ImportCategory.NeedsReview ? "review" : "")">
+                            <div class="imp-item-head">
+                                @if (item.Editable)
+                                {
+                                    <input type="checkbox" name="Rows[@index].Selected" value="true" class="imp-select"
+                                           checked="@item.SelectedByDefault" />
+                                    <input type="hidden" name="Rows[@index].RegistrationNumber" value="@item.RegistrationNumber" />
+                                }
+                                @if (item.ExistsInJafleet)
+                                {
+                                    <a class="imp-reg" href="/AD/@item.RegistrationNumber" target="_blank">@item.RegistrationNumber</a>
+                                    <span class="imp-state exist">既存</span>
+                                }
+                                else
+                                {
+                                    <span class="imp-reg plain">@item.RegistrationNumber</span>
+                                    <span class="imp-state new">未登録</span>
+                                }
+                                @foreach (JcabRecord ev in item.Events)
+                                {
+                                    <span class="imp-badge" style="background:@typeColors[ev.RecordType]">@ev.RecordType.ToJapanese()</span>
+                                }
+                                <span class="imp-date">@item.LatestDate</span>
+                            </div>
+
+                            @foreach (JcabRecord ev in item.Events)
+                            {
+                                <div class="imp-event">
+                                    <span class="ev-date">@(ev.RegisterDate ?? ev.RegisterDateRaw ?? "日付不明")</span>
+                                    <span class="ev-type">@ev.RecordType.ToJapanese()</span>
+                                    <span>@Summarize(ev)</span>
+                                </div>
+                            }
+
+                            @if (item.Editable)
+                            {
+                                @* 既存機について、初期値がDBの現在値と変わる項目は色付けして変更前を出す *@
+                                string airlineName(string? code) => Model.AirlineList!.FirstOrDefault(a => a.AirlineCode == code)?.AirlineNameJpShort ?? code ?? "―";
+                                string operationName(string? code) => Model.OperationList!.FirstOrDefault(o => o.Key == code)?.Value ?? code ?? "―";
+
+                                bool airlineChanged = item.ExistsInJafleet && item.CurrentAirline != item.EditAirline;
+                                bool typeChanged = item.ExistsInJafleet && item.CurrentTypeDetailId != item.EditTypeDetailId;
+                                bool operationChanged = item.ExistsInJafleet && item.CurrentOperationCode != item.EditOperationCode;
+                                bool registerDateChanged = item.ExistsInJafleet && item.CurrentRegisterDate != item.EditRegisterDate;
+                                bool serialChanged = item.ExistsInJafleet && item.CurrentSerialNumber != item.EditSerialNumber;
+                                bool remarksChanged = item.ExistsInJafleet && item.CurrentRemarks != item.EditRemarks;
+
+                                <div class="imp-edit">
+                                    <div class="imp-field @(airlineChanged ? "changed" : "")">
+                                        <label>航空会社</label>
+                                        <select name="Rows[@index].Airline">
+                                            <option value="">　</option>
+                                            @foreach (var airline in Model.AirlineList!)
+                                            {
+                                                <option value="@airline.AirlineCode" selected="@(airline.AirlineCode == item.EditAirline)">@airline.AirlineNameJpShort</option>
+                                            }
+                                        </select>
+                                        @if (airlineChanged)
+                                        {
+                                            <span class="imp-was changed">変更前: @airlineName(item.CurrentAirline)</span>
+                                        }
+                                    </div>
+
+                                    <div class="imp-field @(typeChanged ? "changed" : "")">
+                                        <label>詳細型式</label>
+                                        <select name="Rows[@index].TypeDetailId">
+                                            <option value="">　</option>
+                                            @foreach (var typeDetail in Model.TypeDetailList!)
+                                            {
+                                                <option value="@typeDetail.TypeDetailId" selected="@(typeDetail.TypeDetailId == item.EditTypeDetailId)">@typeDetail.TypeDetailName</option>
+                                            }
+                                        </select>
+                                        @if (typeChanged)
+                                        {
+                                            <span class="imp-was changed">変更前: @(item.CurrentTypeDetailName ?? "―")</span>
+                                        }
+                                        @if (!string.IsNullOrEmpty(item.TypeDisplay))
+                                        {
+                                            <span class="imp-was">Excel: @item.TypeDisplay</span>
+                                        }
+                                    </div>
+
+                                    <div class="imp-field @(operationChanged ? "changed" : "")">
+                                        <label>運用状況</label>
+                                        <select name="Rows[@index].OperationCode">
+                                            <option value="">　</option>
+                                            @foreach (var operation in Model.OperationList!)
+                                            {
+                                                <option value="@operation.Key" selected="@(operation.Key == item.EditOperationCode)">@operation.Value</option>
+                                            }
+                                        </select>
+                                        @if (operationChanged)
+                                        {
+                                            <span class="imp-was changed">変更前: @operationName(item.CurrentOperationCode)</span>
+                                        }
+                                    </div>
+
+                                    <div class="imp-field @(registerDateChanged ? "changed" : "")">
+                                        <label>登録年月日</label>
+                                        <input type="text" name="Rows[@index].RegisterDate" value="@item.EditRegisterDate" placeholder="yyyy/MM/dd" />
+                                        @if (registerDateChanged)
+                                        {
+                                            <span class="imp-was changed">変更前: @(item.CurrentRegisterDate ?? "―")</span>
+                                        }
+                                    </div>
+
+                                    <div class="imp-field @(serialChanged ? "changed" : "")">
+                                        <label>製造番号</label>
+                                        <input type="text" name="Rows[@index].SerialNumber" value="@item.EditSerialNumber" />
+                                        @if (serialChanged)
+                                        {
+                                            <span class="imp-was changed">変更前: @(item.CurrentSerialNumber ?? "―")</span>
+                                        }
+                                    </div>
+
+                                    <div class="imp-field @(remarksChanged ? "changed" : "")">
+                                        <label>備考</label>
+                                        <input type="text" name="Rows[@index].Remarks" value="@item.EditRemarks" />
+                                        @if (remarksChanged)
+                                        {
+                                            <span class="imp-was changed">変更前: @(item.CurrentRemarks ?? "―")</span>
+                                        }
+                                    </div>
+
+                                    <div class="imp-field wide">
+                                        <label class="imp-inline">
+                                            <input type="checkbox" name="Rows[@index].NotUpdateDate" value="true" class="imp-nohistory" />
+                                            履歴を作成しない
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (item.Reasons.Any())
+                            {
+                                <div class="imp-reason">@string.Join(" / ", item.Reasons)</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="imp-footer">
+            <label><input type="checkbox" id="noHistoryAll" /> 全行「履歴を作成しない」</label>
+            <span class="imp-count"><span id="selectedCount">0</span> 件を取込</span>
+            <button type="submit" class="imp-btn primary" style="margin-left:auto">取込を実行</button>
+        </div>
+    </form>
+</div>
+
+@section ScriptsPartial{
+<script>
+    $(function () {
+        const refreshCount = function () {
+            $('#selectedCount').text($('.imp-select:checked').length);
+        };
+
+        $('[data-toggle-target]').on('click', function () {
+            const target = $('#' + $(this).data('toggle-target'));
+            target.toggle();
+            $(this).text(target.is(':visible') ? '隠す' : '表示');
+        });
+
+        $('[data-select-target]').on('click', function () {
+            const target = $('#' + $(this).data('select-target'));
+            target.find('.imp-select').prop('checked', $(this).data('select-value') === 1);
+            refreshCount();
+        });
+
+        $('#noHistoryAll').on('change', function () {
+            $('.imp-nohistory').prop('checked', $(this).prop('checked'));
+        });
+
+        $(document).on('change', '.imp-select', refreshCount);
+        refreshCount();
+    });
+</script>
+}

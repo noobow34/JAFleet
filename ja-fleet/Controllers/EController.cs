@@ -1,10 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using jafleet.Classes;
 using jafleet.Manager;
 using jafleet.Models;
 using jafleet.Commons.EF;
 using jafleet.Util;
-using jafleet.Commons.Constants;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 
 namespace jafleet.Controllers
@@ -76,46 +75,7 @@ namespace jafleet.Controllers
         {
             try
             {
-                DateTime storeDate = DateTime.Now;
-                string? reg = model.Aircraft!.RegistrationNumber;
-                var origin = _context.Aircrafts.AsNoTracking().Where(a => a.RegistrationNumber == reg).FirstOrDefault();
-                if (!model.NotUpdateDate || model.IsNew)
-                {
-                    model.Aircraft.UpdateTime = storeDate;
-                }
-                model.Aircraft.ActualUpdateTime = storeDate;
-                if (model.IsNew)
-                {
-                    model.Aircraft.CreationTime = storeDate;
-                    _context.Aircrafts.Add(model.Aircraft);
-                }
-                else
-                {
-                    if (!model.NotUpdateDate)
-                    {
-                        //Historyにコピー
-                        ILoggerFactory logger = LoggerFactory.Create(builder => builder.AddDebug());
-                        var configuration = new MapperConfiguration(cfg =>
-                        {
-                            cfg.CreateMap<Aircraft, AircraftHistory>();
-                        }, logger);
-                        var mapper = configuration.CreateMapper();
-                        var ah = mapper.Map<AircraftHistory>(origin);
-                        ah.HistoryRegisterAt = storeDate;
-
-                        //HistoryのSEQのMAXを取得
-                        var maxseq = _context.AircraftHistories.AsNoTracking().Where(ahh => ahh.RegistrationNumber == ah.RegistrationNumber).GroupBy(ahh => ahh.RegistrationNumber)
-                                                .Select(ahh => new { maxseq = ahh.Max(x => x.Seq) }).FirstOrDefault();
-                        ah.Seq = (maxseq?.maxseq ?? 0) + 1;
-                        _context.AircraftHistories.Add(ah);
-                    }
-                    _context.Entry(model.Aircraft).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
-                }
-                //デリバリーされたらテストレジはクリア
-                if (!OperationCode.PRE_DELIVERY.Contains(model.Aircraft.OperationCode))
-                {
-                    model.Aircraft.TestRegistration = null;
-                }
+                AircraftStore.Store(_context, model.Aircraft!, model.IsNew, !model.NotUpdateDate, DateTime.Now);
                 _context.SaveChanges();
             }
             catch (Exception ex)
