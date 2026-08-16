@@ -3,6 +3,7 @@ using AngleSharp.Html.Parser;
 using EnumStringValues;
 using jafleet.Commons.Aircraft;
 using jafleet.Commons.Constants;
+using jafleet.Classes;
 using jafleet.Commons.EF;
 using jafleet.Manager;
 using jafleet.Models;
@@ -317,21 +318,24 @@ namespace jafleet
             }
 
             // ======== JSON組み立て ========
+            (string title, SortedDictionary<string, WorkingCheckLogEntryJson> dict)[] sectionSources =
+            [
+                ("テストレジが稼働",   toWorkingTest),
+                ("予約登録が稼働",     toWorking0),
+                ("製造中が稼働",       toWorking1),
+                ("デリバリーが稼働",   toWorking2),
+                ("運用中非稼働が稼働", toWorking3),
+                ("退役未抹消が稼働",   toWorking7),
+                ("稼働が非稼働",       toNotWorking),
+                ("整備入り",           mainteStart),
+                ("整備終了",           mainteEnd),
+                ("整備中",             mainteing)
+            ];
+
             var logJson = new WorkingCheckLogJson
             {
                 FinishedAt = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss"),
-                Sections   = BuildSections(
-                    ("テストレジが稼働",   toWorkingTest),
-                    ("予約登録が稼働",     toWorking0),
-                    ("製造中が稼働",       toWorking1),
-                    ("デリバリーが稼働",   toWorking2),
-                    ("運用中非稼働が稼働", toWorking3),
-                    ("退役未抹消が稼働",   toWorking7),
-                    ("稼働が非稼働",       toNotWorking),
-                    ("整備入り",           mainteStart),
-                    ("整備終了",           mainteEnd),
-                    ("整備中",             mainteing)
-                )
+                Sections   = BuildSections(sectionSources)
             };
 
             var workingCheckLog = new Log
@@ -342,30 +346,28 @@ namespace jafleet
             };
             context.Logs.Add(workingCheckLog);
 
-            // ======== Slack通知テキスト（変更なし） ========
+            // ======== Slack通知（BlockKit） ========
             sw.Stop();
-            string nt = $"RefreshWorkingStatus正常終了:{DateTime.Now:yyyy/MM/dd HH:mm:ss}\n" +
-                        $"処理時間: {sw.Elapsed},待機秒数: {intervalSum / 1000.0}\n" +
-                        (toWorkingTest.Count > 0 ? $"テストレジが稼働:{toWorkingTest.Count}件\n" : string.Empty) +
-                        (toWorking0.Count > 0    ? $"予約登録が稼働:{toWorking0.Count}件\n"    : string.Empty) +
-                        (toWorking1.Count > 0    ? $"製造中が稼働:{toWorking1.Count}件\n"      : string.Empty) +
-                        (toWorking2.Count > 0    ? $"デリバリーが稼働:{toWorking2.Count}件\n"  : string.Empty) +
-                        (toWorking3.Count > 0    ? $"運用中非稼働が稼働:{toWorking3.Count}件\n": string.Empty) +
-                        (toWorking7.Count > 0    ? $"退役未抹消が稼働:{toWorking7.Count}件\n"  : string.Empty) +
-                        (toNotWorking.Count > 0  ? $"稼働が非稼働:{toNotWorking.Count}件\n"    : string.Empty) +
-                        (mainteStart.Count > 0   ? $"整備入り:{mainteStart.Count}件\n"         : string.Empty) +
-                        (mainteEnd.Count > 0     ? $"整備終了:{mainteEnd.Count}件\n"           : string.Empty) +
-                        (mainteing.Count > 0     ? $"整備中:{mainteing.Count}件\n"             : string.Empty) +
-                        $@"<https://ja-fleet.noobow.me/WorkingCheckLog/Index/{DateTime.Now:yyyyMMdd}|リンク>";
+            var notify = new WorkingStatusNotifyJson
+            {
+                FinishedAt  = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss"),
+                Elapsed     = sw.Elapsed.ToString(),
+                WaitSeconds = intervalSum / 1000.0,
+                LogDate     = DateTime.Now.ToString("yyyyMMdd"),
+                Sections    = BuildNotifySections(sectionSources)
+            };
 
             if (needsNotify)
-                await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), nt);
+                await SlackUtil.PostAsync(
+                    SlackChannelEnum.jafleet.GetStringValue(),
+                    WorkingStatusSlackMessage.BuildText(notify),
+                    WorkingStatusSlackMessage.BuildBlocks(notify));
 
             var wcNotify = new Log
             {
                 LogDate   = DateTime.Now,
                 LogType   = LogType.WORKING_NOTIFY_TEXT,
-                LogDetail = nt,
+                LogDetail = JsonSerializer.Serialize(notify),
             };
             context.Logs.Add(wcNotify);
             context.SaveChanges();
@@ -386,6 +388,30 @@ namespace jafleet
                         Title   = title,
                         Entries = dict.Values.ToList()
                     });
+            }
+            return result;
+        }
+
+        /// <summary>Slack通知用に空でない区分だけをレジ一覧付きでリスト化するヘルパー</summary>
+        private static List<WorkingStatusNotifySectionJson> BuildNotifySections(
+            params (string title, SortedDictionary<string, WorkingCheckLogEntryJson> dict)[] sections)
+        {
+            var result = new List<WorkingStatusNotifySectionJson>();
+            foreach (var (title, dict) in sections)
+            {
+                if (dict.Count == 0)
+                    continue;
+
+                result.Add(new WorkingStatusNotifySectionJson
+                {
+                    Title = title,
+                    Regs  = dict.Values.Select(e => new WorkingStatusNotifyRegJson
+                    {
+                        Reg  = e.Reg ?? string.Empty,
+                        // テストレジ区分のMarkは"test:レジ"なので、特別塗装・整備通知のマークだけ表示する
+                        Mark = e.Mark is "◎" or "☆" ? e.Mark : null,
+                    }).ToList()
+                });
             }
             return result;
         }

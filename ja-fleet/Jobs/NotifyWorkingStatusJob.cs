@@ -1,4 +1,5 @@
 ﻿using EnumStringValues;
+using jafleet.Classes;
 using jafleet.Commons.Constants;
 using jafleet.Commons.EF;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ namespace jafleet.Jobs
             using JafleetContext jc = new (Options!.Options);
             var log = jc.Logs.Where(l => l.LogType == LogType.WORKING_NOTIFY_TEXT && l.LogDate!.Value.Date == DateTime.Now.Date).OrderByDescending(l => l.LogId).FirstOrDefault();
             if (log != null) {
-                await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), log.LogDetail!);
+                await PostAsync(log.LogDetail!);
             }
             else
             {
@@ -38,7 +39,7 @@ namespace jafleet.Jobs
                     var log2 = jc.Logs.Where(l => l.LogType == LogType.WORKING_NOTIFY_TEXT && l.LogDate!.Value.Date == DateTime.Now.Date).OrderByDescending(l => l.LogId).FirstOrDefault();
                     if (log2 != null)
                     {
-                        await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), log2.LogDetail!);
+                        await PostAsync(log2.LogDetail!);
                     }
                 }
                 else
@@ -46,6 +47,22 @@ namespace jafleet.Jobs
                     await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), "本日はRefreshWorkingStatusAndPhotoが実行されていません。状況を確認してください。");
                 }
             }
+        }
+
+        /// <summary>通知内容のJSONならBlockKitで、旧形式のテキストならそのまま投稿する</summary>
+        private static async Task PostAsync(string logDetail)
+        {
+            var notify = WorkingStatusSlackMessage.TryParse(logDetail);
+            if (notify == null)
+            {
+                await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), logDetail);
+                return;
+            }
+
+            await SlackUtil.PostAsync(
+                SlackChannelEnum.jafleet.GetStringValue(),
+                WorkingStatusSlackMessage.BuildText(notify),
+                WorkingStatusSlackMessage.BuildBlocks(notify));
         }
     }
 }
