@@ -27,11 +27,8 @@ namespace jafleet.Models
         [BindNever]
         public ImportPreview? Preview { get; set; }
 
-        /// <summary>
-        /// 復号済みファイルのキャッシュキー。ダウンロードにも、取込実行時の再解析にも使う。
-        /// プレビューの内容をPOSTで往復させず、キャッシュから解析し直して突き合わせる。
-        /// </summary>
-        public string? CacheKey { get; set; }
+        [BindNever]
+        public string? Message { get; set; }
 
         public string? FileName { get; set; }
 
@@ -44,6 +41,16 @@ namespace jafleet.Models
 
         /// <summary>プレビュー画面で編集した行</summary>
         public List<JcabImportRowModel> Rows { get; set; } = [];
+
+        /// <summary>一時保存のID。プレビューを開いている間ずっと持ち回る。</summary>
+        public int? SessionId { get; set; }
+
+        [BindNever]
+        public DateTime? SavedAt { get; set; }
+
+        /// <summary>再開できる一時保存の一覧（アップロード画面用）</summary>
+        [BindNever]
+        public List<JcabImportSession>? Sessions { get; set; }
 
         [BindNever]
         public JcabImportResult? Result { get; set; }
@@ -84,5 +91,8 @@ namespace jafleet.Models
         /// <summary>/E の「履歴を作成しない」と同じ。チェックすると更新前の内容を履歴に残さず、更新日時も進めない。</summary>
         [Display(Name = "履歴を作成しない")]
         public bool NotUpdateDate { get; set; }
+
+        /// <summary>人がセクションを移動した場合の行き先</summary>
+        public ImportCategory? Category { get; set; }
     }
 }

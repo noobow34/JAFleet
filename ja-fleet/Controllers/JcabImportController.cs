@@ -6,7 +6,6 @@ using jafleet.Models;
 using jafleet.Util;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using OfficeOpenXml;
 
 namespace jafleet.Controllers
@@ -14,22 +13,13 @@ namespace jafleet.Controllers
     /// <summary>
     /// 航空局から届くパスワード付きExcelを取り込む画面。
     /// アップロード→解除→解析→プレビューで内容を確認・編集し、選んだ分だけDBに反映する。
+    /// 解除したファイルと編集内容は一時保存に残るので、途中で離れても再開できる。
     /// </summary>
     public class JcabImportController : Controller
     {
         private readonly JafleetContext _context;
-        private readonly IMemoryCache _cache;
 
-        public JcabImportController(JafleetContext context, IMemoryCache cache)
-        {
-            _context = context;
-            _cache = cache;
-        }
-
-        /// <param name="FileName">アップロードされた元のファイル名</param>
-        /// <param name="DownloadName">復号版をダウンロードするときのファイル名</param>
-        /// <param name="Bytes">復号済みのxlsx</param>
-        private sealed record CachedFile(string FileName, string DownloadName, byte[] Bytes);
+        public JcabImportController(JafleetContext context) => _context = context;
 
         public IActionResult Index([FromQuery] bool fromAdmin)
         {
@@ -43,11 +33,12 @@ namespace jafleet.Controllers
                 Title = "Excel取込",
                 Extension = LoadExtension(),
                 FromAdmin = fromAdmin,
+                Sessions = LoadSessions(),
             };
             return View(model);
         }
 
-        /// <summary>解除して解析し、プレビューを表示する</summary>
+        /// <summary>解除して解析し、一時保存を作ってプレビューを表示する</summary>
         [HttpPost]
         [RequestSizeLimit(30 * 1024 * 1024)]
         public IActionResult Analyze(IFormFile? file, JcabImportModel model)
@@ -61,6 +52,7 @@ namespace jafleet.Controllers
             ExcelOpenResult? opened = OpenUploaded(file, model);
             if (opened == null || !opened.Success)
             {
+                model.Sessions = LoadSessions();
                 return View("Index", model);
             }
 
@@ -70,16 +62,26 @@ namespace jafleet.Controllers
                 JcabParseResult parsed = JcabExcelParser.Parse(package);
                 model.Preview = new ImportPreviewBuilder(_context).Build(parsed);
 
-                //復号版はダウンロードにも、取込実行時の再解析にも使うのでキャッシュに置いておく
-                byte[] decrypted = JcabExcelOpener.ToDecryptedBytes(package);
-                model.CacheKey = Guid.NewGuid().ToString("N");
-                _cache.Set(CacheKeyOf(model.CacheKey),
-                    new CachedFile(model.FileName!, DecryptedFileName(model.FileName), decrypted),
-                    JcabImportConstant.CACHE_LIFETIME);
+                //解除した時点で一時保存を作る。以降はここのファイルを読み直して作業する。
+                JcabImportSession session = new()
+                {
+                    FileName = model.FileName!,
+                    TargetMonth = parsed.TargetMonth?.ToString("yyyy/MM"),
+                    FileData = JcabExcelOpener.ToDecryptedBytes(package),
+                    OverridesJson = JcabRowOverrideSerializer.Serialize([]),
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now,
+                };
+                _context.JcabImportSessions.Add(session);
+                _context.SaveChanges();
+
+                model.SessionId = session.SessionId;
+                model.SavedAt = session.UpdatedAt;
             }
             catch (Exception ex)
             {
                 model.ErrorMessage = $"解析に失敗しました。{ex.Message}";
+                model.Sessions = LoadSessions();
                 return View("Index", model);
             }
 
@@ -87,9 +89,73 @@ namespace jafleet.Controllers
             return View("Preview", model);
         }
 
+        /// <summary>一時保存から作業を再開する</summary>
+        public IActionResult Resume(int id, [FromQuery] bool fromAdmin)
+        {
+            if (!CookieUtil.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            JcabImportModel model = new() { Title = "Excel取込", FromAdmin = fromAdmin, SessionId = id };
+            if (!TryLoadPreview(model, out _))
+            {
+                model.Extension = LoadExtension();
+                model.Sessions = LoadSessions();
+                return View("Index", model);
+            }
+
+            LoadMasterLists(model);
+            return View("Preview", model);
+        }
+
+        /// <summary>編集内容だけを保存して、プレビューに戻る</summary>
+        [HttpPost]
+        public IActionResult Save(JcabImportModel model)
+        {
+            if (!CookieUtil.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            model.Title = "Excel取込";
+            if (!TryLoadPreview(model, out JcabImportSession? session, model.Rows))
+            {
+                model.Extension = LoadExtension();
+                model.Sessions = LoadSessions();
+                return View("Index", model);
+            }
+
+            StoreOverrides(session!, model.Rows);
+            model.SavedAt = session!.UpdatedAt;
+            model.Message = "編集内容を保存しました。";
+
+            LoadMasterLists(model);
+            return View("Preview", model);
+        }
+
+        /// <summary>一時保存を削除する</summary>
+        [HttpPost]
+        public IActionResult DeleteSession(int id, [FromQuery] bool fromAdmin)
+        {
+            if (!CookieUtil.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            JcabImportSession? session = _context.JcabImportSessions.FirstOrDefault(s => s.SessionId == id);
+            if (session != null)
+            {
+                _context.JcabImportSessions.Remove(session);
+                _context.SaveChanges();
+            }
+
+            return RedirectToAction("Index", new { fromAdmin });
+        }
+
         /// <summary>
         /// プレビューで選択・編集された内容をDBに反映する。
-        /// プレビューの中身はPOSTで往復させず、キャッシュに残した復号済みファイルから解析し直して突き合わせる。
+        /// プレビューの中身はPOSTで往復させず、一時保存のファイルから解析し直して突き合わせる。
         /// </summary>
         [HttpPost]
         public IActionResult Execute(JcabImportModel model)
@@ -100,26 +166,21 @@ namespace jafleet.Controllers
             }
 
             model.Title = "Excel取込";
-
-            if (string.IsNullOrEmpty(model.CacheKey) || _cache.Get(CacheKeyOf(model.CacheKey)) is not CachedFile cached)
+            if (!TryLoadPreview(model, out JcabImportSession? session, model.Rows))
             {
-                model.ErrorMessage = "アップロードしたファイルの保持期限が切れました。もう一度アップロードしてください。";
+                model.Extension = LoadExtension();
+                model.Sessions = LoadSessions();
                 return View("Index", model);
             }
 
-            ExcelOpenResult opened = JcabExcelOpener.OpenDecrypted(cached.Bytes);
-            if (!opened.Success)
-            {
-                model.ErrorMessage = opened.ErrorMessage;
-                return View("Index", model);
-            }
+            model.Result = Apply(model, model.Preview!);
 
-            using ExcelPackage package = opened.Package!;
-            ImportPreview preview = new ImportPreviewBuilder(_context).Build(JcabExcelParser.Parse(package));
-
-            model.FileName = cached.FileName;
-            model.Preview = preview;
-            model.Result = Apply(model, preview);
+            //取込できた行に印を付けたうえで編集内容を保存する。再開したときにどこまで済んだか分かる。
+            HashSet<string> imported = model.Result.Rows
+                .Where(r => r.Success)
+                .Select(r => r.RegistrationNumber)
+                .ToHashSet();
+            StoreOverrides(session!, model.Rows, imported);
 
             //機体が増えると航空会社別の型式一覧が変わるのでマスタを読み直す
             if (model.Result.CreatedCount > 0)
@@ -130,6 +191,139 @@ namespace jafleet.Controllers
             LoadMasterLists(model);
             return View("Result", model);
         }
+
+        /// <summary>解析せず、解除したファイルをそのまま返す</summary>
+        [HttpPost]
+        [RequestSizeLimit(30 * 1024 * 1024)]
+        public IActionResult Decrypt(IFormFile? file, JcabImportModel model)
+        {
+            if (!CookieUtil.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            model.Title = "Excel取込";
+            ExcelOpenResult? opened = OpenUploaded(file, model);
+            if (opened == null || !opened.Success)
+            {
+                model.Sessions = LoadSessions();
+                return View("Index", model);
+            }
+
+            using ExcelPackage package = opened.Package!;
+            byte[] decrypted = JcabExcelOpener.ToDecryptedBytes(package);
+            return File(decrypted, JcabImportConstant.XLSX_MIME, DecryptedFileName(model.FileName));
+        }
+
+        /// <summary>一時保存に入っている復号版をダウンロードする</summary>
+        public IActionResult Download(int id)
+        {
+            if (!CookieUtil.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            JcabImportSession? session = _context.JcabImportSessions.AsNoTracking()
+                .FirstOrDefault(s => s.SessionId == id);
+            if (session == null)
+            {
+                return NotFound();
+            }
+
+            return File(session.FileData, JcabImportConstant.XLSX_MIME, DecryptedFileName(session.FileName));
+        }
+
+        /// <summary>
+        /// 一時保存のファイルを解析し直してプレビューを組み立てる。
+        /// 保存済みの編集内容に、画面から送られてきた内容があればそちらを優先して被せる。
+        /// </summary>
+        private bool TryLoadPreview(JcabImportModel model, out JcabImportSession? session,
+                                    List<JcabImportRowModel>? postedRows = null)
+        {
+            session = model.SessionId == null
+                ? null
+                : _context.JcabImportSessions.FirstOrDefault(s => s.SessionId == model.SessionId);
+
+            if (session == null)
+            {
+                model.ErrorMessage = "一時保存が見つかりませんでした。もう一度アップロードしてください。";
+                return false;
+            }
+
+            ExcelOpenResult opened = JcabExcelOpener.OpenDecrypted(session.FileData);
+            if (!opened.Success)
+            {
+                model.ErrorMessage = opened.ErrorMessage;
+                return false;
+            }
+
+            using ExcelPackage package = opened.Package!;
+            Dictionary<string, JcabRowOverride> overrides = JcabRowOverrideSerializer.Deserialize(session.OverridesJson);
+            if (postedRows != null)
+            {
+                overrides = MergeOverrides(overrides, postedRows);
+            }
+
+            model.FileName = session.FileName;
+            model.SavedAt = session.UpdatedAt;
+            model.WasEncrypted = true;
+            model.Preview = new ImportPreviewBuilder(_context).Build(JcabExcelParser.Parse(package), overrides);
+            return true;
+        }
+
+        /// <summary>画面から送られてきた編集内容を保存済みの内容に反映する</summary>
+        private static Dictionary<string, JcabRowOverride> MergeOverrides(
+            Dictionary<string, JcabRowOverride> overrides, List<JcabImportRowModel> rows,
+            HashSet<string>? imported = null)
+        {
+            foreach (JcabImportRowModel row in rows)
+            {
+                if (string.IsNullOrEmpty(row.RegistrationNumber))
+                {
+                    continue;
+                }
+
+                overrides.TryGetValue(row.RegistrationNumber, out JcabRowOverride? previous);
+                overrides[row.RegistrationNumber] = new JcabRowOverride
+                {
+                    Selected = row.Selected,
+                    Airline = row.Airline,
+                    TypeDetailId = row.TypeDetailId,
+                    OperationCode = row.OperationCode,
+                    RegisterDate = row.RegisterDate,
+                    SerialNumber = row.SerialNumber,
+                    Remarks = row.Remarks,
+                    NotUpdateDate = row.NotUpdateDate,
+                    Category = row.Category,
+                    Imported = (previous?.Imported ?? false) || (imported?.Contains(row.RegistrationNumber) ?? false),
+                };
+            }
+            return overrides;
+        }
+
+        private void StoreOverrides(JcabImportSession session, List<JcabImportRowModel> rows, HashSet<string>? imported = null)
+        {
+            Dictionary<string, JcabRowOverride> overrides =
+                MergeOverrides(JcabRowOverrideSerializer.Deserialize(session.OverridesJson), rows, imported);
+
+            session.OverridesJson = JcabRowOverrideSerializer.Serialize(overrides);
+            session.UpdatedAt = DateTime.Now;
+            _context.SaveChanges();
+        }
+
+        private List<JcabImportSession> LoadSessions()
+            => _context.JcabImportSessions.AsNoTracking()
+                .OrderByDescending(s => s.UpdatedAt)
+                .Select(s => new JcabImportSession
+                {
+                    //ファイル本体は一覧に要らないので読まない
+                    SessionId = s.SessionId,
+                    FileName = s.FileName,
+                    TargetMonth = s.TargetMonth,
+                    CreatedAt = s.CreatedAt,
+                    UpdatedAt = s.UpdatedAt,
+                })
+                .ToList();
 
         /// <summary>選択された行を機体情報に反映する。1回のSaveChangesでまとめて確定する。</summary>
         private JcabImportResult Apply(JcabImportModel model, ImportPreview preview)
@@ -210,6 +404,43 @@ namespace jafleet.Controllers
             return null;
         }
 
+        /// <summary>アップロードされたファイルを開く。失敗した場合はmodelにエラーを詰めてnullを返す。</summary>
+        private ExcelOpenResult? OpenUploaded(IFormFile? file, JcabImportModel model)
+        {
+            if (file == null || file.Length == 0)
+            {
+                model.ErrorMessage = "ファイルが選択されていません。";
+                return null;
+            }
+
+            model.FileName = Path.GetFileName(file.FileName);
+
+            byte[] raw;
+            using (MemoryStream ms = new())
+            {
+                file.CopyTo(ms);
+                raw = ms.ToArray();
+            }
+
+            if (model.SaveExtension && !string.IsNullOrWhiteSpace(model.Extension))
+            {
+                StoreExtension(model.Extension.Trim());
+            }
+
+            ExcelOpenResult opened = string.IsNullOrWhiteSpace(model.ManualPassword)
+                ? JcabExcelOpener.Open(raw, model.SendDate, model.Extension?.Trim(), JcabImportConstant.PASSWORD_RETRY_DAYS)
+                : JcabExcelOpener.OpenWithPassword(raw, model.ManualPassword);
+
+            model.WasEncrypted = opened.WasEncrypted;
+            model.MatchedSendDate = opened.MatchedSendDate;
+            if (!opened.Success)
+            {
+                model.ErrorMessage = opened.ErrorMessage;
+            }
+
+            return opened;
+        }
+
         private void LoadMasterLists(JcabImportModel model)
         {
             model.AirlineList = MasterManager.AllAirline;
@@ -271,83 +502,6 @@ namespace jafleet.Controllers
 
             return Json(new { id = created.TypeDetailId, name = created.TypeDetailName });
         }
-
-        /// <summary>解析せず、解除したファイルをそのまま返す</summary>
-        [HttpPost]
-        [RequestSizeLimit(30 * 1024 * 1024)]
-        public IActionResult Decrypt(IFormFile? file, JcabImportModel model)
-        {
-            if (!CookieUtil.IsAdmin(HttpContext))
-            {
-                return NotFound();
-            }
-
-            model.Title = "Excel取込";
-            ExcelOpenResult? opened = OpenUploaded(file, model);
-            if (opened == null || !opened.Success)
-            {
-                return View("Index", model);
-            }
-
-            using ExcelPackage package = opened.Package!;
-            byte[] decrypted = JcabExcelOpener.ToDecryptedBytes(package);
-            return File(decrypted, JcabImportConstant.XLSX_MIME, DecryptedFileName(model.FileName));
-        }
-
-        /// <summary>プレビュー画面から復号版をダウンロードする</summary>
-        public IActionResult Download(string id)
-        {
-            if (!CookieUtil.IsAdmin(HttpContext))
-            {
-                return NotFound();
-            }
-
-            if (string.IsNullOrEmpty(id) || _cache.Get(CacheKeyOf(id)) is not CachedFile cached)
-            {
-                return NotFound();
-            }
-
-            return File(cached.Bytes, JcabImportConstant.XLSX_MIME, cached.DownloadName);
-        }
-
-        /// <summary>アップロードされたファイルを開く。失敗した場合はmodelにエラーを詰めてnullを返す。</summary>
-        private ExcelOpenResult? OpenUploaded(IFormFile? file, JcabImportModel model)
-        {
-            if (file == null || file.Length == 0)
-            {
-                model.ErrorMessage = "ファイルが選択されていません。";
-                return null;
-            }
-
-            model.FileName = Path.GetFileName(file.FileName);
-
-            byte[] raw;
-            using (MemoryStream ms = new())
-            {
-                file.CopyTo(ms);
-                raw = ms.ToArray();
-            }
-
-            if (model.SaveExtension && !string.IsNullOrWhiteSpace(model.Extension))
-            {
-                StoreExtension(model.Extension.Trim());
-            }
-
-            ExcelOpenResult opened = string.IsNullOrWhiteSpace(model.ManualPassword)
-                ? JcabExcelOpener.Open(raw, model.SendDate, model.Extension?.Trim(), JcabImportConstant.PASSWORD_RETRY_DAYS)
-                : JcabExcelOpener.OpenWithPassword(raw, model.ManualPassword);
-
-            model.WasEncrypted = opened.WasEncrypted;
-            model.MatchedSendDate = opened.MatchedSendDate;
-            if (!opened.Success)
-            {
-                model.ErrorMessage = opened.ErrorMessage;
-            }
-
-            return opened;
-        }
-
-        private static string CacheKeyOf(string id) => $"jcabimport:{id}";
 
         private static string DecryptedFileName(string? original)
         {

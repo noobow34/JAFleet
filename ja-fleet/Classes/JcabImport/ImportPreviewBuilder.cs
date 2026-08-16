@@ -53,7 +53,21 @@ namespace jafleet.Classes.JcabImport
 
         public string? SuggestedTypeDetailName { get; set; }
 
+        /// <summary>実際に表示するセクション。人がセクションを移動した場合はその行き先。</summary>
         public ImportCategory Category { get; set; }
+
+        /// <summary>自動判定の結果。人が移動したかどうかの判別に使う。</summary>
+        public ImportCategory AutoCategory { get; set; }
+
+        public bool MovedByUser => Category != AutoCategory;
+
+        /// <summary>取込対象としてチェックが入っているか</summary>
+        public bool Selected { get; set; }
+
+        /// <summary>この一時保存の中で取込済みになったか</summary>
+        public bool Imported { get; set; }
+
+        public bool NotUpdateDate { get; set; }
 
         /// <summary>要確認になった理由</summary>
         public List<string> Reasons { get; set; } = [];
@@ -75,12 +89,6 @@ namespace jafleet.Classes.JcabImport
 
         /// <summary>現在の運用状況（表示用）</summary>
         public string? CurrentOperationCode { get; set; }
-
-        /// <summary>初期状態でチェックを入れるか</summary>
-        public bool SelectedByDefault => Category == ImportCategory.Ready;
-
-        /// <summary>編集UIを出すか。対象外は取込対象にしない。</summary>
-        public bool Editable => Category != ImportCategory.OutOfScope;
     }
 
     public class ImportPreview
@@ -105,7 +113,8 @@ namespace jafleet.Classes.JcabImport
 
         public ImportPreviewBuilder(JafleetContext context) => _context = context;
 
-        public ImportPreview Build(JcabParseResult parsed)
+        /// <param name="overrides">一時保存から復元する編集内容。レジをキーにする。</param>
+        public ImportPreview Build(JcabParseResult parsed, Dictionary<string, JcabRowOverride>? overrides = null)
         {
             ImportPreview preview = new() { Parsed = parsed };
 
@@ -170,6 +179,15 @@ namespace jafleet.Classes.JcabImport
                 //分類はフォーム初期値まで決めてから行う（初期値が埋まらない項目が要確認の理由になる）
                 BuildEditDefaults(item, aircraft);
                 Classify(item, latest);
+                item.AutoCategory = item.Category;
+                item.Selected = item.Category == ImportCategory.Ready;
+
+                //一時保存から再開した場合は、自動判定の上に人が触った内容を被せる
+                if (overrides != null && overrides.TryGetValue(group.Key, out JcabRowOverride? saved))
+                {
+                    ApplyOverride(item, saved);
+                }
+
                 preview.Items.Add(item);
             }
 
@@ -179,6 +197,27 @@ namespace jafleet.Classes.JcabImport
                 .ToList();
 
             return preview;
+        }
+
+        /// <summary>保存されていた編集内容を自動判定の上に反映する</summary>
+        private static void ApplyOverride(ImportPreviewItem item, JcabRowOverride saved)
+        {
+            item.Selected = saved.Selected;
+            item.Imported = saved.Imported;
+            item.NotUpdateDate = saved.NotUpdateDate;
+
+            //nullは「触っていない」を意味するので自動判定の値をそのまま残す
+            item.EditAirline = saved.Airline ?? item.EditAirline;
+            item.EditTypeDetailId = saved.TypeDetailId ?? item.EditTypeDetailId;
+            item.EditOperationCode = saved.OperationCode ?? item.EditOperationCode;
+            item.EditRegisterDate = saved.RegisterDate ?? item.EditRegisterDate;
+            item.EditSerialNumber = saved.SerialNumber ?? item.EditSerialNumber;
+            item.EditRemarks = saved.Remarks ?? item.EditRemarks;
+
+            if (saved.Category != null)
+            {
+                item.Category = saved.Category.Value;
+            }
         }
 
         /// <summary>

@@ -1,3 +1,5 @@
+@using jafleet.Classes.JcabImport
+@using jafleet.Commons.EF
 @model jafleet.Models.JcabImportModel
 @{
     Layout = "_LayoutNoHead";
@@ -65,6 +67,16 @@
 .imp-error-title { font-size: 14px; font-weight: 700; color: #b91c1c; margin-bottom: 6px; }
 .imp-error-body { font-size: 13px; color: #b91c1c; line-height: 1.6; }
 
+/* 再開できる作業 */
+.imp-session {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 4px; border-bottom: 1px solid #f1f5f9; font-size: 14px;
+}
+.imp-session:last-child { border-bottom: none; }
+.imp-session .name { font-weight: 700; color: #1e293b; }
+.imp-session .meta { font-size: 12px; color: #94a3b8; }
+.imp-session form { margin: 0; }
+
 @@media (max-width: 600px) {
     .imp-row label.imp-label { width: 100%; flex: 1 1 100%; }
 }
@@ -80,6 +92,31 @@
         <div class="imp-error">
             <div class="imp-error-title">解除できませんでした</div>
             <div class="imp-error-body">@Model.ErrorMessage</div>
+        </div>
+    }
+
+    @if (Model.Sessions?.Any() == true)
+    {
+        <div class="imp-card">
+            <div class="imp-section-title">🕒 作業中のファイル</div>
+            @foreach (JcabImportSession session in Model.Sessions)
+            {
+                <div class="imp-session">
+                    <span class="name">@session.FileName</span>
+                    <span class="meta">
+                        @(session.TargetMonth == null ? "" : $"対象月 {session.TargetMonth}　")
+                        最終保存 @session.UpdatedAt.ToString("yyyy/MM/dd HH:mm")
+                    </span>
+                    <span style="margin-left:auto;display:flex;gap:8px">
+                        <a class="imp-btn" href="@Url.Action("Resume", "JcabImport", new { id = session.SessionId, fromAdmin = Model.FromAdmin })">再開</a>
+                        <form method="post" asp-action="DeleteSession" asp-route-fromAdmin="@Model.FromAdmin"
+                              onsubmit="return confirm('@session.FileName の作業内容を削除します。よろしいですか。');">
+                            <input type="hidden" name="id" value="@session.SessionId" />
+                            <button type="submit" class="imp-btn">削除</button>
+                        </form>
+                    </span>
+                </div>
+            }
         </div>
     }
 
