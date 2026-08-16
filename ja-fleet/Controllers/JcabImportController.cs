@@ -181,6 +181,7 @@ namespace jafleet.Controllers
                 .Select(r => r.RegistrationNumber)
                 .ToHashSet();
             StoreOverrides(session!, model.Rows, imported);
+            RefreshSessionSummary(model, session!);
 
             //機体が増えると航空会社別の型式一覧が変わるのでマスタを読み直す
             if (model.Result.CreatedCount > 0)
@@ -268,7 +269,69 @@ namespace jafleet.Controllers
             model.SavedAt = session.UpdatedAt;
             model.WasEncrypted = true;
             model.Preview = new ImportPreviewBuilder(_context).Build(JcabExcelParser.Parse(package), overrides);
+            RefreshSessionSummary(model, session);
             return true;
+        }
+
+        /// <summary>取込済みのレジと、そこから作る検索条件の名前をモデルに載せる</summary>
+        private static void RefreshSessionSummary(JcabImportModel model, JcabImportSession session)
+        {
+            model.ImportedRegistrations = JcabRowOverrideSerializer.Deserialize(session.OverridesJson)
+                .Where(o => o.Value.Imported)
+                .Select(o => o.Key)
+                .OrderBy(r => r, StringComparer.Ordinal)
+                .ToList();
+            model.SearchConditionName = BuildSearchConditionName(session.TargetMonth);
+        }
+
+        /// <summary>「2026年06月航空機登録動向」の形で名前を作る。target_monthは yyyy/MM。</summary>
+        private static string BuildSearchConditionName(string? targetMonth)
+        {
+            string[] parts = (targetMonth ?? string.Empty).Split('/');
+            return parts.Length == 2
+                ? $"{parts[0]}年{parts[1]}月航空機登録動向"
+                : $"{DateTime.Now:yyyy年MM月}航空機登録動向";
+        }
+
+        /// <summary>
+        /// この一時保存で取り込んだレジをまとめて名前付き検索条件にする。
+        /// 1件ずつ取り込んでも一括で取り込んでも、最後にここを押せば全部が対象になる。
+        /// </summary>
+        [HttpPost]
+        public IActionResult CreateSearchCondition(JcabImportModel model)
+        {
+            if (!CookieUtil.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            model.Title = "Excel取込";
+            if (!TryLoadPreview(model, out JcabImportSession? session))
+            {
+                model.Extension = LoadExtension();
+                model.Sessions = LoadSessions();
+                return View("Index", model);
+            }
+
+            if (model.ImportedRegistrations.Count == 0)
+            {
+                model.ErrorMessage = "取り込んだレジがありません。先に取込を実行してください。";
+                LoadMasterLists(model);
+                return View("Preview", model);
+            }
+
+            SearchConditionInModel condition = new()
+            {
+                //検索側は | 区切りで複数レジを受け取る
+                RegistrationNumber = string.Join("|", model.ImportedRegistrations),
+            };
+
+            string name = BuildSearchConditionName(session!.TargetMonth);
+            model.SearchConditionKey = SearchConditionStore.Save(_context, condition, name);
+            model.Message = $"検索条件「{name}」を登録しました（{model.ImportedRegistrations.Count}機）。";
+
+            LoadMasterLists(model);
+            return View("Preview", model);
         }
 
         /// <summary>画面から送られてきた編集内容を保存済みの内容に反映する</summary>

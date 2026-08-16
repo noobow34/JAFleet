@@ -76,6 +76,22 @@
 }
 .imp-saved .imp-saved-note { font-weight: 400; color: #047857; }
 .imp-saved .imp-btn { margin-left: auto; }
+.imp-saved .imp-btn + .imp-btn { margin-left: 0; }
+
+/* 検索条件の作成 */
+.imp-sc {
+    border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px;
+}
+.imp-sc-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.imp-sc-title { font-size: 14px; font-weight: 700; color: #1e40af; }
+.imp-sc-name { font-size: 14px; font-weight: 700; color: #0f172a; }
+.imp-sc-count { font-size: 13px; color: #1d4ed8; }
+.imp-sc form { margin: 0; }
+.imp-sc-regs {
+    margin-top: 8px; font-family: monospace; font-size: 12px; color: #475569;
+    line-height: 1.8; word-break: break-all;
+}
 
 .imp-group { margin-bottom: 26px; }
 .imp-group-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -213,13 +229,30 @@
         </span>
     </div>
 
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="imp-warn">⚠ @Model.ErrorMessage</div>
+    }
+
     @if (!string.IsNullOrEmpty(Model.Message))
     {
         <div class="imp-saved">
             <span>✔ @Model.Message</span>
-            <span class="imp-saved-note">このまま編集を続けても、取込画面に戻って後から再開しても構いません。</span>
+            @if (!string.IsNullOrEmpty(Model.SearchConditionKey))
+            {
+                <a class="imp-btn" href="/Search?sc=@Model.SearchConditionKey" target="_blank">検索結果を見る</a>
+            }
+            else
+            {
+                <span class="imp-saved-note">このまま編集を続けても、取込画面に戻って後から再開しても構いません。</span>
+            }
             <a class="imp-btn" href="@Url.Action("Index", "JcabImport", new { fromAdmin = Model.FromAdmin })">取込画面に戻る</a>
         </div>
+    }
+
+    @if (Model.ImportedRegistrations.Any())
+    {
+        <partial name="_SearchConditionBox" model="Model" />
     }
 
     @* 区分ごとの件数 *@

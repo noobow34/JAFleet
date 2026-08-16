@@ -30,6 +30,17 @@ namespace jafleet.Models
         [BindNever]
         public string? Message { get; set; }
 
+        /// <summary>この一時保存で実際に取り込んだレジ。検索条件の対象になる。</summary>
+        [BindNever]
+        public List<string> ImportedRegistrations { get; set; } = [];
+
+        [BindNever]
+        public string? SearchConditionName { get; set; }
+
+        /// <summary>登録した検索条件のキー。登録直後だけ入る。</summary>
+        [BindNever]
+        public string? SearchConditionKey { get; set; }
+
         public string? FileName { get; set; }
 
         [BindNever]

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using jafleet.Classes;
 using jafleet.Models;
 using jafleet.Commons.EF;
 using jafleet.Manager;
@@ -339,32 +340,7 @@ namespace jafleet.Controllers
         [HttpPost]
         public IActionResult RegisterNamedSearchCondition(SearchConditionInModel scm, string searchConditionName)
         {
-            string scjson = scm.ToString();
-            string schash = HashUtil.CalcCRC32(scjson);
-
-            var sc = _context.SearchConditions.Where(sc => sc.SearchConditionKey == schash).SingleOrDefault();
-
-            if (sc != null)
-            {
-                sc.SearchConditionName = searchConditionName;
-            }
-            else
-            {
-                sc = new SearchCondition
-                {
-                    SearchConditionKey = schash,
-                    SearchConditionJson = scjson,
-                    SearchConditionName = searchConditionName,
-                    SearchCount = 0
-                };
-                _context.SearchConditions.Add(sc);
-            }
-
-            _context.SaveChanges();
-            MasterManager.ReloadNamedSearchCondition(_context);
-            _ = Task.Run(async () => { await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), $"検索条件が登録されました。\n{searchConditionName}\n{scjson}"); });
-
-            return Content(sc.SearchConditionKey);
+            return Content(SearchConditionStore.Save(_context, scm, searchConditionName));
         }
     }
 }

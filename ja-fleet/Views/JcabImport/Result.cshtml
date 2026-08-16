@@ -56,6 +56,21 @@
 
 .imp-empty { font-size: 14px; color: #94a3b8; padding: 16px 6px; }
 
+/* 検索条件の作成 */
+.imp-sc {
+    border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 18px;
+}
+.imp-sc-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.imp-sc-title { font-size: 14px; font-weight: 700; color: #1e40af; }
+.imp-sc-name { font-size: 14px; font-weight: 700; color: #0f172a; }
+.imp-sc-count { font-size: 13px; color: #1d4ed8; }
+.imp-sc form { margin: 0; }
+.imp-sc-regs {
+    margin-top: 8px; font-family: monospace; font-size: 12px; color: #475569;
+    line-height: 1.8; word-break: break-all;
+}
+
 @@media (max-width: 600px) {
     .imp-row { grid-template-columns: 1fr 1fr; }
     .imp-detail { grid-column: 1 / -1; }
@@ -82,6 +97,11 @@
         }
         @($" ／ 更新前の内容を履歴に残したもの {historyCount} 件")
     </div>
+
+    @if (Model.ImportedRegistrations.Any())
+    {
+        <partial name="_SearchConditionBox" model="Model" />
+    }
 
     <div class="imp-card">
         @if (!result.Rows.Any())
