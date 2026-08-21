@@ -3,6 +3,7 @@ using jafleet;
 using jafleet.Classes;
 using jafleet.Commons.EF;
 using jafleet.Manager;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.WebEncoders;
 using System.Text.Encodings.Web;
@@ -36,6 +37,10 @@ builder.Services.Configure<WebEncoderOptions>(options =>
 builder.Services.AddControllersWithViews();
 builder.Services.AddMemoryCache();
 builder.Services.AddProgressiveWebApp();
+//DataProtectionのApplicationDiscriminatorは既定でContentRootPathから導出される。
+//デプロイのたびにreleases/<timestamp>-<sha>/へ変わり認証Cookieが全て復号できなくなるため、
+//アプリ名を固定する。キーリング自体は従来どおり~/.aspnet/DataProtection-Keysに永続化される
+builder.Services.AddDataProtection().SetApplicationName("ja-fleet");
 builder.Services.AddAuth0WebAppAuthentication(options =>
 {
     options.Domain = auth0Domain;
