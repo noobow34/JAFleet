@@ -543,6 +543,25 @@
 
         $('select[data-options]').each(function () { fillSelect(this); });
 
+        // 新しく登録したマスタは、テンプレートと画面内の同じ種類のセレクトすべてに配る
+        const addOptionToAll = function (kind, value, text) {
+            const optionValue = String(value);
+            const selector = 'option[value="' + optionValue.replace(/"/g, '\\"') + '"]';
+
+            $('select[data-options="' + kind + '"]').each(function () {
+                if (this.querySelector(selector)) { return; }
+                //選択肢を足しただけで選択中の値が変わらないようにしておく
+                const current = this.value;
+                this.add(new Option(text, optionValue));
+                this.value = current;
+            });
+
+            const template = templates[kind];
+            if (template && !template.querySelector(selector)) {
+                template.appendChild(new Option(text, optionValue));
+            }
+        };
+
         // ---- 選択件数 ----
         const refreshCount = function () {
             $('#selectedCount').text($('.imp-select:checked').length);
@@ -636,17 +655,8 @@
                     return;
                 }
 
-                // 追加した詳細型式をテンプレートと既存セレクトの両方に反映する
-                const option = document.createElement('option');
-                option.value = data.id;
-                option.textContent = data.name;
-                templates['typeDetail'].appendChild(option.cloneNode(true));
-
-                $('select[data-options="typeDetail"]').each(function () {
-                    if ($(this).find('option[value="' + data.id + '"]').length === 0) {
-                        $(this).append($('<option>').val(data.id).text(data.name));
-                    }
-                });
+                // 追加した詳細型式は、登録した行だけでなく画面内すべての行から選べるようにする
+                addOptionToAll('typeDetail', data.id, data.name);
 
                 const target = $('select[name="' + targetSelectName + '"]');
                 target.val(data.id);
