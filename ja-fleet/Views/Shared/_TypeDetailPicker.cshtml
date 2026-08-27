@@ -1,0 +1,196 @@
+@using jafleet.Commons.EF
+@model jafleet.Models.TypeDetailPickerModel
+@*
+    型式→詳細型式の2段で選ぶピッカー。
+    値はhidden inputに入れるので、置き換え前のセレクトと同じname・idを渡せば
+    モデルバインドも既存のJSもそのまま動く。
+    値を変えたときはhidden inputにchangeを飛ばすので、changeを見ている処理も動く。
+
+    使い方（画面側）:
+      <partial name="_TypeDetailPicker" model="new TypeDetailPickerModel { ... }" />
+      @@section ScriptsPartial { <partial name="_TypeDetailPickerScript" /> }
+*@
+@{
+    string modalId = Model.FieldId + "Modal";
+    TypeDetail[] typeDetails = Model.TypeDetailList ?? [];
+    TypeDetail? selected = typeDetails.FirstOrDefault(t => t.TypeDetailId == Model.SelectedId);
+
+    //型式ごとの件数。0件の型式まで並べると探しづらいので出さない。
+    Dictionary<string, int> counts = typeDetails
+        .Where(t => !string.IsNullOrEmpty(t.TypeCode))
+        .GroupBy(t => t.TypeCode!)
+        .ToDictionary(g => g.Key, g => g.Count());
+
+    Dictionary<string, string?> typeNames = (Model.TypeList ?? [])
+        .ToDictionary(t => t.TypeCode, t => t.TypeName);
+}
+
+<style>
+/* ===== 詳細型式ピッカー =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため remは使わずpxで指定すること。 */
+.tdp-button {
+    display: inline-flex; align-items: center; gap: 8px; width: 100%; max-width: 100%;
+    height: 34px; padding: 4px 10px; text-align: left;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+    font-size: 14px; color: #1e293b; cursor: pointer;
+}
+.tdp-button:hover { border-color: #94a3b8; }
+.tdp-button .tdp-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdp-button .tdp-value.empty { color: #cbd5e1; }
+.tdp-button .tdp-caret { color: #94a3b8; font-size: 11px; }
+
+.tdp-modal .modal-dialog { width: 720px; max-width: 96%; }
+.tdp-search {
+    width: 100%; height: 36px; padding: 4px 12px; margin-bottom: 12px;
+    border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; color: #1e293b;
+}
+.tdp-cols { display: flex; gap: 12px; align-items: stretch; }
+.tdp-list {
+    list-style: none; margin: 0; padding: 0; overflow-y: auto;
+    height: 340px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;
+}
+.tdp-types { flex: 0 0 200px; }
+.tdp-details { flex: 1; min-width: 0; }
+.tdp-list li { border-bottom: 1px solid #f1f5f9; }
+.tdp-list li:last-child { border-bottom: none; }
+.tdp-list button {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    padding: 8px 12px; border: none; background: none; color: #1e293b;
+    font-size: 14px; cursor: pointer;
+}
+.tdp-list button:hover { background: #f1f5f9; }
+.tdp-list button.on { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
+.tdp-list button .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdp-list button .cnt { font-size: 12px; color: #94a3b8; }
+.tdp-list button .tp { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.tdp-list button.cur .nm::after { content: " ✔"; color: #16a34a; }
+.tdp-empty { display: none; padding: 14px 4px; font-size: 13px; color: #94a3b8; }
+
+.tdp-btn {
+    display: inline-flex; align-items: center; padding: 7px 16px; border-radius: 6px;
+    border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.tdp-btn:hover { background: #f1f5f9; }
+.tdp-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.tdp-btn.primary:hover { background: #1e293b; }
+
+.tdp-field { margin-bottom: 12px; }
+.tdp-field label { display: block; margin: 0 0 3px; font-size: 12px; font-weight: 600; color: #64748b; }
+.tdp-field select, .tdp-field input[type=text] {
+    width: 100%; height: 34px; padding: 4px 10px; font-size: 14px;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b;
+}
+.tdp-error {
+    display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;
+    padding: 8px 12px; font-size: 13px; color: #b91c1c; font-weight: 600;
+}
+
+@@media (max-width: 600px) {
+    .tdp-cols { flex-direction: column; }
+    .tdp-types { flex: none; height: 150px; }
+    .tdp-details { height: 240px; }
+}
+</style>
+
+@* 値の実体。置き換え前のセレクトと同じname・idにしてある *@
+<input type="hidden" id="@Model.FieldId" name="@Model.FieldName" value="@Model.SelectedId" />
+<button type="button" class="tdp-button" data-tdp-open="@modalId">
+    <span class="tdp-value @(selected == null ? "empty" : "")">@(selected?.TypeDetailName ?? "未選択")</span>
+    <span class="tdp-caret">▼</span>
+</button>
+
+@*
+    モーダルの入力欄にはnameを付けない。
+    この部品はフォームの中に置かれるので、nameがあると編集内容と一緒に送信されてしまう。
+*@
+<div class="modal fade tdp-modal" id="@modalId" tabindex="-1" role="dialog" data-tdp-field="@Model.FieldId">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="閉じる"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title tdp-title">詳細型式を選ぶ</h4>
+            </div>
+
+            @* ---- 選ぶ ---- *@
+            <div class="modal-body tdp-page-select">
+                <input type="text" class="tdp-search" placeholder="詳細型式名で絞り込み（型式をまたいで探します）" autocomplete="off" />
+
+                <div class="tdp-cols">
+                    <ul class="tdp-list tdp-types">
+                        <li>
+                            <button type="button" class="tdp-type on" data-type="">
+                                <span class="nm">すべての型式</span>
+                                <span class="cnt">@typeDetails.Length</span>
+                            </button>
+                        </li>
+                        @foreach (jafleet.Commons.EF.Type type in Model.TypeList ?? [])
+                        {
+                            @* 詳細型式が1件も無い型式は並べても選べないので出さない *@
+                            if (counts.TryGetValue(type.TypeCode, out int count))
+                            {
+                                <li>
+                                    <button type="button" class="tdp-type" data-type="@type.TypeCode">
+                                        <span class="nm">@type.TypeName</span>
+                                        <span class="cnt">@count</span>
+                                    </button>
+                                </li>
+                            }
+                        }
+                    </ul>
+
+                    <ul class="tdp-list tdp-details">
+                        @foreach (TypeDetail typeDetail in typeDetails)
+                        {
+                            <li>
+                                <button type="button" class="tdp-detail @(typeDetail.TypeDetailId == Model.SelectedId ? "cur" : "")"
+                                        data-id="@typeDetail.TypeDetailId"
+                                        data-type="@typeDetail.TypeCode"
+                                        data-name="@typeDetail.TypeDetailName">
+                                    <span class="nm">@typeDetail.TypeDetailName</span>
+                                    <span class="tp">@(typeNames.TryGetValue(typeDetail.TypeCode ?? "", out string? typeName) ? typeName : typeDetail.TypeCode)</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                </div>
+
+                <div class="tdp-empty">該当する詳細型式がありません。下の「新規登録」から追加できます。</div>
+            </div>
+            <div class="modal-footer tdp-page-select">
+                <button type="button" class="tdp-btn tdp-to-new" style="float:left">＋ 新規登録</button>
+                <button type="button" class="tdp-btn" data-dismiss="modal">キャンセル</button>
+            </div>
+
+            @* ---- 新規登録 ---- *@
+            <div class="modal-body tdp-page-new" style="display:none">
+                <div class="tdp-field">
+                    <label>型式</label>
+                    <select class="tdp-new-type">
+                        <option value="">　</option>
+                        @foreach (jafleet.Commons.EF.Type type in Model.TypeList ?? [])
+                        {
+                            <option value="@type.TypeCode">@type.TypeName</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="tdp-field">
+                    <label>詳細型式名</label>
+                    <input type="text" class="tdp-new-name" />
+                </div>
+
+                <div class="tdp-field">
+                    <label>詳細型式コード（任意）</label>
+                    <input type="text" class="tdp-new-code" />
+                </div>
+
+                <div class="tdp-error"></div>
+            </div>
+            <div class="modal-footer tdp-page-new" style="display:none">
+                <button type="button" class="tdp-btn tdp-to-select" style="float:left">← 一覧に戻る</button>
+                <button type="button" class="tdp-btn primary tdp-new-submit">登録して選択</button>
+            </div>
+        </div>
+    </div>
+</div>

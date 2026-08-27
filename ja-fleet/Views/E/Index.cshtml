@@ -16,6 +16,16 @@
     {
         Model.Title = Model.Aircraft?.RegistrationNumber;
     }
+
+    @* name・idは DropDownListFor が作っていたものと同じにして、既存のJSとモデルバインドをそのまま使う *@
+    var typeDetailPicker = new TypeDetailPickerModel
+    {
+        FieldName = "Aircraft.TypeDetailId",
+        FieldId = "Aircraft_TypeDetailId",
+        SelectedId = Model.Aircraft?.TypeDetailId,
+        TypeList = Model.TypeList,
+        TypeDetailList = Model.TypeDetailList,
+    };
 }
 @if (Model.IsNew)
 {
@@ -53,10 +63,10 @@ else
     <div class="row">
         <div class="form-group">
             @Html.LabelFor(model => model.TypeDetailList, new { @class = "control-label" })
-            @Html.DropDownListFor(model => model.Aircraft!.TypeDetailId,
-                                                                                            new SelectList(Model.TypeDetailList, "TypeDetailId", "TypeDetailName"),
-                                                                                            "　",
-                                                                                            new { @class = "form-control" })
+            @* 詳細型式が増えて1つのセレクトでは探しづらいので、型式で絞ってから選ぶ *@
+            <div style="display:inline-block;width:260px;max-width:100%;vertical-align:middle">
+                @await Html.PartialAsync("_TypeDetailPicker", typeDetailPicker)
+            </div>
         </div>
     </div>
     <div class="row">
@@ -164,6 +174,7 @@ else
     @Html.HiddenFor(model => model.FromAdmin)
 </form>
 @section ScriptsPartial{
+    <partial name="_TypeDetailPickerScript" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.4/clipboard.min.js" integrity="sha256-FiZwavyI2V6+EXO1U+xzLG3IKldpiTFf3153ea9zikQ=" crossorigin="anonymous"></script>
     <script>
         new ClipboardJS('.btn', {

@@ -1,0 +1,152 @@
+@*
+    _TypeDetailPicker.cshtml を動かすスクリプト。
+    jQueryは_Layoutの末尾で読み込まれるので、画面側の @@section ScriptsPartial の中に置くこと。
+    画面内のピッカーは全部まとめて初期化するので、画面側から呼ぶものは無い。
+
+    型式コードや詳細型式IDは数字だけのことがあり、jQueryの.data()は数値に変換してしまう。
+    比較がずれるので、この画面では読み取りに.attr()だけを使う。
+*@
+<script>
+    $(function () {
+        $('.tdp-modal').each(function () {
+            const modal = $(this);
+            const field = $('#' + modal.attr('data-tdp-field'));
+            //ピッカーのボタンとモーダルは対になっている。同じ画面に複数あっても取り違えない。
+            const opener = $('[data-tdp-open="' + modal.attr('id') + '"]');
+
+            const search = modal.find('.tdp-search');
+            const types = modal.find('.tdp-type');
+            const empty = modal.find('.tdp-empty');
+            const error = modal.find('.tdp-error');
+            //新規登録した分を後から足すので再代入する
+            let details = modal.find('.tdp-detail');
+
+            //この部品はフォームの中に置かれる。中に入力欄があるとEnterでフォームが送信されてしまうので、
+            //初期化のときにフォームの外（body直下）へ出しておく。
+            modal.appendTo(document.body);
+
+            // ---- 一覧の絞り込み ----
+            // 検索語があるときは型式をまたいで探す。型式の選択より検索を優先する。
+            const refresh = function () {
+                const keyword = (search.val() || '').trim().toLowerCase();
+                const typeCode = types.filter('.on').attr('data-type') || '';
+                let shown = 0;
+
+                details.each(function () {
+                    const button = $(this);
+                    const nameMatched = keyword === '' ||
+                        (button.attr('data-name') || '').toLowerCase().indexOf(keyword) >= 0;
+                    const typeMatched = keyword !== '' || typeCode === '' ||
+                        (button.attr('data-type') || '') === typeCode;
+                    const visible = nameMatched && typeMatched;
+
+                    button.parent().toggle(visible);
+                    if (visible) { shown++; }
+                });
+
+                empty.toggle(shown === 0);
+            };
+
+            types.on('click', function () {
+                types.removeClass('on');
+                $(this).addClass('on');
+                //型式を選び直したら検索語は邪魔になるので消す
+                search.val('');
+                refresh();
+            });
+
+            search.on('input', refresh);
+
+            // ---- 選ぶ ----
+            const select = function (id, name) {
+                field.val(id);
+                opener.find('.tdp-value').text(name).removeClass('empty');
+
+                details.removeClass('cur');
+                details.filter('[data-id="' + id + '"]').addClass('cur');
+
+                //セレクトだった頃と同じようにchangeを見ている処理があるので飛ばす
+                field.trigger('change');
+                modal.modal('hide');
+            };
+
+            modal.on('click', '.tdp-detail', function () {
+                select($(this).attr('data-id'), $(this).attr('data-name'));
+            });
+
+            // ---- 選ぶ / 新規登録の切り替え ----
+            const showPage = function (isNew) {
+                modal.find('.tdp-page-select').toggle(!isNew);
+                modal.find('.tdp-page-new').toggle(isNew);
+                modal.find('.tdp-title').text(isNew ? '詳細型式の新規登録' : '詳細型式を選ぶ');
+            };
+
+            modal.find('.tdp-to-new').on('click', function () {
+                error.hide().text('');
+                //探していた語をそのまま名前の下書きにする
+                modal.find('.tdp-new-name').val(search.val() || '');
+                modal.find('.tdp-new-code').val('');
+                modal.find('.tdp-new-type').val(types.filter('.on').attr('data-type') || '');
+                showPage(true);
+            });
+
+            modal.find('.tdp-to-select').on('click', function () { showPage(false); });
+
+            modal.find('.tdp-new-name, .tdp-new-code').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    modal.find('.tdp-new-submit').click();
+                }
+            });
+
+            opener.on('click', function () {
+                showPage(false);
+                refresh();
+                modal.modal('show');
+            });
+
+            // ---- 新規登録 ----
+            modal.find('.tdp-new-submit').on('click', function () {
+                const button = $(this);
+                button.prop('disabled', true);
+
+                $.ajax({
+                    url: '/Master/CreateTypeDetail',
+                    type: 'POST',
+                    data: {
+                        typeCode: modal.find('.tdp-new-type').val(),
+                        typeDetailCode: modal.find('.tdp-new-code').val(),
+                        typeDetailName: modal.find('.tdp-new-name').val()
+                    }
+                }).done(function (data) {
+                    if (data.error) {
+                        error.text(data.error).show();
+                        return;
+                    }
+
+                    //登録したものを一覧にも足す。閉じて開き直しても選べる。
+                    if (details.filter('[data-id="' + data.id + '"]').length === 0) {
+                        const added = $('<button type="button" class="tdp-detail">')
+                            .attr('data-id', data.id)
+                            .attr('data-type', modal.find('.tdp-new-type').val())
+                            .attr('data-name', data.name)
+                            .append($('<span class="nm">').text(data.name))
+                            .append($('<span class="tp">').text(modal.find('.tdp-new-type option:selected').text()));
+                        modal.find('.tdp-details').append($('<li>').append(added));
+                        details = details.add(added);
+                    }
+
+                    search.val('');
+                    showPage(false);
+                    select(String(data.id), data.name);
+                }).fail(function (xhr) {
+                    error.text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
+                }).always(function () {
+                    button.prop('disabled', false);
+                });
+            });
+
+            refresh();
+        });
+    });
+</script>
