@@ -1,0 +1,14 @@
+﻿@model ErrorViewModel
+@{
+    Model.Title = "エラー";
+}
+
+<h1 class="text-danger">エラーが発生しました</h1>
+<h2 class="text-danger">繰り返しエラーが表示される場合は管理者(<a href="https://twitter.com/ja_fleet">@@ja_fleet</a>)までお知らせください。</h2>
+
+<input type="button" value="前のページに戻る" class="btn btn-primary" onclick="history.back()" />
+<br />
+@if(Model.IsAdmin)
+{
+    @Model.Ex?.ToString()
+}

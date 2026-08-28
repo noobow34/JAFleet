@@ -1,0 +1,268 @@
+@model JAFleet.Models.BaseModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "管理コンソール";
+}
+
+@section CssPartial {
+<link rel="stylesheet" href="~/lib/jquery-ui/jquery-ui.min.css">
+<style>
+/* ===== 管理コンソール =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
+.adm-page { padding: 16px 0 60px; max-width: 900px; }
+.adm-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
+.adm-lead { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+
+.adm-section-title {
+    font-size: 13px; font-weight: 700; color: #94a3b8;
+    letter-spacing: .04em; margin: 24px 0 10px;
+    padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;
+}
+
+/* レジ検索 */
+.adm-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 16px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.adm-reg { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm-reg-input { display: flex; align-items: center; }
+.adm-prefix {
+    height: 38px; display: flex; align-items: center; padding: 0 10px;
+    background: #f1f5f9; border: 1px solid #cbd5e1; border-right: none;
+    border-radius: 6px 0 0 6px; font-size: 16px; font-weight: 700; color: #64748b;
+}
+#reg {
+    height: 38px; width: 130px; padding: 4px 10px;
+    border: 1px solid #cbd5e1; border-radius: 0 6px 6px 0;
+    font-size: 16px; font-weight: 600; color: #1e293b; text-transform: uppercase;
+}
+/* 入力値が太字なのでプレースホルダーも太く見える。細く薄くして入力済みと区別する */
+#reg::placeholder { color: #cbd5e1; font-weight: 400; }
+
+.adm-btn {
+    display: inline-flex; align-items: center; height: 38px; padding: 0 16px;
+    border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer;
+    white-space: nowrap;
+}
+.adm-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.adm-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.adm-btn.primary:hover { background: #1e293b; color: #fff; }
+
+/* タイル */
+.adm-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 10px;
+}
+.adm-tile {
+    display: flex; align-items: flex-start; gap: 10px; text-align: left;
+    width: 100%; padding: 13px 15px;
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    color: #1e293b; text-decoration: none; cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+.adm-tile:hover { background: #f8fafc; border-color: #cbd5e1; text-decoration: none; color: #1e293b; }
+.adm-tile .ico { font-size: 20px; line-height: 1.2; flex-shrink: 0; }
+.adm-tile .body { min-width: 0; }
+.adm-tile .ttl { display: block; font-size: 14px; font-weight: 700; color: #1e293b; }
+.adm-tile .dsc { display: block; font-size: 12px; color: #94a3b8; margin-top: 2px; line-height: 1.5; }
+.adm-tile.danger:hover { background: #fef2f2; border-color: #fecaca; }
+
+/* 実行結果 */
+.adm-result {
+    display: none; margin-top: 12px; padding: 11px 15px;
+    border-radius: 8px; font-size: 13px; font-weight: 600; line-height: 1.6;
+    word-break: break-all;
+}
+.adm-result.ok   { display: block; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+.adm-result.ng   { display: block; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+.adm-result .at  { font-weight: 400; color: #64748b; margin-left: 8px; }
+
+@@media (max-width: 600px) {
+    .adm-grid { grid-template-columns: 1fr; }
+    .adm-reg { gap: 6px; }
+}
+</style>
+}
+
+<div class="adm-page">
+    <h2>🛠 管理コンソール</h2>
+    <div class="adm-lead">管理者のみ表示されます</div>
+
+    @* ---- レジ検索 ---- *@
+    <div class="adm-card">
+        <div class="adm-reg">
+            <div class="adm-reg-input">
+                <span class="adm-prefix">JA</span>
+                <input type="text" id="reg" autocomplete="off" placeholder="226P" />
+            </div>
+            <button type="button" class="adm-btn primary" id="editBtn">編集</button>
+            <button type="button" class="adm-btn" id="detailBtn">詳細</button>
+            <a class="adm-btn" href="/E?fromAdmin=true" style="margin-left:auto">＋ 新規登録</a>
+        </div>
+    </div>
+
+    @* ---- 取込・マスタ ---- *@
+    <div class="adm-section-title">取込・マスタ</div>
+    <div class="adm-grid">
+        <a class="adm-tile" href="/JcabImport?fromAdmin=true">
+            <span class="ico">📥</span>
+            <span class="body">
+                <span class="ttl">航空局Excel取込</span>
+                <span class="dsc">パスワード付きExcelを解除して取り込む</span>
+            </span>
+        </a>
+        <a class="adm-tile" href="/BulkRegister?fromAdmin=true">
+            <span class="ico">🛫</span>
+            <span class="body">
+                <span class="ttl">同一型式の一括登録</span>
+                <span class="dsc">レジと登録年月日を貼り付けてまとめて登録</span>
+            </span>
+        </a>
+        <button type="button" class="adm-tile" data-url="/ReloadMaster" data-method="GET" data-result="#masterResult">
+            <span class="ico">♻</span>
+            <span class="body">
+                <span class="ttl">マスタ再読込</span>
+                <span class="dsc">航空会社・型式などをDBから読み直す</span>
+            </span>
+        </button>
+    </div>
+    <div class="adm-result" id="masterResult"></div>
+
+    @* ---- バッチ ---- *@
+    <div class="adm-section-title">バッチ</div>
+    <div class="adm-grid">
+        <button type="button" class="adm-tile" data-url="/Batch/RefreshWorkingStatusAndPhoto" data-method="POST" data-result="#batchResult">
+            <span class="ico">🔄</span>
+            <span class="body">
+                <span class="ttl">ステータス・写真更新</span>
+                <span class="dsc">通常ジョブと同じ処理を手動起動</span>
+            </span>
+        </button>
+        <button type="button" class="adm-tile" data-url="/Batch/RefreshPhoto" data-method="POST" data-mode="1" data-result="#batchResult">
+            <span class="ico">📷</span>
+            <span class="body">
+                <span class="ttl">写真更新（全部）</span>
+                <span class="dsc">全機体の写真を取得し直す</span>
+            </span>
+        </button>
+        <button type="button" class="adm-tile" data-url="/Batch/RefreshPhoto" data-method="POST" data-mode="2" data-result="#batchResult">
+            <span class="ico">📷</span>
+            <span class="body">
+                <span class="ttl">写真更新（退役以外）</span>
+                <span class="dsc">現役機のみ</span>
+            </span>
+        </button>
+        <button type="button" class="adm-tile" data-url="/Batch/RefreshPhoto" data-method="POST" data-mode="3" data-result="#batchResult">
+            <span class="ico">📷</span>
+            <span class="body">
+                <span class="ttl">写真更新（退役）</span>
+                <span class="dsc">退役機のみ</span>
+            </span>
+        </button>
+    </div>
+    <div class="adm-result" id="batchResult"></div>
+
+    @* ---- ログ・状況 ---- *@
+    <div class="adm-section-title">ログ・状況</div>
+    <div class="adm-grid">
+        <a class="adm-tile" href="/WorkingCheckLog?fromAdmin=true">
+            <span class="ico">✈</span>
+            <span class="body">
+                <span class="ttl">稼働チェックログ</span>
+                <span class="dsc">本日の稼働状況の変化</span>
+            </span>
+        </a>
+        <a class="adm-tile" href="/log?fromAdmin=true">
+            <span class="ico">📋</span>
+            <span class="body">
+                <span class="ttl">アクセスログ（今日）</span>
+                <span class="dsc">閲覧・検索の記録</span>
+            </span>
+        </a>
+        <a class="adm-tile" href="/logy?fromAdmin=true">
+            <span class="ico">📋</span>
+            <span class="body">
+                <span class="ttl">アクセスログ（昨日）</span>
+                <span class="dsc">前日分</span>
+            </span>
+        </a>
+        <a class="adm-tile" href="/NotWorkingInfo?fromAdmin=true">
+            <span class="ico">⏸</span>
+            <span class="body">
+                <span class="ttl">非稼働情報</span>
+                <span class="dsc">長期間飛んでいない機体</span>
+            </span>
+        </a>
+        <button type="button" class="adm-tile" data-url="/Check" data-method="GET" data-result="#checkResult" data-prefix="登録機数">
+            <span class="ico">🔢</span>
+            <span class="body">
+                <span class="ttl">登録機数を確認</span>
+                <span class="dsc">aircraft_viewの件数</span>
+            </span>
+        </button>
+    </div>
+    <div class="adm-result" id="checkResult"></div>
+
+    @* ---- その他 ---- *@
+    <div class="adm-section-title">その他</div>
+    <div class="adm-grid">
+        <a class="adm-tile danger" href="/Account/Logout">
+            <span class="ico">🔓</span>
+            <span class="body">
+                <span class="ttl">ログアウト</span>
+                <span class="dsc">管理者機能が見えなくなります</span>
+            </span>
+        </a>
+    </div>
+</div>
+
+@section ScriptsPartial{
+<script src="/lib/jquery-ui/jquery-ui.min.js"></script>
+<script>
+    $(function () {
+        const registration = function () {
+            const value = ($('#reg').val() || '').trim().toUpperCase();
+            return value === '' ? '' : 'JA' + value;
+        };
+
+        $('#editBtn').on('click', function () {
+            if (registration() !== '') { location.href = '/E/' + registration() + '?fromAdmin=true'; }
+        });
+
+        $('#detailBtn').on('click', function () {
+            if (registration() !== '') { location.href = '/AD/' + registration() + '?fromAdmin=true'; }
+        });
+
+        $('#reg').on('keydown', function (e) {
+            if (e.key === 'Enter') { $('#editBtn').click(); }
+        });
+
+        $.ajax({ url: '/Master/GetAllReg', dataType: 'json', cache: false })
+            .done(function (data) { $('#reg').autocomplete({ source: data }); });
+
+        // タイルからの実行系。結果は対応する枠に出す。
+        $('.adm-tile[data-url]').on('click', function () {
+            const tile = $(this);
+            const result = $(tile.data('result'));
+            const prefix = tile.data('prefix');
+            const payload = tile.data('mode') === undefined ? {} : { mode: tile.data('mode') };
+
+            result.removeClass('ok ng').addClass('ok').text('実行中…');
+
+            $.ajax({ url: tile.data('url'), type: tile.data('method'), data: payload })
+                .done(function (data) {
+                    const at = new Date().toLocaleTimeString('ja-JP');
+                    const text = prefix ? prefix + ': ' + data : data;
+                    result.removeClass('ng').addClass('ok')
+                          .html($('<span>').text(text)).append($('<span class="at">').text(at));
+                })
+                .fail(function (xhr) {
+                    result.removeClass('ok').addClass('ng')
+                          .text('失敗しました (' + xhr.status + ' ' + xhr.statusText + ')');
+                });
+        });
+    });
+</script>
+}

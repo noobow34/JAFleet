@@ -1,0 +1,506 @@
+@using JAFleet.Commons.EF
+@model JAFleet.Models.BulkRegisterModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "同一型式の一括登録";
+
+    int validCount = Model.Rows?.Count(r => r.Line.IsValid) ?? 0;
+    int errorCount = Model.Rows?.Count(r => !r.Line.IsValid) ?? 0;
+    int existsCount = Model.Rows?.Count(r => r.Line.IsValid && r.Exists) ?? 0;
+}
+
+@section CssPartial {
+<style>
+/* ===== 同一型式の一括登録 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
+.blk-page { padding: 16px 0 90px; max-width: 1000px; }
+.blk-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
+.blk-lead { font-size: 14px; color: #64748b; margin-bottom: 18px; }
+
+.blk-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.blk-card-title {
+    font-size: 15px; font-weight: 700; color: #334155;
+    margin: 0 0 4px; display: flex; align-items: center; gap: 6px;
+}
+.blk-card-note { font-size: 13px; color: #94a3b8; margin-bottom: 14px; line-height: 1.6; }
+
+/* 共通項目 */
+.blk-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 10px 14px;
+}
+.blk-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.blk-field label { margin: 0; font-size: 12px; font-weight: 600; color: #64748b; }
+.blk-field select, .blk-field input[type=text] {
+    height: 34px; max-width: 100%; padding: 4px 10px; font-size: 14px;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b;
+}
+.blk-field.req label::after { content: " *"; color: #dc2626; }
+.blk-field.wide { grid-column: 1 / -1; }
+.blk-check { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #475569; margin: 0; }
+.blk-check input { width: 15px; height: 15px; margin: 0; }
+.blk-checks { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e2e8f0; }
+
+/* 貼り付け欄 */
+.blk-paste {
+    width: 100%; min-height: 220px; padding: 10px 12px;
+    font-family: Consolas, monospace; font-size: 14px; line-height: 1.7;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b;
+    white-space: pre; overflow-wrap: normal; overflow-x: auto;
+}
+.blk-sample {
+    background: #f1f5f9; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px;
+    font-family: Consolas, monospace; font-size: 12px; color: #475569; line-height: 1.8;
+    white-space: pre; overflow-x: auto;
+}
+.blk-pastefoot {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px;
+    font-size: 13px; color: #64748b;
+}
+
+.blk-btn {
+    display: inline-flex; align-items: center; padding: 8px 18px; border-radius: 6px;
+    border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer;
+}
+.blk-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.blk-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.blk-btn.primary:hover { background: #1e293b; color: #fff; }
+.blk-btn:disabled { opacity: .45; cursor: not-allowed; }
+.blk-btn.small { padding: 4px 12px; font-size: 13px; }
+
+.blk-error {
+    border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #b91c1c;
+    font-weight: 600; line-height: 1.7;
+}
+.blk-ok {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    border: 1px solid #a7f3d0; background: #ecfdf5; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 14px; color: #065f46; font-weight: 700;
+}
+.blk-stale {
+    display: none; border: 1px solid #fde68a; background: #fffbeb; border-radius: 10px;
+    padding: 10px 16px; margin-bottom: 12px; font-size: 13px; color: #92400e; font-weight: 600;
+}
+
+/* プレビュー */
+.blk-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.blk-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 13px 5px 12px; border-radius: 99px;
+    font-size: 13px; font-weight: 600; color: #fff;
+}
+.blk-chip .cnt { background: rgba(0,0,0,.22); border-radius: 99px; padding: 1px 8px; font-size: 12px; }
+
+.blk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.blk-table th {
+    text-align: left; font-size: 12px; font-weight: 700; color: #64748b;
+    padding: 6px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+}
+.blk-table td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.blk-table tr.ng td { background: #fef2f2; }
+.blk-table tr.exist td { background: #fffbeb; }
+.blk-table input[type=checkbox] { width: 16px; height: 16px; margin: 0; }
+.blk-no { color: #cbd5e1; font-family: Consolas, monospace; }
+.blk-reg { font-size: 15px; font-weight: 700; color: #1d4ed8; text-decoration: none; white-space: nowrap; }
+.blk-reg:hover { text-decoration: underline; }
+.blk-reg.plain { color: #0f172a; }
+.blk-cell { font-family: Consolas, monospace; color: #334155; white-space: nowrap; }
+/* yyyy/MM/dd に直せず書いたまま登録する日付 */
+.blk-cell.asis { color: #b45309; }
+.blk-state {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+.blk-state.new   { background: #dcfce7; color: #166534; }
+.blk-state.exist { background: #fef3c7; color: #92400e; }
+.blk-state.ng    { background: #fee2e2; color: #b91c1c; }
+.blk-msg { color: #b91c1c; font-weight: 600; }
+.blk-current { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+.blk-raw { font-family: Consolas, monospace; font-size: 12px; color: #94a3b8; word-break: break-all; }
+
+/* 実行バー */
+.blk-footer {
+    position: sticky; bottom: 0; z-index: 10;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: #fff; border-top: 2px solid #e2e8f0;
+    padding: 12px 4px; margin-top: 16px;
+}
+.blk-footer .blk-count { font-size: 14px; color: #0f172a; font-weight: 700; }
+
+@@media (max-width: 700px) {
+    .blk-grid { grid-template-columns: 1fr; }
+    .blk-table th:nth-child(6), .blk-table td:nth-child(6) { display: none; }
+}
+</style>
+}
+
+<div class="blk-page">
+    <h2>🛫 同一型式の一括登録</h2>
+    <div class="blk-lead">
+        型式が同じ機体をまとめて登録します。航空会社や詳細型式などは1回だけ指定し、
+        レジと登録年月日だけを1行1機で貼り付けてください。
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="blk-error">⚠ @Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="blk-ok">
+            <span>✔ @Model.Message</span>
+            <a class="blk-btn" href="@Url.Action("Index", "BulkRegister", new { fromAdmin = Model.FromAdmin })" style="margin-left:auto">続けて別の型式を登録</a>
+        </div>
+    }
+
+    @* ---- 実行結果 ---- *@
+    @if (Model.Result != null)
+    {
+        <div class="blk-card">
+            <div class="blk-card-title">📋 登録結果</div>
+            <table class="blk-table">
+                <thead>
+                    <tr>
+                        <th style="width:120px">レジ</th>
+                        <th style="width:90px">結果</th>
+                        <th style="width:120px">登録年月日</th>
+                        <th>備考</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Result)
+                    {
+                        <tr class="@(row.Success ? "" : "ng")">
+                            <td><a class="blk-reg" href="/AD/@row.RegistrationNumber" target="_blank">@row.RegistrationNumber</a></td>
+                            <td>
+                                @if (!row.Success)
+                                {
+                                    <span class="blk-state ng">失敗</span>
+                                }
+                                else if (row.IsNew)
+                                {
+                                    <span class="blk-state new">新規</span>
+                                }
+                                else
+                                {
+                                    <span class="blk-state exist">更新</span>
+                                }
+                            </td>
+                            <td class="blk-cell">@(row.RegisterDate ?? "―")</td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(row.Message))
+                                {
+                                    <span class="blk-msg">@row.Message</span>
+                                }
+                                else if (row.HistoryWritten)
+                                {
+                                    <span class="blk-current">更新前の内容を履歴に残しました</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <form method="post" asp-controller="BulkRegister" asp-action="Preview" id="blkForm">
+        <input type="hidden" name="FromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
+
+        @* ---- 全機に共通で入れる項目 ---- *@
+        <div class="blk-card">
+            <div class="blk-card-title">⚙ 共通項目</div>
+            <div class="blk-card-note">ここで指定した内容が、下に並べたすべてのレジに同じように入ります。</div>
+
+            <div class="blk-grid">
+                <div class="blk-field req">
+                    <label for="Airline">航空会社</label>
+                    <select id="Airline" name="Airline">
+                        <option value="">　</option>
+                        @foreach (Airline airline in Model.AirlineList ?? [])
+                        {
+                            <option value="@airline.AirlineCode" selected="@(airline.AirlineCode == Model.Airline)">@airline.AirlineNameJpShort</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="blk-field req">
+                    <label>詳細型式</label>
+                    <partial name="_TypeDetailPicker" model="new TypeDetailPickerModel {
+                                 FieldName = nameof(Model.TypeDetailId),
+                                 FieldId = nameof(Model.TypeDetailId),
+                                 SelectedId = Model.TypeDetailId,
+                                 TypeList = Model.TypeList,
+                                 TypeDetailList = Model.TypeDetailList,
+                             }" />
+                </div>
+
+                <div class="blk-field req">
+                    <label for="OperationCode">運用状況</label>
+                    <select id="OperationCode" name="OperationCode">
+                        <option value="">　</option>
+                        @foreach (var group in (Model.OperationList ?? []).GroupBy(o => o.OptGroup))
+                        {
+                            @* OptGroupはMasterManagerが付ける。想定外のコードは括らずそのまま出す *@
+                            if (string.IsNullOrEmpty(group.Key))
+                            {
+                                foreach (Code operation in group)
+                                {
+                                    <option value="@operation.Key" selected="@(operation.Key == Model.OperationCode)">@operation.Value</option>
+                                }
+                            }
+                            else
+                            {
+                                <optgroup label="@group.Key">
+                                    @foreach (Code operation in group)
+                                    {
+                                        <option value="@operation.Key" selected="@(operation.Key == Model.OperationCode)">@operation.Value</option>
+                                    }
+                                </optgroup>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="blk-field">
+                    <label for="WifiCode">WiFi</label>
+                    <select id="WifiCode" name="WifiCode">
+                        <option value="">　</option>
+                        @foreach (Code wifi in Model.WifiList ?? [])
+                        {
+                            <option value="@wifi.Key" selected="@(wifi.Key == Model.WifiCode)">@wifi.Value</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="blk-field">
+                    <label for="SeatConfig">コンフィグ</label>
+                    <select id="SeatConfig" name="SeatConfig">
+                        <option value="">　</option>
+                        @foreach (SeatConfiguration config in Model.SeatConfigurationList ?? [])
+                        {
+                            <option value="@config.ConfigId" selected="@(config.ConfigId == Model.SeatConfig)">@config.SeatConfigLong</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="blk-field">
+                    <label for="SpecialLivery">特別塗装</label>
+                    <input type="text" id="SpecialLivery" name="SpecialLivery" value="@Model.SpecialLivery" />
+                </div>
+
+                <div class="blk-field wide">
+                    <label for="Remarks">備考</label>
+                    <input type="text" id="Remarks" name="Remarks" value="@Model.Remarks" />
+                </div>
+            </div>
+
+            <div class="blk-checks">
+                <label class="blk-check">
+                    <input type="checkbox" name="MaintenanceNotify" value="true" checked="@Model.MaintenanceNotify" />
+                    整備通知
+                </label>
+                <label class="blk-check">
+                    <input type="checkbox" name="NotUpdateDate" value="true" checked="@Model.NotUpdateDate" />
+                    履歴を作成しない（既存レジを上書きするときだけ効きます）
+                </label>
+            </div>
+        </div>
+
+        @* ---- 1機ずつ指定する項目 ---- *@
+        <div class="blk-card">
+            <div class="blk-card-title">📋 レジと登録年月日</div>
+            <div class="blk-card-note">
+                1行に1機で、レジと登録年月日をこの欄にまとめて貼り付けます。
+                区切りはタブ・カンマ・空白のどれでも構いません。Excelから2列コピーしてそのまま貼れます。<br />
+                レジは <b>JA</b> を省いても構いません。<br />
+                登録年月日は <b>yyyy/MM/dd</b> に直して登録しますが、<b>2026/08/xx</b> のように直せない書き方はそのまま登録します。<br />
+                登録年月日を空にして製造番号だけ入れるときは、区切りを2つ続けて <b>JA805A,,65003</b> のように書きます（空白区切りではできません）。
+            </div>
+
+            <div class="blk-sample">JA801A	2026/04/01	65001
+JA802A	2026/04/15	65002
+803A	R8.5.20
+804A
+JA805A,,65003</div>
+
+            <textarea class="blk-paste" id="InputText" name="InputText" spellcheck="false"
+                      placeholder="JA801A&#9;2026/04/01&#10;JA802A&#9;2026/04/15">@Model.InputText</textarea>
+
+            <div class="blk-pastefoot">
+                <span>3列目は製造番号です（任意）</span>
+                <span style="margin-left:auto"><b id="lineCount">0</b> 行</span>
+            </div>
+
+            <div class="blk-pastefoot" style="border-top:1px solid #e2e8f0;padding-top:14px;margin-top:14px">
+                <span>共通項目と貼り付けた内容を突き合わせて、登録前に確認できます</span>
+                <button type="submit" class="blk-btn primary" style="margin-left:auto">確認する</button>
+            </div>
+        </div>
+
+        @* ---- 確認 ---- *@
+        @if (Model.Rows is { Count: > 0 })
+        {
+            <div class="blk-stale" id="blkStale">⚠ 入力内容が変わりました。「確認する」を押し直してください。</div>
+
+            <div class="blk-card" id="blkPreview">
+                <div class="blk-card-title">✔ 登録内容の確認</div>
+                <div class="blk-card-note">チェックの入っている行だけを登録します。すでに登録済みのレジは上書きになるので、既定では外してあります。</div>
+
+                <div class="blk-stats">
+                    <span class="blk-chip" style="background:#22c55e">新規 <span class="cnt">@(validCount - existsCount)</span></span>
+                    <span class="blk-chip" style="background:#f59e0b">既存（上書き） <span class="cnt">@existsCount</span></span>
+                    <span class="blk-chip" style="background:#ef4444">エラー <span class="cnt">@errorCount</span></span>
+                </div>
+
+                <table class="blk-table">
+                    <thead>
+                        <tr>
+                            <th style="width:34px"><input type="checkbox" id="blkSelectAll" /></th>
+                            <th style="width:40px">行</th>
+                            <th style="width:120px">レジ</th>
+                            <th style="width:120px">登録年月日</th>
+                            <th style="width:120px">製造番号</th>
+                            <th style="width:90px">状態</th>
+                            <th>内容</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.Rows)
+                        {
+                            <tr class="@(!row.Line.IsValid ? "ng" : row.Exists ? "exist" : "")">
+                                <td>
+                                    @if (row.Line.IsValid)
+                                    {
+                                        <input type="checkbox" class="blk-select" name="SelectedRegs" value="@row.Line.RegistrationNumber" checked="@row.Selected" />
+                                    }
+                                </td>
+                                <td class="blk-no">@row.Line.LineNumber</td>
+                                <td>
+                                    @if (row.Line.RegistrationNumber == null)
+                                    {
+                                        <span class="blk-raw">@row.Line.RawText</span>
+                                    }
+                                    else if (row.Exists)
+                                    {
+                                        <a class="blk-reg" href="/AD/@row.Line.RegistrationNumber" target="_blank">@row.Line.RegistrationNumber</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="blk-reg plain">@row.Line.RegistrationNumber</span>
+                                    }
+                                </td>
+                                <td class="blk-cell @(row.Line.RegisterDateAsIs ? "asis" : "")">
+                                    @(row.Line.RegisterDate ?? "―")
+                                    @if (row.Line.RegisterDateAsIs)
+                                    {
+                                        <div class="blk-current">書いたまま登録</div>
+                                    }
+                                </td>
+                                <td class="blk-cell">@(row.Line.SerialNumber ?? "―")</td>
+                                <td>
+                                    @if (!row.Line.IsValid)
+                                    {
+                                        <span class="blk-state ng">エラー</span>
+                                    }
+                                    else if (row.Exists)
+                                    {
+                                        <span class="blk-state exist">既存</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="blk-state new">新規</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!row.Line.IsValid)
+                                    {
+                                        <span class="blk-msg">@row.Line.Error</span>
+                                        <div class="blk-raw">@row.Line.RawText</div>
+                                    }
+                                    else if (row.Exists)
+                                    {
+                                        <div class="blk-current">
+                                            現在: @(row.CurrentAirlineName ?? "―") / @(row.CurrentTypeDetailName ?? "―") /
+                                            @(row.CurrentOperationName ?? "―") / @(row.CurrentRegisterDate ?? "―")
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <div class="blk-footer">
+                    <span class="blk-count"><span id="blkSelectedCount">0</span> 機を登録</span>
+                    <button type="submit" class="blk-btn primary" id="blkExecute" style="margin-left:auto"
+                            formaction="@Url.Action("Execute", "BulkRegister")">登録を実行</button>
+                </div>
+            </div>
+        }
+    </form>
+</div>
+
+@section ScriptsPartial{
+<partial name="_TypeDetailPickerScript" />
+<script>
+    $(function () {
+        // ---- 行数の表示 ----
+        const refreshLineCount = function () {
+            const text = $('#InputText').val() || '';
+            const lines = text.split(/\r\n|\r|\n/).filter(function (line) { return line.trim() !== ''; });
+            $('#lineCount').text(lines.length);
+        };
+
+        $('#InputText').on('input change', refreshLineCount);
+        refreshLineCount();
+
+        // ---- 選択件数 ----
+        const refreshSelectedCount = function () {
+            $('#blkSelectedCount').text($('.blk-select:checked').length);
+        };
+
+        $(document).on('change', '.blk-select', refreshSelectedCount);
+
+        $('#blkSelectAll').on('change', function () {
+            $('.blk-select').prop('checked', $(this).prop('checked'));
+            refreshSelectedCount();
+        });
+
+        refreshSelectedCount();
+
+        // ---- 確認した後で入力を触ったら、実行させずに確認し直してもらう ----
+        // 確認結果は入力欄を解釈したものなので、ずれたまま実行すると意図しない内容が入る
+        $('#blkForm').find('input, select, textarea').not('.blk-select, #blkSelectAll').on('input change', function () {
+            $('#blkStale').show();
+            $('#blkPreview').css('opacity', .5);
+            $('#blkExecute').prop('disabled', true);
+        });
+
+        // ---- コンフィグは航空会社と詳細型式で絞る（/E と同じ） ----
+        const recreateSeatConfigList = function () {
+            $.ajax({
+                type: 'GET',
+                url: '/Master/SeatConfiguration/?airline=' + $('#Airline').val() + '&typeDetailId=' + ($('#TypeDetailId').val() || 0),
+                cache: false
+            }).done(function (data) {
+                const select = $('#SeatConfig');
+                select.find('option').remove();
+                select.append($('<option>').text('').attr('value', ''));
+                $.each(data || [], function (index, config) {
+                    select.append($('<option>').text(config.seatConfigLong).attr('value', config.configId));
+                });
+            });
+        };
+
+        $('#Airline, #TypeDetailId').on('change', recreateSeatConfigList);
+    });
+</script>
+}
