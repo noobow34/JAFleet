@@ -24,14 +24,14 @@ const sendMessageToMe = function() {
     $.ajax({
         type: 'POST',
         url: '/Message/Send',
-        data: { name: $('#uname').val(), replay: $('#replayto').val(), message: $('#message').val() },
+        data: { name: $('#uname').val(), reply: $('#replyto').val(), message: $('#message').val() },
         cache: false
     }).fail(function (data) {
         $('#result').text("送信しました");
     }).done(function (data) {
         if (data == "OK") {
             $('#uname').val("");
-            $('#replayto').val("");
+            $('#replyto').val("");
             $('#message').val("");
             $('#result').text("送信しました");
         } else {

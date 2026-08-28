@@ -30,7 +30,7 @@ namespace JAFleet.Controllers
         {
             await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), "【JA-Fleet from web】\n" +
                 $"名前：{model.Name}\n" +
-                $"返信先：{model.Replay}\n" +
+                $"返信先：{model.Reply}\n" +
                 $"{model.Message}");
             _ = Task.Run(() =>
             {
@@ -40,11 +40,11 @@ namespace JAFleet.Controllers
                 {
                     Sender = model.Name,
                     MessageDetail = model.Message,
-                    ReplayTo = model.Replay,
+                    ReplyTo = model.Reply,
                     MessageType = Commons.Constants.MessageType.WEB,
                     RecieveDate = DateTime.Now
                 };
-                context.Messagess.Add(m);
+                context.Messages.Add(m);
                 context.SaveChanges();
             });
             return Content("OK");
