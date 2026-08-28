@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace JAFleet.Classes.JcabImport
+namespace JAFleet.Services.JcabImport
 {
     /// <summary>
     /// プレビュー画面で人が触った内容。自動判定の結果に上書きする形で保持する。

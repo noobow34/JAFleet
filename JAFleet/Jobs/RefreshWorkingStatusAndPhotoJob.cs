@@ -2,6 +2,7 @@
 using JAFleet.Commons.EF;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
+using JAFleet.Batch;
 
 namespace JAFleet.Jobs
 {

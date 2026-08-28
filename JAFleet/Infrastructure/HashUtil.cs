@@ -1,7 +1,7 @@
 ﻿using Force.Crc32;
 using System.Text;
 
-namespace JAFleet.Util
+namespace JAFleet.Infrastructure
 {
     public static class HashUtil
     {

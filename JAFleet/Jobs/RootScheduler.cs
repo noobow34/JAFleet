@@ -4,7 +4,7 @@ using Quartz;
 using Quartz.Impl;
 using Type = System.Type;
 
-namespace JAFleet
+namespace JAFleet.Jobs
 {
     public static class RootScheduler
     {

@@ -1,5 +1,5 @@
 ﻿using EnumStringValues;
-using JAFleet.Classes;
+using JAFleet.Batch;
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.EF;
 using Microsoft.EntityFrameworkCore;

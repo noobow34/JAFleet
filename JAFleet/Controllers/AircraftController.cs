@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using JAFleet.Models;
 using JAFleet.Commons.EF;
-using JAFleet.Manager;
-using JAFleet.Util;
+using JAFleet.Services;
+using JAFleet.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using JAFleet.Commons.Constants;
 

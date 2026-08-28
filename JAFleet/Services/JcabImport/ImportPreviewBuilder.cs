@@ -1,9 +1,8 @@
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.EF;
-using JAFleet.Manager;
 using Microsoft.EntityFrameworkCore;
 
-namespace JAFleet.Classes.JcabImport
+namespace JAFleet.Services.JcabImport
 {
     public enum ImportCategory
     {

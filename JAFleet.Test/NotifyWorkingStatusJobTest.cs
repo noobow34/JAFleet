@@ -5,6 +5,7 @@ using JAFleet.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
 using Quartz.Impl;
+using JAFleet.Batch;
 
 namespace JAFleet.Test
 {

@@ -1,9 +1,8 @@
-using JAFleet.Classes;
-using JAFleet.Classes.JcabImport;
+using JAFleet.Services;
+using JAFleet.Services.JcabImport;
 using JAFleet.Commons.EF;
-using JAFleet.Manager;
 using JAFleet.Models;
-using JAFleet.Util;
+using JAFleet.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;

@@ -1,8 +1,8 @@
 ﻿using Auth0.AspNetCore.Authentication;
-using JAFleet;
-using JAFleet.Classes;
+using JAFleet.Jobs;
+using JAFleet.Middleware;
+using JAFleet.Services;
 using JAFleet.Commons.EF;
-using JAFleet.Manager;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.WebEncoders;

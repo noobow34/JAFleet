@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using JAFleet.Manager;
+using JAFleet.Services;
 using JAFleet.Commons.EF;
 
 namespace JAFleet.Controllers

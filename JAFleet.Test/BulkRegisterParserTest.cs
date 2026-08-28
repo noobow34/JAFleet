@@ -1,4 +1,4 @@
-using JAFleet.Classes.BulkRegister;
+using JAFleet.Services.BulkRegister;
 
 namespace JAFleet.Test
 {

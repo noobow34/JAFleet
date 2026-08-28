@@ -1,4 +1,4 @@
-@using JAFleet.Classes.JcabImport
+@using JAFleet.Services.JcabImport
 @using JAFleet.Commons.EF
 @model JAFleet.Models.JcabImportModel
 @{
@@ -161,7 +161,7 @@
             </div>
 
             <div class="imp-actions">
-                <span class="imp-hint">解除できない場合は送信年月日を@(JAFleet.Classes.JcabImport.JcabImportConstant.PASSWORD_RETRY_DAYS)日前まで遡って自動で試します</span>
+                <span class="imp-hint">解除できない場合は送信年月日を@(JAFleet.Services.JcabImport.JcabImportConstant.PASSWORD_RETRY_DAYS)日前まで遡って自動で試します</span>
                 <div style="margin-left:auto;display:flex;gap:10px">
                     <button type="submit" class="imp-btn" formaction="@Url.Action("Decrypt", "JcabImport")">解除してダウンロード</button>
                     <button type="submit" class="imp-btn primary">解除して解析</button>

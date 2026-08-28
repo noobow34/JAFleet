@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace JAFleet.Classes.JcabImport
+namespace JAFleet.Services.JcabImport
 {
     /// <summary>
     /// 航空局Excelの日付はシートごとに型が違う。

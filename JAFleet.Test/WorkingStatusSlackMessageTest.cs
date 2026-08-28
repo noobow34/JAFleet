@@ -1,4 +1,4 @@
-using JAFleet.Classes;
+using JAFleet.Batch;
 using JAFleet.Models;
 using Newtonsoft.Json;
 using SlackNet;

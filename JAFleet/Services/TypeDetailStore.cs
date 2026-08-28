@@ -1,8 +1,7 @@
 using JAFleet.Commons.EF;
-using JAFleet.Manager;
 using Microsoft.EntityFrameworkCore;
 
-namespace JAFleet.Classes
+namespace JAFleet.Services
 {
     /// <summary>
     /// 詳細型式の新規登録。マスタに無い型式に出くわしたとき、別画面に移らずその場で追加するためのもの。

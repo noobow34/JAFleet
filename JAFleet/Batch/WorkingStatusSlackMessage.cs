@@ -2,7 +2,7 @@ using JAFleet.Models;
 using SlackNet.Blocks;
 using System.Text.Json;
 
-namespace JAFleet.Classes
+namespace JAFleet.Batch
 {
     /// <summary>
     /// 稼働チェック結果のSlack通知メッセージ（BlockKit）を組み立てる。

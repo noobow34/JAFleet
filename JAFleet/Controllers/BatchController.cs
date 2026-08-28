@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Constants;
 using Noobow.Commons.Utils;
+using JAFleet.Batch;
 
 namespace JAFleet.Controllers
 {
@@ -20,7 +21,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public async Task<IActionResult> RefreshWorkingStatusAndPhotoAsync(int? interval)
         {
-            if (JAFleet.RefreshWorkingStatusAndPhoto.Processing)
+            if (JAFleet.Batch.RefreshWorkingStatusAndPhoto.Processing)
             {
                 await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), "RefreshWorkingStatusAndPhoto 二重起動を検出");
                 return Content("Now Processing!!");
@@ -42,7 +43,7 @@ namespace JAFleet.Controllers
         [Authorize]
         public async Task<IActionResult> RefreshPhotoAsync(int? interval,int mode)
         {
-            if (JAFleet.RefreshPhoto.Processing)
+            if (JAFleet.Batch.RefreshPhoto.Processing)
             {
                 await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), "RefreshPhoto 二重起動を検出");
                 return Content("Now Processing!!");

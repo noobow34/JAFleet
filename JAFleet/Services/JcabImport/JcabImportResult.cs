@@ -1,4 +1,4 @@
-namespace JAFleet.Classes.JcabImport
+namespace JAFleet.Services.JcabImport
 {
     public class JcabImportResultRow
     {

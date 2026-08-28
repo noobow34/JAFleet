@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using JAFleet.Classes.JcabImport;
+using JAFleet.Services.JcabImport;
 
-namespace JAFleet.Classes.BulkRegister
+namespace JAFleet.Services.BulkRegister
 {
     /// <summary>
     /// 貼り付けたテキストの1行分。

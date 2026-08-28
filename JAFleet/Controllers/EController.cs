@@ -1,9 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using JAFleet.Classes;
-using JAFleet.Manager;
+using JAFleet.Services;
 using JAFleet.Models;
 using JAFleet.Commons.EF;
-using JAFleet.Util;
+using JAFleet.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace JAFleet.Controllers

@@ -1,5 +1,5 @@
 using EnumStringValues;
-using JAFleet.Classes;
+using JAFleet.Batch;
 using JAFleet.Models;
 using Noobow.Commons.Constants;
 using Noobow.Commons.Utils;

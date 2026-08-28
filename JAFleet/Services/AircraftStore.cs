@@ -3,7 +3,7 @@ using JAFleet.Commons.Constants;
 using JAFleet.Commons.EF;
 using Microsoft.EntityFrameworkCore;
 
-namespace JAFleet.Classes
+namespace JAFleet.Services
 {
     /// <summary>
     /// 機体情報の登録・更新。単票編集（/E）とExcel一括取込（/JcabImport）の両方から使う。

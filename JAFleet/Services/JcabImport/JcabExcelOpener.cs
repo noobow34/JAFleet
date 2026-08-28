@@ -1,7 +1,7 @@
 using System.Security;
 using OfficeOpenXml;
 
-namespace JAFleet.Classes.JcabImport
+namespace JAFleet.Services.JcabImport
 {
     public class ExcelOpenResult
     {

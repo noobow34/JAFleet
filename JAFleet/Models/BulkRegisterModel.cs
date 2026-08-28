@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using JAFleet.Classes.BulkRegister;
+using JAFleet.Services.BulkRegister;
 using JAFleet.Commons.EF;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 

@@ -1,7 +1,7 @@
 ﻿using Auth0.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication;
 
-namespace JAFleet.Classes
+namespace JAFleet.Middleware
 {
     public class ConditionalAuthRedirectMiddleware
     {

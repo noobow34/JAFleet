@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace JAFleet.Classes.JcabImport
+namespace JAFleet.Services.JcabImport
 {
     /// <summary>
     /// 航空局Excelは半角カナ・全角英数・全角ハイフンが同一ファイル内で混在するため

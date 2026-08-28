@@ -1,12 +1,11 @@
 using EnumStringValues;
 using JAFleet.Commons.EF;
-using JAFleet.Manager;
 using JAFleet.Models;
-using JAFleet.Util;
+using JAFleet.Infrastructure;
 using Noobow.Commons.Constants;
 using Noobow.Commons.Utils;
 
-namespace JAFleet.Classes
+namespace JAFleet.Services
 {
     /// <summary>
     /// 名前付き検索条件の登録。検索画面（/Search）とExcel取込の両方から使う。

@@ -1,9 +1,9 @@
 ﻿using JAFleet.Commons.EF;
-using JAFleet.Util;
+using JAFleet.Infrastructure;
 using System.Diagnostics;
 using System.Net;
 
-namespace JAFleet.Classes
+namespace JAFleet.Middleware
 {
     public class LoggingMiddleware
     {

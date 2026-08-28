@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Type = JAFleet.Commons.EF.Type;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
-namespace JAFleet.Manager
+namespace JAFleet.Services
 {
     public static class MasterManager
     {

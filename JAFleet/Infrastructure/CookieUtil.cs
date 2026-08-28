@@ -1,4 +1,4 @@
-﻿namespace JAFleet.Util
+﻿namespace JAFleet.Infrastructure
 {
     public static class CookieUtil
     {

@@ -1,11 +1,9 @@
 using AngleSharp;
 using AngleSharp.Html.Parser;
 using EnumStringValues;
-using JAFleet.Commons.Aircraft;
+using JAFleet.Commons.Scraping;
 using JAFleet.Commons.Constants;
-using JAFleet.Classes;
 using JAFleet.Commons.EF;
-using JAFleet.Manager;
 using JAFleet.Models;
 using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Constants;
@@ -14,7 +12,7 @@ using Noobow.Commons.Utils;
 using System.Diagnostics;
 using System.Text.Json;
 
-namespace JAFleet
+namespace JAFleet.Batch
 {
     public class RefreshWorkingStatusAndPhoto
     {

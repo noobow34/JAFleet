@@ -1,6 +1,6 @@
 ﻿using AngleSharp;
 using EnumStringValues;
-using JAFleet.Commons.Aircraft;
+using JAFleet.Commons.Scraping;
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.EF;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +9,7 @@ using Noobow.Commons.Extensions;
 using Noobow.Commons.Utils;
 using System.Text;
 
-namespace JAFleet
+namespace JAFleet.Batch
 {
     public class RefreshPhoto
     {

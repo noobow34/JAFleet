@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using JAFleet.Classes.JcabImport;
+using JAFleet.Services.JcabImport;
 using JAFleet.Commons.EF;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
