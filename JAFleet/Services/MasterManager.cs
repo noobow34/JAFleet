@@ -40,7 +40,7 @@ namespace JAFleet.Services
             _type = context.Types.AsNoTracking().OrderBy(p => p.DisplayOrder).ToArray();
             _wifi = context.Codes.AsNoTracking().Where(p => p.CodeType == CodeType.WIFI).OrderBy(p => p.Key).ToArray();
             _typeDetailGroup = context.TypeDetailViews.AsNoTracking().OrderBy(p => p.DisplayOrder).ThenBy(p => p.TypeDetailName).ToArray();
-            _seatConfiguration = context.SeatConfigrations.AsNoTracking().OrderBy(p => p.Airline).ThenBy(p => p.Type).ToArray();
+            _seatConfiguration = context.SeatConfigurations.AsNoTracking().OrderBy(p => p.Airline).ThenBy(p => p.Type).ToArray();
             AppInfo = context.AppInfos.SingleOrDefault();
             ReloadNamedSearchCondition(context);
             var tempop = context.Codes.AsNoTracking().Where(p => p.CodeType == CodeType.OPERATION_CODE).OrderBy(p => p.Key).ToList();

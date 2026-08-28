@@ -76,7 +76,7 @@ app.MapControllerRoute(
 app.MapControllerRoute(
     name: "Log",
     pattern: "log/{id?}",
-    defaults: new { controller = "log", action = "Index" }
+    defaults: new { controller = "Log", action = "Index" }
 );
 app.MapControllerRoute(
     name: "AircraftDetail1",
@@ -106,7 +106,7 @@ app.MapControllerRoute(
 app.MapControllerRoute(
     name: "Logy",
     pattern: "logy",
-    defaults: new { controller = "log", action = "Yesterday" }
+    defaults: new { controller = "Log", action = "Yesterday" }
 );
 app.MapControllerRoute(
     name: "default",

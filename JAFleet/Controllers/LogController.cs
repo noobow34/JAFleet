@@ -9,12 +9,12 @@ using Newtonsoft.Json;
 
 namespace JAFleet.Controllers
 {
-    public class logController : Controller
+    public class LogController : Controller
     {
 
         private readonly JAFleetContext _context;
 
-        public logController(JAFleetContext context) => _context = context;
+        public LogController(JAFleetContext context) => _context = context;
 
         public IActionResult Yesterday([FromQuery] bool fromAdmin)
         {

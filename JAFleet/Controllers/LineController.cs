@@ -5,10 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace JAFleet.Controllers
 {
-    public class lineController : Controller
+    public class LineController : Controller
     {
         private readonly IServiceScopeFactory _services;
-        public lineController(IServiceScopeFactory serviceScopeFactory) => _services = serviceScopeFactory;
+        public LineController(IServiceScopeFactory serviceScopeFactory) => _services = serviceScopeFactory;
 
         public IActionResult Index()
         {
