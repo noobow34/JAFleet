@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 
 namespace JAFleet.Models
 {
@@ -13,10 +13,10 @@ namespace JAFleet.Models
         public Airline[]? AirlineList { get; set; }
 
         [Display(Name = "型式")]
-        public JAFleet.Commons.EF.Type[]? TypeList { get; set; }
+        public JAFleet.Commons.Data.Type[]? TypeList { get; set; }
 
         [Display(Name = "詳細型式")]
-        public JAFleet.Commons.EF.TypeDetail[]? TypeDetailList { get; set; }
+        public JAFleet.Commons.Data.TypeDetail[]? TypeDetailList { get; set; }
 
         [Display(Name = "運用状況")]
         public Code[]? OperationList { get; set; }

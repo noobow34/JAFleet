@@ -1,4 +1,4 @@
-@using JAFleet.Commons.EF
+@using JAFleet.Commons.Data
 @model JAFleet.Models.TypeDetailPickerModel
 @*
     型式→詳細型式の2段で選ぶピッカー。
@@ -124,7 +124,7 @@
                                 <span class="cnt">@typeDetails.Length</span>
                             </button>
                         </li>
-                        @foreach (JAFleet.Commons.EF.Type type in Model.TypeList ?? [])
+                        @foreach (JAFleet.Commons.Data.Type type in Model.TypeList ?? [])
                         {
                             @* 詳細型式が1件も無い型式は並べても選べないので出さない *@
                             if (counts.TryGetValue(type.TypeCode, out int count))
@@ -168,7 +168,7 @@
                     <label>型式</label>
                     <select class="tdp-new-type">
                         <option value="">　</option>
-                        @foreach (JAFleet.Commons.EF.Type type in Model.TypeList ?? [])
+                        @foreach (JAFleet.Commons.Data.Type type in Model.TypeList ?? [])
                         {
                             <option value="@type.TypeCode">@type.TypeName</option>
                         }

@@ -1,5 +1,5 @@
 ﻿using JAFleet.Commons.Constants;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
 using JAFleet.Batch;

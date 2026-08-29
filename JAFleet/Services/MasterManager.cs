@@ -1,7 +1,7 @@
-﻿using JAFleet.Commons.EF;
+﻿using JAFleet.Commons.Data;
 using JAFleet.Commons.Constants;
 using Microsoft.EntityFrameworkCore;
-using Type = JAFleet.Commons.EF.Type;
+using Type = JAFleet.Commons.Data.Type;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace JAFleet.Services
@@ -111,8 +111,8 @@ namespace JAFleet.Services
         private static Airline[]? _other = null;
         public static Airline[]? Other { get { return _other; } }
 
-        private static JAFleet.Commons.EF.Type[]? _type = null;
-        public static JAFleet.Commons.EF.Type[]? Type { get { return _type; } }
+        private static JAFleet.Commons.Data.Type[]? _type = null;
+        public static JAFleet.Commons.Data.Type[]? Type { get { return _type; } }
 
         public static TypeDetailView[]? _typeDetailGroup = null;
         public static TypeDetailView[]? TypeDetailGroup { get { return _typeDetailGroup; } }

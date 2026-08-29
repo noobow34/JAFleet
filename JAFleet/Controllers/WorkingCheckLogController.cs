@@ -1,5 +1,5 @@
 using JAFleet.Commons.Constants;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using JAFleet.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

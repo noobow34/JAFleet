@@ -1,4 +1,4 @@
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 
 namespace JAFleet.Models
 {
@@ -17,7 +17,7 @@ namespace JAFleet.Models
         public int? SelectedId { get; set; }
 
         /// <summary>絞り込みに使う型式</summary>
-        public Commons.EF.Type[]? TypeList { get; set; }
+        public Commons.Data.Type[]? TypeList { get; set; }
 
         public TypeDetail[]? TypeDetailList { get; set; }
     }

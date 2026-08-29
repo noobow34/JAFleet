@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using JAFleet.Models;
 using Microsoft.AspNetCore.Diagnostics;
 using JAFleet.Infrastructure;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using JAFleet.Commons.Constants;
 using Noobow.Commons.Utils;
 using Noobow.Commons.Constants;

@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using JAFleet.Models;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using Noobow.Commons.Utils;
 using Noobow.Commons.Constants;
 using EnumStringValues;

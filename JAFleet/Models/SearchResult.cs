@@ -1,4 +1,4 @@
-﻿using JAFleet.Commons.EF;
+﻿using JAFleet.Commons.Data;
 
 namespace JAFleet.Models
 {

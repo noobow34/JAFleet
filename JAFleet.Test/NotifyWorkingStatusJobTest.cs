@@ -1,6 +1,6 @@
 ﻿using JAFleet;
 using JAFleet.Commons.Constants;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using JAFleet.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Quartz;

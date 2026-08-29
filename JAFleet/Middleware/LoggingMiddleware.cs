@@ -1,4 +1,4 @@
-﻿using JAFleet.Commons.EF;
+﻿using JAFleet.Commons.Data;
 using JAFleet.Infrastructure;
 using System.Diagnostics;
 using System.Net;

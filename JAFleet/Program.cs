@@ -2,7 +2,7 @@
 using JAFleet.Jobs;
 using JAFleet.Middleware;
 using JAFleet.Services;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.WebEncoders;

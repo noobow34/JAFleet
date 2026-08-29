@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using JAFleet.Services;
 
 namespace JAFleet.Models

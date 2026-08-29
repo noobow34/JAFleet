@@ -3,7 +3,7 @@ using AngleSharp.Html.Parser;
 using EnumStringValues;
 using JAFleet.Commons.Scraping;
 using JAFleet.Commons.Constants;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using JAFleet.Models;
 using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Constants;

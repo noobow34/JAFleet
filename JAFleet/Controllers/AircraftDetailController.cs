@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using JAFleet.Models;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using JAFleet.Infrastructure;
 using JAFleet.Commons.Constants;
 using Microsoft.EntityFrameworkCore;

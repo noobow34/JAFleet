@@ -1,5 +1,5 @@
 ﻿using JAFleet.Services;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using JAFleet.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

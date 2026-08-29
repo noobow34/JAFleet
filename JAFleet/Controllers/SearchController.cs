@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using JAFleet.Services;
 using JAFleet.Models;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using JAFleet.Infrastructure;
 using JAFleet.Commons.Constants;
 using AutoMapper;

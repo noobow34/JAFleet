@@ -1,6 +1,6 @@
 using JAFleet.Services;
 using JAFleet.Services.BulkRegister;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using JAFleet.Models;
 using JAFleet.Infrastructure;
 using Microsoft.AspNetCore.Mvc;

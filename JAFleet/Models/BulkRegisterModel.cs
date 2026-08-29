@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using JAFleet.Services.BulkRegister;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace JAFleet.Models
@@ -73,7 +73,7 @@ namespace JAFleet.Models
 
         /// <summary>詳細型式ピッカーの絞り込みと、その場での新規登録に使う</summary>
         [BindNever]
-        public Commons.EF.Type[]? TypeList { get; set; }
+        public Commons.Data.Type[]? TypeList { get; set; }
 
         [BindNever]
         public Code[]? OperationList { get; set; }

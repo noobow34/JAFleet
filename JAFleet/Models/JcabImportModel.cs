@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using JAFleet.Services.JcabImport;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace JAFleet.Models
@@ -74,7 +74,7 @@ namespace JAFleet.Models
 
         /// <summary>詳細型式を新規登録するモーダルで選ぶ型式</summary>
         [BindNever]
-        public Commons.EF.Type[]? TypeList { get; set; }
+        public Commons.Data.Type[]? TypeList { get; set; }
 
         [BindNever]
         public Code[]? OperationList { get; set; }

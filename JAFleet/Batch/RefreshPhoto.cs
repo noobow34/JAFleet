@@ -2,7 +2,7 @@
 using EnumStringValues;
 using JAFleet.Commons.Scraping;
 using JAFleet.Commons.Constants;
-using JAFleet.Commons.EF;
+using JAFleet.Commons.Data;
 using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Constants;
 using Noobow.Commons.Extensions;
