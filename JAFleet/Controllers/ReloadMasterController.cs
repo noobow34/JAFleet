@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using JAFleet.Services;
 using JAFleet.Commons.Data;
+using JAFleet.Infrastructure;
 
 namespace JAFleet.Controllers
 {
@@ -12,6 +13,11 @@ namespace JAFleet.Controllers
 
         public IActionResult Index()
         {
+            if (!CookieUtil.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
             try
             {
                 MasterManager.ReadAll(_context);
