@@ -1,4 +1,5 @@
-﻿using JAFleet.Commons.Constants;
+﻿using System.ComponentModel;
+using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
@@ -6,6 +7,7 @@ using JAFleet.Batch;
 
 namespace JAFleet.Jobs
 {
+    [Description("退役以外の全機体についてFlightradar24を巡回し、稼働状況と写真を更新する")]
     public class RefreshWorkingStatusAndPhotoJob : IJob
     {
         public async Task Execute(IJobExecutionContext context)

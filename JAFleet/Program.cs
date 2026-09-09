@@ -118,6 +118,6 @@ options.UseNpgsql(connectionString);
 using JAFleetContext context = new(options.Options);
 MasterManager.ReadAll(context);
 
-RootScheduler.CreateOrReloadRootScheduler();
+await RootScheduler.CreateOrReloadRootScheduler();
 
 app.Run();

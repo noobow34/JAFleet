@@ -1,0 +1,194 @@
+@model JAFleet.Models.SchedulerModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "定期実行ジョブ";
+}
+
+@section CssPartial {
+<style>
+/* ===== 定期実行ジョブ =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
+.sch-page { padding: 16px 0 60px; max-width: 900px; }
+.sch-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
+.sch-lead { font-size: 13px; color: #94a3b8; margin-bottom: 18px; line-height: 1.7; }
+
+.sch-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 16px 18px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.sch-card.off { background: #f8fafc; }
+
+.sch-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sch-name { font-size: 15px; font-weight: 700; color: #1e293b; }
+.sch-desc { font-size: 13px; color: #64748b; margin-top: 4px; line-height: 1.6; }
+.sch-class { font-family: Consolas, monospace; font-size: 11px; color: #cbd5e1; word-break: break-all; }
+
+.sch-badge {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+.sch-badge.on   { background: #dcfce7; color: #166534; }
+.sch-badge.off  { background: #e2e8f0; color: #64748b; }
+.sch-badge.run  { background: #dbeafe; color: #1d4ed8; }
+.sch-badge.warn { background: #fef3c7; color: #92400e; }
+
+.sch-body {
+    display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+    margin-top: 14px; padding-top: 14px; border-top: 1px dashed #e2e8f0;
+}
+.sch-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sch-field label { margin: 0; font-size: 12px; font-weight: 600; color: #64748b; }
+.sch-field input[type=text] {
+    height: 34px; width: 230px; max-width: 100%; padding: 4px 10px;
+    font-family: Consolas, monospace; font-size: 14px;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b;
+}
+.sch-check {
+    display: flex; align-items: center; gap: 6px; height: 34px; margin: 0;
+    font-size: 13px; font-weight: 600; color: #475569;
+}
+.sch-check input { width: 15px; height: 15px; margin: 0; }
+.sch-times { font-size: 12px; color: #64748b; line-height: 1.7; }
+.sch-times .t { font-family: Consolas, monospace; color: #334155; }
+
+.sch-btn {
+    display: inline-flex; align-items: center; height: 34px; padding: 0 18px;
+    border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer;
+}
+.sch-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.sch-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.sch-btn.primary:hover { background: #1e293b; color: #fff; }
+
+.sch-error {
+    border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #b91c1c;
+    font-weight: 600; line-height: 1.7;
+}
+.sch-ok {
+    border: 1px solid #a7f3d0; background: #ecfdf5; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 14px; color: #065f46;
+    font-weight: 700; line-height: 1.7;
+}
+
+.sch-help {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc;
+    padding: 14px 18px; margin-top: 20px; font-size: 13px; color: #475569; line-height: 1.8;
+}
+.sch-help b { color: #334155; }
+.sch-help code {
+    font-family: Consolas, monospace; font-size: 12px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 4px;
+    padding: 1px 6px; color: #0f172a;
+}
+
+@@media (max-width: 700px) {
+    .sch-body { align-items: stretch; }
+    .sch-field input[type=text] { width: 100%; }
+    .sch-btn { justify-content: center; }
+}
+</style>
+}
+
+<div class="sch-page">
+    <h2>⏰ 定期実行ジョブ</h2>
+    <div class="sch-lead">
+        保存すると動いているスケジューラにその場で反映されます。アプリの再起動は要りません。<br />
+        無効にしても、そのとき実行中の処理は最後まで走ります。
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="sch-error">⚠ @Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="sch-ok">✔ @Model.Message</div>
+    }
+
+    @foreach (var row in Model.Rows)
+    {
+        <form class="sch-card @(row.Enabled ? "" : "off")" method="post" asp-controller="Scheduler" asp-action="Save">
+            <input type="hidden" name="className" value="@row.ClassName" />
+            <input type="hidden" name="fromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
+
+            <div class="sch-head">
+                <span class="sch-name">@row.DisplayName</span>
+                @if (row.Enabled)
+                {
+                    <span class="sch-badge on">有効</span>
+                }
+                else
+                {
+                    <span class="sch-badge off">無効</span>
+                }
+                @if (row.Running)
+                {
+                    <span class="sch-badge run">実行中</span>
+                }
+                @if (!row.TypeFound)
+                {
+                    <span class="sch-badge warn">クラスなし</span>
+                }
+                else if (row.Enabled && !row.Scheduled)
+                {
+                    <span class="sch-badge warn">未登録</span>
+                }
+                @if (!row.Defined)
+                {
+                    <span class="sch-badge warn">定義なし</span>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(row.Description))
+            {
+                <div class="sch-desc">@row.Description</div>
+            }
+            <div class="sch-class">@row.ClassName</div>
+
+            @if (!row.TypeFound)
+            {
+                <div class="sch-desc">このクラスはアプリに見つかりません。有効にはできません。</div>
+            }
+            else if (!row.Defined)
+            {
+                <div class="sch-desc">scheduler_defに定義がありません。cron式を入れて保存すると追加されます。</div>
+            }
+            else if (row.Enabled && !row.Scheduled)
+            {
+                <div class="sch-desc">DBでは有効ですが、スケジューラに登録されていません。保存し直すと登録されます。</div>
+            }
+
+            <div class="sch-body">
+                <div class="sch-field">
+                    <label for="cron_@row.DisplayName">cron式</label>
+                    <input type="text" id="cron_@row.DisplayName" name="cronDef" value="@row.CronDef"
+                           spellcheck="false" autocomplete="off" placeholder="0 0 6 * * ?" />
+                </div>
+
+                <label class="sch-check">
+                    <input type="checkbox" name="enabled" value="true" checked="@row.Enabled" />
+                    有効
+                </label>
+
+                <div class="sch-times">
+                    次回：<span class="t">@(row.NextFireTime?.ToString("yyyy/MM/dd HH:mm:ss") ?? "―")</span><br />
+                    前回：<span class="t">@(row.PreviousFireTime?.ToString("yyyy/MM/dd HH:mm:ss") ?? "―")</span>
+                </div>
+
+                <button type="submit" class="sch-btn primary" style="margin-left:auto">保存</button>
+            </div>
+        </form>
+    }
+
+    <div class="sch-help">
+        <b>cron式の書き方</b><br />
+        Quartzのcronは <code>秒 分 時 日 月 曜日</code> の6項目です（末尾に年を足して7項目にもできます）。
+        Unixのcronと違って<b>秒から始まる</b>点と、日と曜日のどちらか一方は <code>?</code> にする点に注意してください。<br />
+        毎日6時 → <code>0 0 6 * * ?</code>　／　毎時0分 → <code>0 0 * * * ?</code>　／　
+        10分ごと → <code>0 0/10 * * * ?</code>　／　平日9時 → <code>0 0 9 ? * MON-FRI</code><br />
+        時刻はサーバーのタイムゾーンで動きます。「次回」はスケジューラが持っている実際の予定です。
+    </div>
+</div>

@@ -48,6 +48,7 @@
 | 同一型式の一括登録 | `/BulkRegister` | 「レジ / 登録年月日 / 製造番号」をタブ・カンマ・空白区切りで貼り付けてまとめて登録 |
 | 航空局 Excel 取込 | `/JcabImport` | 国土交通省航空局から届くパスワード付き Excel を解除して取り込む |
 | マスタ再読込 | `/ReloadMaster` | 航空会社・型式などのマスタをメモリへ読み直す |
+| 定期実行ジョブ | `/Scheduler` | Quartz のジョブの有効・無効と cron 式を変更する |
 | バッチ手動実行 | `/Batch/RefreshWorkingStatusAndPhoto`<br>`/Batch/RefreshPhoto` | 定期ジョブと同じ処理を手動で起動 |
 | アクセスログ | `/log`（本日）、`/logy`（昨日） | 閲覧・検索の記録 |
 
@@ -124,7 +125,18 @@ JAFleet.Test/         MSTest のテスト
 ## 定期実行ジョブ
 
 ジョブは `scheduler_def` テーブルに **クラス名と cron 式** を登録し、起動時に `RootScheduler` が読み込んで
-Quartz に登録します（`Enabled` が true の行のみ）。ジョブを増減するときはテーブルを更新します。
+Quartz に登録します（`Enabled` が true の行のみ）。
+
+有効・無効の切り替えと cron 式の変更は `/Scheduler` から行います。保存すると DB を書き換えたうえで
+動いているスケジューラへその場で反映するため、再起動は要りません。画面には `scheduler_def` の行だけでなく
+アプリが持つ `IJob` の実装がすべて並ぶので、定義が無いジョブもここから有効にできます
+（`JobCatalog` がクラスを集め、`[Description]` の文言を説明として出します）。
+
+画面で無効にしても、そのとき実行中の処理は止まりません。Quartz は動いているジョブを中断できないため、
+最後まで走り切ってから次回以降が実行されなくなります。
+
+cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6〜7 項目**です（例: 毎日 6 時は `0 0 6 * * ?`）。
+保存時に `CronExpression.IsValidExpression` で検査し、通らない式は登録しません。
 
 | ジョブ | 内容 |
 | --- | --- |

@@ -1,4 +1,5 @@
-﻿using EnumStringValues;
+﻿using System.ComponentModel;
+using EnumStringValues;
 using JAFleet.Batch;
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
@@ -9,6 +10,7 @@ using Quartz;
 
 namespace JAFleet.Jobs
 {
+    [Description("その日の稼働状況の変化をSlackへ投稿する")]
     public class NotifyWorkingStatusJob : IJob
     {
         public async Task Execute(IJobExecutionContext context)
