@@ -1,8 +1,8 @@
 ﻿using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
+using JAFleet.Infrastructure;
 using JAFleet.Services;
 using JAFleet.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -21,9 +21,15 @@ namespace JAFleet.Controllers
             return Index("y", fromAdmin);
         }
 
-        [Authorize]
+        //Yesterdayからは素のメソッド呼び出しで入ってくる。[Authorize]のようなフィルタは
+        //ルーティングされたアクションにしか効かないため、ここで直接判定する
         public IActionResult Index(string id, [FromQuery] bool fromAdmin)
         {
+            if (!AdminAuth.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
             DateTime? targetDate = null;
             if (string.IsNullOrEmpty(id))
             {

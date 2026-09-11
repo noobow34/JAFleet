@@ -11,7 +11,10 @@ namespace JAFleet.Middleware
     public class ConditionalAuthRedirectMiddleware
     {
         private readonly RequestDelegate _next;
-        private static string[] EXCLUDE_LIST = [".CSS", ".JS", ".PNG", ".JPG", ".JPEG", ".GIF", ".ICO", "/CHECK", "/ACCOUNT/LOGIN", "/SETCOOKIE", "/API", "/MASTER", "/LOG"];
+        //"/LOG"を除外していた頃は/logの認可を[Authorize]が担っていたが、AdminAuth.IsAdminへ
+        //統一したのでここで自動ログインを効かせる。"/LOG"が/Account/Logoutも巻き込んで
+        //除外していたため、そちらは明示的に並べておく
+        private static string[] EXCLUDE_LIST = [".CSS", ".JS", ".PNG", ".JPG", ".JPEG", ".GIF", ".ICO", "/CHECK", "/ACCOUNT/LOGIN", "/ACCOUNT/LOGOUT", "/SETCOOKIE", "/API", "/MASTER"];
         private static readonly string adminKey = Environment.GetEnvironmentVariable("ADMIN_KEY") ?? "";
         private static readonly string adminValue = Environment.GetEnvironmentVariable("ADMIN_VALUE") ?? "";
 

@@ -1,7 +1,7 @@
 ﻿using EnumStringValues;
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
-using Microsoft.AspNetCore.Authorization;
+using JAFleet.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Constants;
@@ -17,10 +17,14 @@ namespace JAFleet.Controllers
 
         public BatchController(IServiceScopeFactory serviceScopeFactory) => _services = serviceScopeFactory;
 
-        [Authorize]
         [HttpPost]
         public async Task<IActionResult> RefreshWorkingStatusAndPhotoAsync(int? interval)
         {
+            if (!AdminAuth.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
             if (JAFleet.Batch.RefreshWorkingStatusAndPhoto.Processing)
             {
                 await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), "RefreshWorkingStatusAndPhoto 二重起動を検出");
@@ -40,9 +44,13 @@ namespace JAFleet.Controllers
             return Content("RefreshWorkingStatusAndPhoto Launch!");
         }
 
-        [Authorize]
         public async Task<IActionResult> RefreshPhotoAsync(int? interval,int mode)
         {
+            if (!AdminAuth.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
             if (JAFleet.Batch.RefreshPhoto.Processing)
             {
                 await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), "RefreshPhoto 二重起動を検出");
