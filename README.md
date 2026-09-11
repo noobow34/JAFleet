@@ -39,7 +39,7 @@
 
 ### 管理機能
 
-管理者向けの機能です。各画面は Auth0 でのログイン（`CookieUtil.IsAdmin`）を前提としています。
+管理者向けの機能です。各画面は Cloudflare Access でのログイン（`CookieUtil.IsAdmin`）を前提としています。
 
 | 機能 | パス | 説明 |
 | --- | --- | --- |
@@ -67,7 +67,7 @@
 
 - .NET 10 / ASP.NET Core MVC（Razor Views）
 - PostgreSQL + Entity Framework Core（Npgsql）
-- Auth0（`Auth0.AspNetCore.Authentication`）による管理者認証
+- Cloudflare Access による管理者認証（`Microsoft.AspNetCore.Authentication.JwtBearer` で JWT を検証）
 - Quartz.NET によるジョブスケジューリング
 - AngleSharp によるスクレイピング（Flightradar24 / JetPhotos）
 - EPPlus（航空局 Excel の解析。非商用ライセンス）
@@ -151,10 +151,84 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | 変数 | 用途 |
 | --- | --- |
 | `JAFLEET_CONNECTION_STRING` | PostgreSQL の接続文字列 |
-| `AUTH0_DOMAIN` / `AUTH0_CLIENT_ID` | Auth0 の設定 |
-| `ADMIN_KEY` / `ADMIN_VALUE` | 管理者の端末を見分けるための Cookie の名前と値。一致した場合のみ未認証時に Auth0 ログインへ自動リダイレクトする（認可そのものは Auth0 が行う） |
+| `CF_ACCESS_TEAM_DOMAIN` | Cloudflare Zero Trust のチームドメイン（例: `noobow.cloudflareaccess.com`）。JWT の `iss` と公開鍵の取得先になる |
+| `CF_ACCESS_AUD` | Access アプリケーションの Application Audience (AUD) タグ。JWT の `aud` と突き合わせる |
+| `ADMIN_KEY` / `ADMIN_VALUE` | 管理者の端末を見分けるための Cookie の名前と値。一致した場合のみ未認証時に `/Account/Login` へ自動リダイレクトする（認可そのものは Cloudflare Access が行う） |
 | `SLACK_BOT_TOKEN` | Slack 通知（`Noobow.Commons` の `SlackUtil`） |
 | `ENCRYPTION_KEY` | `Noobow.Commons` の `AesEncryption` が使用 |
+| `CF_ACCESS_DEV_ADMIN` | 開発専用。`ASPNETCORE_ENVIRONMENT=Development` かつ `1` のときだけ、認証済みの管理者になりすます（手元では Access の JWT が手に入らないため） |
+
+## 管理者認証（Cloudflare Access）
+
+サイトはほぼ全ページが認証なしで見え、**管理者だけを見分けて**編集リンクや管理機能を出す、という作りです。
+Cloudflare Access はプロキシとして認証しますが、通過したリクエストに JWT を渡してくるので、
+これを検証すれば公開ページでも管理者を識別できます。
+
+### 仕組み
+
+1. Access アプリケーションは **`/Account/Login` だけ**を保護する。他のページは Access の外に置く。
+2. 管理者が `/Account/Login` を踏むと Cloudflare のログイン画面が出て、通過すると
+   ホストに `CF_Authorization` Cookie（中身は JWT）が発行される。
+3. この Cookie はパス `/` で発行されるためブラウザが全ページへ送る。
+   アプリは `CloudflareAccess`（`Infrastructure/CloudflareAccess.cs`）でこれを検証し、
+   成功すれば `User.Identity.IsAuthenticated` が立つ。判定は従来どおり `CookieUtil.IsAdmin` で行う。
+4. 公開鍵は `https://{CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs` から取得して 1 時間キャッシュする。
+   Access には OIDC のディスカバリ文書が無いため、`Authority` ではなく `IssuerSigningKeyResolver` で直接引いている。
+
+`ConditionalAuthRedirectMiddleware` は、`ADMIN_KEY`/`ADMIN_VALUE` の Cookie を持つ端末が未認証のときだけ
+`/Account/Login` へリダイレクトします。一般の利用者はこの Cookie を持たないのでログイン画面を見ることはありません。
+Cookie は `/SetCookie?key=...&value=...` で仕込みます。
+
+`/Account/Logout` は目印の Cookie を消したうえで `/cdn-cgi/access/logout` へ送ります
+（消さないとログアウト直後にまたログインへ飛ばされます）。
+
+### Access アプリケーションの設定
+
+| 項目 | 値 |
+| --- | --- |
+| Application type | Self-hosted |
+| Path | `ja-fleet.noobow.me/Account/Login` |
+| Session Duration | 任意（切れると次回アクセス時に再ログインになる） |
+| Policy | Allow / Emails → 管理者のメールアドレス |
+| IdP | One-time PIN で足りる |
+
+発行された **Application Audience (AUD) タグ**を `CF_ACCESS_AUD` に設定します。
+
+管理機能のパス（`/Admin`、`/E`、`/JcabImport` など）は **Access の保護対象に入れていません**。
+アプリ側が `CookieUtil.IsAdmin` で `NotFound` を返しており、パスの存在自体を隠せるためです。
+Access で保護するとログイン画面が出てしまい、パスが存在することが分かってしまいます。
+
+同一ホストに複数の Access アプリケーションを作ると `CF_Authorization` の `aud` が混ざるため、
+アプリケーションは 1 つに保ってください。
+
+### 公開経路（Cloudflare Tunnel）
+
+`cloudflared` は **Caddy の手前ではなく後ろ**に置き、Caddy はそのまま残します。
+Caddy の `handle_errors 5xx` によるメンテナンス画面表示と、`lb_try_duration` による
+再起動中のリトライは Cloudflare 側に同等の機能が無いためです。
+
+```
+Cloudflare Edge → cloudflared → Caddy(localhost) → Kestrel(localhost:5000)
+```
+
+`~/.cloudflared/config.yml`:
+
+```yaml
+tunnel: <TUNNEL-ID>
+credentials-file: /home/noobow/.cloudflared/<TUNNEL-ID>.json
+
+ingress:
+  - hostname: ja-fleet.noobow.me
+    service: http://localhost:8080
+  - service: http_status:404
+```
+
+Caddy 側は 443 の自動 HTTPS をやめ、ローカルの平文ポートで同じ `handle` を提供する形にします
+（TLS はエッジが終端するため）。Tunnel に寄せたあとは 80/443 を閉じられます。
+
+> **キャッシュ注意**: 管理者向けの列やリンクを含む HTML がエッジにキャッシュされると一般利用者に出ます。
+> Cloudflare は既定で HTML をキャッシュしませんが、Cache Everything 系のルールは入れないでください。
+> 入れる場合は `CF_Authorization` Cookie の有無で Bypass する必要があります。
 
 ## ビルドと実行
 

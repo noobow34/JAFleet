@@ -1,4 +1,4 @@
-﻿using Auth0.AspNetCore.Authentication;
+﻿using JAFleet.Infrastructure;
 using JAFleet.Jobs;
 using JAFleet.Middleware;
 using JAFleet.Services;
@@ -12,10 +12,10 @@ using System.Text.Unicode;
 Console.WriteLine($"SLACK_BOT_TOKEN:{Environment.GetEnvironmentVariable("SLACK_BOT_TOKEN")?.Length ?? 0}");
 string connectionString = Environment.GetEnvironmentVariable("JAFLEET_CONNECTION_STRING") ?? "";
 Console.WriteLine($"JAFLEET_CONNECTION_STRING:{connectionString?.Length ?? 0}");
-string auth0Domain = Environment.GetEnvironmentVariable("AUTH0_DOMAIN") ?? "";
-string auth0ClientId = Environment.GetEnvironmentVariable("AUTH0_CLIENT_ID") ?? "";
-Console.WriteLine($"AUTH0_ISSUER:{auth0Domain.Length}");
-Console.WriteLine($"AUTH0_CLIENT_ID:{auth0ClientId.Length}");
+string cfAccessTeamDomain = Environment.GetEnvironmentVariable("CF_ACCESS_TEAM_DOMAIN") ?? "";
+string cfAccessAud = Environment.GetEnvironmentVariable("CF_ACCESS_AUD") ?? "";
+Console.WriteLine($"CF_ACCESS_TEAM_DOMAIN:{cfAccessTeamDomain.Length}");
+Console.WriteLine($"CF_ACCESS_AUD:{cfAccessAud.Length}");
 string adminKey = Environment.GetEnvironmentVariable("ADMIN_KEY") ?? "";
 Console.WriteLine($"ADMIN_KEY:{adminKey.Length}");
 string adminValue = Environment.GetEnvironmentVariable("ADMIN_VALUE") ?? "";
@@ -38,14 +38,12 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddMemoryCache();
 builder.Services.AddProgressiveWebApp();
 //DataProtectionのApplicationDiscriminatorは既定でContentRootPathから導出される。
-//デプロイのたびにreleases/<timestamp>-<sha>/へ変わり認証Cookieが全て復号できなくなるため、
-//アプリ名を固定する。キーリング自体は従来どおり~/.aspnet/DataProtection-Keysに永続化される
+//デプロイのたびにreleases/<timestamp>-<sha>/へ変わり保護済みデータ(CSRFトークン、TempData)が
+//復号できなくなるため、アプリ名を固定する。
+//キーリング自体は従来どおり~/.aspnet/DataProtection-Keysに永続化される
 builder.Services.AddDataProtection().SetApplicationName("ja-fleet");
-builder.Services.AddAuth0WebAppAuthentication(options =>
-{
-    options.Domain = auth0Domain;
-    options.ClientId = auth0ClientId;
-});
+//管理者認証はCloudflare Accessが行い、アプリはAccessが発行したJWTを検証するだけ
+builder.Services.AddCloudflareAccess(cfAccessTeamDomain, cfAccessAud);
 builder.Services.AddSingleton<IConfiguration>(config);
 
 var app = builder.Build();
@@ -56,6 +54,11 @@ app.UseLoggingMiddleware();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
+//手元での実行ではCloudflareを経由せずAccessのJWTが手に入らないため、明示的に指定したときだけ管理者になりすます
+if (app.Environment.IsDevelopment() && Environment.GetEnvironmentVariable("CF_ACCESS_DEV_ADMIN") == "1")
+{
+    app.UseCloudflareAccessDevAdmin();
+}
 app.UseMiddleware<ConditionalAuthRedirectMiddleware>();
 app.UseAuthorization();
 app.MapControllerRoute(

@@ -1,8 +1,13 @@
-﻿using Auth0.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication;
+﻿using JAFleet.Infrastructure;
 
 namespace JAFleet.Middleware
 {
+    /// <summary>
+    /// 管理者の端末だけを自動でログインへ誘導する。
+    /// サイトの大半は認証なしで見えるため、Cloudflare Accessの保護対象は
+    /// /Account/Login などに絞ってある。ここでそこへリダイレクトすることで、
+    /// 目印のCookieを持つ端末にだけAccessのログイン画面を出す。
+    /// </summary>
     public class ConditionalAuthRedirectMiddleware
     {
         private readonly RequestDelegate _next;
@@ -25,20 +30,17 @@ namespace JAFleet.Middleware
             }
 
             context.Request.Cookies.TryGetValue(adminKey, out string? adminCookieValue);
-            if (adminCookieValue == adminValue)
+            if (adminKey.Length != 0 && adminCookieValue == adminValue)
             {
-                string returnUrl = context.Request.Path;
-                context.Response.Cookies.Append(adminKey, adminCookieValue, new CookieOptions
+                string returnUrl = context.Request.Path + context.Request.QueryString;
+                context.Response.Cookies.Append(adminKey, adminCookieValue!, new CookieOptions
                 {
                     Expires = DateTimeOffset.UtcNow.AddYears(1)
                 });
-                var authenticationProperties = new LoginAuthenticationPropertiesBuilder()
-                    .WithRedirectUri(returnUrl)
-                    .Build();
-                await context.ChallengeAsync(Auth0Constants.AuthenticationScheme, authenticationProperties);
+                context.Response.Redirect(CloudflareAccess.BuildLoginUrl(returnUrl));
                 return;
             }
-            
+
             await _next(context);
         }
     }
