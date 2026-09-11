@@ -12,7 +12,7 @@ namespace JAFleet.Controllers
         /// </summary>
         public IActionResult Login(string returnUrl = "/")
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 //Accessがこのパスを保護していないか、JWTの検証に失敗している。
                 //ここでreturnUrlへ戻すと自動ログインのリダイレクトと往復し続けるので止める

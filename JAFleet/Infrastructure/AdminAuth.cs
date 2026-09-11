@@ -1,6 +1,6 @@
 ﻿namespace JAFleet.Infrastructure
 {
-    public static class CookieUtil
+    public static class AdminAuth
     {
         public static bool IsAdmin(HttpContext context)
         {

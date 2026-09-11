@@ -120,7 +120,7 @@
         @RenderBody()
     </div>
 
-    @if (!CookieUtil.IsAdmin(Context))
+    @if (!AdminAuth.IsAdmin(Context))
     {
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-YJDKX0HFBB"></script>
         <script>

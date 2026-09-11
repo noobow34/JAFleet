@@ -54,7 +54,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public IActionResult CreateTypeDetail(string? typeCode, string? typeDetailCode, string? typeDetailName)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }

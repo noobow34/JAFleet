@@ -28,7 +28,7 @@ namespace JAFleet.Controllers
             model.TableId = "all";
             model.api = "/api/airlinegroup/";
 
-            model.IsAdmin = CookieUtil.IsAdmin(HttpContext);
+            model.IsAdmin = AdminAuth.IsAdmin(HttpContext);
 
             return View("~/Views/Aircraft/index.cshtml", model);
         }
@@ -55,7 +55,7 @@ namespace JAFleet.Controllers
             }
 
             model.IncludeRetire = includeRetire;
-            model.IsAdmin = CookieUtil.IsAdmin(HttpContext);
+            model.IsAdmin = AdminAuth.IsAdmin(HttpContext);
 
             return View("~/Views/Aircraft/index.cshtml", model);
         }
@@ -82,7 +82,7 @@ namespace JAFleet.Controllers
             }
 
             model.IncludeRetire = includeRetire;
-            model.IsAdmin = CookieUtil.IsAdmin(HttpContext);
+            model.IsAdmin = AdminAuth.IsAdmin(HttpContext);
 
             return View("~/Views/Aircraft/index.cshtml", model);
         }
@@ -112,7 +112,7 @@ namespace JAFleet.Controllers
                 model.IncludeRetire = includeRetire.HasValue ? includeRetire.Value : false;
             }
 
-            model.IsAdmin = CookieUtil.IsAdmin(HttpContext);
+            model.IsAdmin = AdminAuth.IsAdmin(HttpContext);
 
             return View("~/Views/Aircraft/index.cshtml", model);
         }

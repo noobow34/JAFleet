@@ -23,7 +23,7 @@ namespace JAFleet.Controllers
 
         public IActionResult Index([FromQuery] bool fromAdmin)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -37,7 +37,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public IActionResult Preview(BulkRegisterModel model)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -60,7 +60,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public IActionResult Execute(BulkRegisterModel model)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }

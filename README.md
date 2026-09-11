@@ -39,7 +39,7 @@
 
 ### 管理機能
 
-管理者向けの機能です。各画面は Cloudflare Access でのログイン（`CookieUtil.IsAdmin`）を前提としています。
+管理者向けの機能です。各画面は Cloudflare Access でのログイン（`AdminAuth.IsAdmin`）を前提としています。
 
 | 機能 | パス | 説明 |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ JAFleet/
 ├── Batch/            スクレイピングを伴う長時間処理と Slack 通知の組み立て
 ├── Jobs/             Quartz のジョブと RootScheduler
 ├── Middleware/       アクセスログ記録、条件付き自動ログイン
-├── Infrastructure/   Cookie・ハッシュ・HttpClient のユーティリティ
+├── Infrastructure/   管理者判定・Cloudflare Access・ハッシュ・HttpClient のユーティリティ
 ├── Ddl/              手動適用する DDL
 └── wwwroot/          静的ファイル
 
@@ -171,7 +171,7 @@ Cloudflare Access はプロキシとして認証しますが、通過したリ�
    ホストに `CF_Authorization` Cookie（中身は JWT）が発行される。
 3. この Cookie はパス `/` で発行されるためブラウザが全ページへ送る。
    アプリは `CloudflareAccess`（`Infrastructure/CloudflareAccess.cs`）でこれを検証し、
-   成功すれば `User.Identity.IsAuthenticated` が立つ。判定は従来どおり `CookieUtil.IsAdmin` で行う。
+   成功すれば `User.Identity.IsAuthenticated` が立つ。判定は従来どおり `AdminAuth.IsAdmin` で行う。
 4. 公開鍵は `https://{CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs` から取得して 1 時間キャッシュする。
    Access には OIDC のディスカバリ文書が無いため、`Authority` ではなく `IssuerSigningKeyResolver` で直接引いている。
 
@@ -195,7 +195,7 @@ Cookie は `/SetCookie?key=...&value=...` で仕込みます。
 発行された **Application Audience (AUD) タグ**を `CF_ACCESS_AUD` に設定します。
 
 管理機能のパス（`/Admin`、`/E`、`/JcabImport` など）は **Access の保護対象に入れていません**。
-アプリ側が `CookieUtil.IsAdmin` で `NotFound` を返しており、パスの存在自体を隠せるためです。
+アプリ側が `AdminAuth.IsAdmin` で `NotFound` を返しており、パスの存在自体を隠せるためです。
 Access で保護するとログイン画面が出てしまい、パスが存在することが分かってしまいます。
 
 同一ホストに複数の Access アプリケーションを作ると `CF_Authorization` の `aud` が混ざるため、
@@ -203,12 +203,10 @@ Access で保護するとログイン画面が出てしまい、パスが存在�
 
 ### 公開経路（Cloudflare Tunnel）
 
-`cloudflared` は **Caddy の手前ではなく後ろ**に置き、Caddy はそのまま残します。
-Caddy の `handle_errors 5xx` によるメンテナンス画面表示と、`lb_try_duration` による
-再起動中のリトライは Cloudflare 側に同等の機能が無いためです。
+`cloudflared` が Kestrel へ直接つなぎます。Caddy は廃止しました。
 
 ```
-Cloudflare Edge → cloudflared → Caddy(localhost) → Kestrel(localhost:5000)
+Cloudflare Edge → cloudflared → Kestrel(localhost:5000)
 ```
 
 `~/.cloudflared/config.yml`:
@@ -219,12 +217,24 @@ credentials-file: /home/noobow/.cloudflared/<TUNNEL-ID>.json
 
 ingress:
   - hostname: ja-fleet.noobow.me
-    service: http://localhost:8080
+    service: http://localhost:5000
   - service: http_status:404
 ```
 
-Caddy 側は 443 の自動 HTTPS をやめ、ローカルの平文ポートで同じ `handle` を提供する形にします
-（TLS はエッジが終端するため）。Tunnel に寄せたあとは 80/443 を閉じられます。
+TLS はエッジが終端するため、Tunnel へ寄せたあとは 80/443 を閉じられます。
+
+Caddy が担っていた機能の行き先は次のとおりです。
+
+| Caddy の設定 | 移行後 |
+| --- | --- |
+| 自動 HTTPS | Cloudflare のエッジ証明書 |
+| `encode zstd gzip` | Cloudflare が自動で Brotli / gzip をかける |
+| `Strict-Transport-Security` ヘッダ | Cloudflare の SSL/TLS → HSTS を有効化する |
+| `handle /mainte/*` と `handle_errors 5xx` のメンテナンス画面 | **廃止**。デプロイ中や 5xx 時は Cloudflare の既定エラー画面になる |
+| `lb_try_duration` による再起動中のリトライ | 同等機能なし。再起動の数秒間はエラーが露出する |
+
+アプリの IP ロギング（`LoggingMiddleware`）は `X-Forwarded-For` を直接読んでおり、
+Cloudflare が実クライアント IP を入れて渡すため、この構成変更の影響を受けません。
 
 > **キャッシュ注意**: 管理者向けの列やリンクを含む HTML がエッジにキャッシュされると一般利用者に出ます。
 > Cloudflare は既定で HTML をキャッシュしませんが、Cache Everything 系のルールは入れないでください。
