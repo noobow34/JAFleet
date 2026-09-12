@@ -20,7 +20,7 @@ namespace JAFleet.Controllers
                 var lineLinklog = new Log
                 {
                     LogType = LogType.LINE_LINK,
-                    UserId = CookieUtil.IsAdmin(HttpContext).ToString(),
+                    UserId = AdminAuth.IsAdmin(HttpContext).ToString(),
                     LogDate = DateTime.Now
                 };
 

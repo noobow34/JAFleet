@@ -41,7 +41,7 @@ namespace JAFleet.Middleware
                     ,
                     Referer = httpContext.Request.Headers?["Referer"].FirstOrDefault()
                     ,
-                    IsAdmin = CookieUtil.IsAdmin(httpContext)
+                    IsAdmin = AdminAuth.IsAdmin(httpContext)
                 };
             }
             Stopwatch? sw = null;

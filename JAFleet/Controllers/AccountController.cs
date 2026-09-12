@@ -1,31 +1,40 @@
-﻿using Auth0.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
+﻿using JAFleet.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JAFleet.Controllers
 {
     public class AccountController : Controller
     {
-        public async Task Login(string returnUrl = "/")
+        /// <summary>
+        /// Cloudflare Accessの保護対象パス。
+        /// ここへ到達した時点でAccessの認証は済んでおり、CF_Authorizationも発行済みなので、
+        /// アプリ側ですることは元のページへ戻すことだけ。
+        /// </summary>
+        public IActionResult Login(string returnUrl = "/")
         {
-            var authenticationProperties = new LoginAuthenticationPropertiesBuilder()
-                .WithRedirectUri(returnUrl)
-                .Build();
+            if (!AdminAuth.IsAdmin(HttpContext))
+            {
+                //Accessがこのパスを保護していないか、JWTの検証に失敗している。
+                //ここでreturnUrlへ戻すと自動ログインのリダイレクトと往復し続けるので止める
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    "Cloudflare Accessの認証情報を確認できませんでした。/Account/LoginがAccessアプリケーションの対象に含まれているか、CF_ACCESS_TEAM_DOMAINとCF_ACCESS_AUDが正しいか確認してください。");
+            }
 
-            await HttpContext.ChallengeAsync(Auth0Constants.AuthenticationScheme, authenticationProperties);
+            return Redirect(Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
         }
 
-        [Authorize]
-        public async Task Logout()
+        public IActionResult Logout()
         {
-            var authenticationProperties = new LogoutAuthenticationPropertiesBuilder()
-                .WithRedirectUri("/")
-                .Build();
+            //自動ログインの目印を消しておかないと、ログアウト直後にまた/Account/Loginへ
+            //飛ばされてログアウトにならない
+            string adminKey = Environment.GetEnvironmentVariable("ADMIN_KEY") ?? "";
+            if (adminKey.Length != 0)
+            {
+                Response.Cookies.Delete(adminKey);
+            }
 
-            await HttpContext.SignOutAsync(Auth0Constants.AuthenticationScheme, authenticationProperties);
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            //Cloudflareがこのパスを横取りしてCF_Authorizationを破棄する
+            return Redirect(CloudflareAccess.LOGOUT_PATH);
         }
     }
 }

@@ -16,7 +16,7 @@ namespace JAFleet.Controllers
 
         public IActionResult Index(string id, EditModel model, [FromQuery] bool nohead)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }

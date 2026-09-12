@@ -22,7 +22,7 @@ namespace JAFleet.Controllers
 
         public async Task<IActionResult> IndexAsync([FromQuery] bool fromAdmin)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -34,7 +34,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public async Task<IActionResult> SaveAsync(string className, string? cronDef, bool enabled, bool fromAdmin)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }

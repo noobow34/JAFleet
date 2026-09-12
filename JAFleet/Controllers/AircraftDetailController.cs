@@ -32,7 +32,7 @@ namespace JAFleet.Controllers
             model.IsDetail = true;
 
             model.NoHead = nohead;
-            model.IsAdmin = CookieUtil.IsAdmin(HttpContext);
+            model.IsAdmin = AdminAuth.IsAdmin(HttpContext);
             model.Reg = id;
             model.NeedBack = needback;
 
@@ -49,7 +49,7 @@ namespace JAFleet.Controllers
             }
 
             //非同期でCookieは取得できなくなるので退避
-            bool isAdmin = CookieUtil.IsAdmin(HttpContext);
+            bool isAdmin = AdminAuth.IsAdmin(HttpContext);
 
             string linkUrl = model.AV.LinkUrl ?? string.Empty;
             if (!string.IsNullOrEmpty(model.AV?.PhotoUrl) && !string.IsNullOrEmpty(linkUrl))

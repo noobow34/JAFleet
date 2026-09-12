@@ -33,7 +33,7 @@ namespace JAFleet.Controllers
         {
             var ex = HttpContext.Features.Get<IExceptionHandlerPathFeature>()?.Error!;
             ErrorViewModel model = new() { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier };
-            model.IsAdmin = CookieUtil.IsAdmin(HttpContext);
+            model.IsAdmin = AdminAuth.IsAdmin(HttpContext);
             model.Ex = ex;
 
             await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), $"【エラー発生】\n" +
@@ -48,7 +48,7 @@ namespace JAFleet.Controllers
                 ,
                 LogDetail = ex.ToString()
                 ,
-                UserId = CookieUtil.IsAdmin(HttpContext).ToString()
+                UserId = AdminAuth.IsAdmin(HttpContext).ToString()
             };
             _context.Logs.Add(log);
             _context.SaveChanges();

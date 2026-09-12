@@ -130,12 +130,12 @@
 <br />
     更新情報アカウント：<a href="https://twitter.com/ja_fleet">@@ja_fleet</a>
 <br />
-@if (!CookieUtil.IsAdmin(Context))
+@if (!AdminAuth.IsAdmin(Context))
 {
     <a class="twitter-timeline" href="https://twitter.com/ja_fleet?ref_src=twsrc%5Etfw" width="320px" height="400px">Tweets by ja_fleet</a>
     <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 }
-@if (CookieUtil.IsAdmin(Context))
+@if (AdminAuth.IsAdmin(Context))
 {
     <hr />
     @:ver：<a href="https://github.com/noobow34/JAFleet/commit/@MasterManager.AppInfo!.CommitHash" target="_blank">@MasterManager.AppInfo.CommitHash _ @MasterManager.AppInfo.CommitDate</a><br />

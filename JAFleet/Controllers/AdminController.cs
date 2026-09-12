@@ -9,7 +9,7 @@ namespace JAFleet.Controllers
     {
         public IActionResult Index()
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }

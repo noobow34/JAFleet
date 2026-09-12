@@ -22,7 +22,7 @@ namespace JAFleet.Controllers
 
         public IActionResult Index([FromQuery] bool fromAdmin)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -42,7 +42,7 @@ namespace JAFleet.Controllers
         [RequestSizeLimit(30 * 1024 * 1024)]
         public IActionResult Analyze(IFormFile? file, JcabImportModel model)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -91,7 +91,7 @@ namespace JAFleet.Controllers
         /// <summary>一時保存から作業を再開する</summary>
         public IActionResult Resume(int id, [FromQuery] bool fromAdmin)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -112,7 +112,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public IActionResult Save(JcabImportModel model)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -137,7 +137,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public IActionResult DeleteSession(int id, [FromQuery] bool fromAdmin)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -159,7 +159,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public IActionResult Execute(JcabImportModel model)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -197,7 +197,7 @@ namespace JAFleet.Controllers
         [RequestSizeLimit(30 * 1024 * 1024)]
         public IActionResult Decrypt(IFormFile? file, JcabImportModel model)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -218,7 +218,7 @@ namespace JAFleet.Controllers
         /// <summary>一時保存に入っている復号版をダウンロードする</summary>
         public IActionResult Download(int id)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -299,7 +299,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public IActionResult CreateSearchCondition(JcabImportModel model)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }
@@ -518,7 +518,7 @@ namespace JAFleet.Controllers
         [HttpPost]
         public IActionResult CreateTypeDetail(string? typeCode, string? typeDetailCode, string? typeDetailName)
         {
-            if (!CookieUtil.IsAdmin(HttpContext))
+            if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
             }

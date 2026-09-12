@@ -34,7 +34,7 @@ namespace JAFleet.Controllers
         /// <returns></returns>
         public IActionResult Index(SearchModel model, [FromQuery] string sc)
         {
-            model.IsAdmin = CookieUtil.IsAdmin(HttpContext);
+            model.IsAdmin = AdminAuth.IsAdmin(HttpContext);
 
             if (!string.IsNullOrEmpty(sc))
             {
@@ -249,7 +249,7 @@ namespace JAFleet.Controllers
             string scjson = scm.ToString();
             string schash = HashUtil.CalcCRC32(scjson);
             //Cookieの値はここで退避しておかないと、↓のTask.Runではちゃんと取れなくなる
-            bool isAdmin = CookieUtil.IsAdmin(HttpContext);
+            bool isAdmin = AdminAuth.IsAdmin(HttpContext);
 
             //検索結果を速く返すためにログと検索条件のDB書き込みは非同期で行う
             Task.Run(() =>
