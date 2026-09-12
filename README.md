@@ -179,8 +179,9 @@ Cloudflare Access はプロキシとして認証しますが、通過したリ�
 `/Account/Login` へリダイレクトします。一般の利用者はこの Cookie を持たないのでログイン画面を見ることはありません。
 Cookie は `/SetCookie?key=...&value=...` で仕込みます。
 
-`/Account/Logout` は目印の Cookie を消したうえで `/cdn-cgi/access/logout` へ送ります
-（消さないとログアウト直後にまたログインへ飛ばされます）。
+`/Account/Logout` は `/cdn-cgi/access/logout` へ送るだけで、目印の Cookie は消しません。
+そのため目印を持つ端末はログアウト直後にまたログイン画面へ飛ばされますが、基本はログインしたまま使う前提で、
+部外者は Access を通れないので問題ありません。
 
 ### Access アプリケーションの設定
 

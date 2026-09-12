@@ -25,14 +25,8 @@ namespace JAFleet.Controllers
 
         public IActionResult Logout()
         {
-            //自動ログインの目印を消しておかないと、ログアウト直後にまた/Account/Loginへ
-            //飛ばされてログアウトにならない
-            string adminKey = Environment.GetEnvironmentVariable("ADMIN_KEY") ?? "";
-            if (adminKey.Length != 0)
-            {
-                Response.Cookies.Delete(adminKey);
-            }
-
+            //自動ログインの目印Cookieは消さない。ログアウト直後にまた/Account/Loginへ飛ばされるが、
+            //基本はログインしたまま使う前提で、部外者はそこから先のAccessを通れないので問題ない
             //Cloudflareがこのパスを横取りしてCF_Authorizationを破棄する
             return Redirect(CloudflareAccess.LOGOUT_PATH);
         }
