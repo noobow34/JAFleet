@@ -69,7 +69,9 @@ namespace JAFleet.Controllers
                 FromAdmin  = fromAdmin,
             };
 
-            return View(model);
+            //YesterdayからもこのIndexに入る。ビュー名を省略するとルーティングされた
+            //アクション名(Yesterday)でビューを探してしまうため、明示する
+            return View("Index", model);
         }
 
         public Dictionary<string, string> GetSearchConditionDisps(IEnumerable<string> scKeys)
