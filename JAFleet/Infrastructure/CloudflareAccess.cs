@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+#if DEBUG
 using System.Security.Claims;
+#endif
 
 namespace JAFleet.Infrastructure
 {
@@ -95,10 +97,16 @@ namespace JAFleet.Infrastructure
                 });
         }
 
+#if DEBUG
         /// <summary>
         /// 開発環境で管理画面を確認するために、認証済みの管理者になりすます。
         /// Cloudflareを経由しない手元の実行ではAccessのJWTが手に入らないための逃げ道で、
-        /// Development かつ CF_ACCESS_DEV_ADMIN=1 のときだけProgram.csから呼ぶ
+        /// Development かつ CF_ACCESS_DEV_ADMIN=1 のときだけProgram.csから呼ぶ。
+        ///
+        /// 全リクエストのUserを差し替えるため、誤って本番で動くと訪問者全員が管理者になる。
+        /// 環境変数の設定ミスで発火しないよう、Releaseビルドからは丸ごと除外する
+        /// （本番のpublishは -c Release。トンネル経由だと全リクエストがループバック由来に
+        /// 見えるため、接続元IPによる制限は防御にならない）
         /// </summary>
         public static IApplicationBuilder UseCloudflareAccessDevAdmin(this IApplicationBuilder builder)
         {
@@ -110,6 +118,7 @@ namespace JAFleet.Infrastructure
                 await next();
             });
         }
+#endif
     }
 
     /// <summary>
