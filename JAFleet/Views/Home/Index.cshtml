@@ -132,8 +132,8 @@
 <br />
 @if (!AdminAuth.IsAdmin(Context))
 {
-    <a class="twitter-timeline" href="https://twitter.com/ja_fleet?ref_src=twsrc%5Etfw" width="320px" height="400px">Tweets by ja_fleet</a>
-    <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+    <a class="twitter-timeline" data-width="320" data-height="400" data-lang="ja" href="https://x.com/ja_fleet?ref_src=twsrc%5Etfw">@@ja_fleet のポストを X で見る</a>
+    <script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>
 }
 @if (AdminAuth.IsAdmin(Context))
 {
