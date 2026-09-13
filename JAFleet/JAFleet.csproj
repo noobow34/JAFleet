@@ -29,6 +29,35 @@
     <ProjectReference Include="..\..\JAFleet.Commons\JAFleet.Commons\JAFleet.Commons.csproj" />
     <ProjectReference Include="..\..\Noobow.Commons\Noobow.Commons\Noobow.Commons.csproj" />
   </ItemGroup>
+  <!-- ビルド時のgitコミットハッシュとコミット日時をアセンブリメタデータに埋め込む（管理者向けのバージョン表示用）。
+       -p:CommitHash=xxx -p:CommitDate=yyyy-MM-ddTHH:mm:ss+09:00 を指定すればgit実行をスキップして上書きできる。
+       gitが無い/失敗した環境ではExitCodeを見て"unknown"にフォールバックする
+       （終了コードを確認しないと、シェルのエラーメッセージ自体が値として埋め込まれてしまう）。
+       ビルド日時は埋め込まない。毎回値が変わってインクリメンタルビルドが効かなくなるため。 -->
+  <Target Name="EmbedCommitInfo" BeforeTargets="GetAssemblyAttributes">
+    <Exec Command="git rev-parse --short HEAD" WorkingDirectory="$(MSBuildProjectDirectory)" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" Condition="'$(CommitHash)' == ''">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitCommitHashOutput" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitCommitHashExitCode" />
+    </Exec>
+    <!-- Windowsのcmdはバッチ中の単独の%を消すため二重にする（/bin/shでは二重にするとそのまま渡ってしまう） -->
+    <PropertyGroup>
+      <_GitPercent>%25</_GitPercent>
+      <_GitPercent Condition="$([MSBuild]::IsOSPlatform('Windows'))">%25%25</_GitPercent>
+    </PropertyGroup>
+    <Exec Command="git log -1 --format=$(_GitPercent)cI" WorkingDirectory="$(MSBuildProjectDirectory)" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" Condition="'$(CommitDate)' == ''">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitCommitDateOutput" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitCommitDateExitCode" />
+    </Exec>
+    <PropertyGroup>
+      <CommitHash Condition="'$(CommitHash)' == '' and '$(_GitCommitHashExitCode)' == '0'">$(_GitCommitHashOutput)</CommitHash>
+      <CommitHash Condition="'$(CommitHash)' == ''">unknown</CommitHash>
+      <CommitDate Condition="'$(CommitDate)' == '' and '$(_GitCommitDateExitCode)' == '0'">$(_GitCommitDateOutput)</CommitDate>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyMetadata Include="CommitHash" Value="$(CommitHash)" />
+      <AssemblyMetadata Include="CommitDate" Value="$(CommitDate)" />
+    </ItemGroup>
+  </Target>
   <ItemGroup>
     <Content Update="wwwroot\css\site.min.css">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

@@ -138,8 +138,8 @@
 @if (AdminAuth.IsAdmin(Context))
 {
     <hr />
-    @:ver：<a href="https://github.com/noobow34/JAFleet/commit/@MasterManager.AppInfo!.CommitHash" target="_blank">@MasterManager.AppInfo.CommitHash _ @MasterManager.AppInfo.CommitDate</a><br />
-    @:deploy：@MasterManager.AppInfo.DeployDate<br />
+    @:ver：<a href="@AppVersion.CommitUrl" target="_blank">@AppVersion.CommitHash _ @AppVersion.CommitDate</a><br />
+    @:deploy：@AppVersion.DeployDate<br />
     @:launch：@MasterManager.LaunchDate
 }
 @section ScriptsPartial{

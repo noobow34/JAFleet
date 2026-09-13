@@ -41,7 +41,6 @@ namespace JAFleet.Services
             _wifi = context.Codes.AsNoTracking().Where(p => p.CodeType == CodeType.WIFI).OrderBy(p => p.Key).ToArray();
             _typeDetailGroup = context.TypeDetailViews.AsNoTracking().OrderBy(p => p.DisplayOrder).ThenBy(p => p.TypeDetailName).ToArray();
             _seatConfiguration = context.SeatConfigurations.AsNoTracking().OrderBy(p => p.Airline).ThenBy(p => p.Type).ToArray();
-            AppInfo = context.AppInfos.SingleOrDefault();
             ReloadNamedSearchCondition(context);
             var tempop = context.Codes.AsNoTracking().Where(p => p.CodeType == CodeType.OPERATION_CODE).OrderBy(p => p.Key).ToList();
             tempop.ForEach(o =>
@@ -130,7 +129,6 @@ namespace JAFleet.Services
 
         public static SeatConfiguration[]? _seatConfiguration = null;
         public static SeatConfiguration[]? SeatConfiguration { get { return _seatConfiguration; } }
-        public static AppInfo? AppInfo { get; set; }
         public static DateTime LaunchDate { get; private set; } = DateTime.Now;
 
         public static List<SelectListItem> EXIST_SELECTION =
