@@ -51,6 +51,7 @@
 | 定期実行ジョブ | `/Scheduler` | Quartz のジョブの有効・無効と cron 式を変更する |
 | バッチ手動実行 | `/Batch/RefreshWorkingStatusAndPhoto`<br>`/Batch/RefreshPhoto` | 定期ジョブと同じ処理を手動で起動 |
 | アクセスログ | `/log`（本日）、`/logy`（昨日） | 閲覧・検索の記録 |
+| アクセス集計 | `/AccessStats` | `access_log` を集計して PV・訪問者・人気ページなどを表示 |
 
 #### 航空局 Excel 取込の流れ
 
@@ -62,6 +63,77 @@
 3. 途中で保存すると `jcab_import_session` に復号済みファイルと編集内容（JSON）が残り、後から再開できる。
    再開時は Excel を解析し直したうえで編集内容を被せるため、最新のマスタ・機体情報と突き合わせられる。
 4. 実行すると `AircraftStore` 経由で 1 トランザクションにまとめて登録・更新する。
+
+#### アクセス集計
+
+`/AccessStats` は `LoggingMiddleware` が書いている `access_log` を集計します。
+これで自前で数えられるようになったため、**Google Analytics は撤去しました**。
+サイトは外部のアクセス解析を使っておらず、閲覧の記録はすべて自前の DB に閉じています。
+`/log` が「検索した」「詳細を見た」といったアプリ側の出来事（`log` テーブル）を 1 件ずつ並べるのに対し、
+こちらは **HTTP リクエストそのもの**を数えます。
+
+- 期間は 1 / 3 / 7 / 14 / 30 日から選べる。`access_log` はサーバの `log_process.sh` が毎晩 31 日より
+  古い行を消すため、これ以上は遡れない
+- 数えるのは**コントローラーが返したページ**だけ。静的ファイル・JSON API・AJAX は「対象外」として
+  件数だけ出す（判定は後述）
+- 管理者自身（`is_admin`）のアクセスと、User-Agent に含まれる語（`UserAgentUtil.BOT_KEYWORDS`）で
+  判定したボットは、どちらも**既定で除外**。画面のボタンでそれぞれ含める／除くを切り替えられる
+- 出すもの: PV・訪問者数・ユニーク IP・平均応答時間・エラー件数・対象外件数、日別と時間帯別の推移、
+  人気ページ、機体詳細のレジ別ランキング（`/AD` `/ADN` `/ADNB` `/ADE` `/AircraftDetail` をまとめる）、
+  外部からの流入元、コントローラー別・端末・ステータスコードの内訳、遅いページ
+- 集計は DB 側の GROUP BY で行い、アプリへは集計済みの行だけを持ってくる
+
+集計項目が多く問い合わせが重いため、画面は**枠と中身に分けて**あります。
+
+| | 返すもの | DB |
+| --- | --- | --- |
+| `GET /AccessStats` | 見出し・期間の切り替え・読み込み中の表示だけ（`Index.cshtml`） | 触らない |
+| `GET /AccessStats/Data` | 集計の中身（部分ビュー `_Stats.cshtml`） | 集計する |
+
+枠が即座に返るので、管理コンソールから開いた直後にページが出てスピナーが回ります。
+期間やボットの切り替えは普通のリンクのまま（枠が軽いので読み直しても待たされない）で、
+読み直すたびに中身だけを取り直します。
+
+##### ページの判定（route_key）
+
+`LoggingMiddleware` は後続処理を通したあとで MVC のルートを見て、
+`access_log.route_key` に `"コントローラー名/アクション名"` を記録します。
+
+- 静的ファイルやどのルートにも当たらなかったリクエストは、ルートが無いので `route_key` が `NULL`。
+  拡張子の一覧を持たなくても、集計側はこれだけで弾ける
+- JSON API（`[ApiController]` の `AirlineGroup` / `Airline` / `Type` / `Reg` / `AircraftWithHistory`）、
+  画面から叩く AJAX（`Master`）、押すだけで画面を返さないもの（`Batch` / `ReloadMaster` / `SetCookie`）、
+  死活監視系（`Check` など）はコントローラー名で除外する。一覧は `AccessPath.NON_PAGE_CONTROLLERS`
+- 内訳の「コントローラー別」はアクションをまとめた単位。`/AD` と `/ADN` と `/ADE` は
+  同じ `AircraftDetail` なので 1 つに数えられる
+
+**`route_key` 列を足す前に記録された行はすべて `NULL`** で、そのままだと過去 31 日分が丸ごと
+対象外になります。その間だけパスから推測して拾う**移行措置**を入れてあります。
+
+- ページのパスには拡張子が付かない（`/`、`/AD/JA226P`、`/Search`）のに対し静的ファイルには必ず付くので、
+  ピリオドの有無で大半を見分ける。加えて `AccessPath.LEGACY_NON_PAGE_PREFIXES` のパスを除く
+- コントローラーの呼び名は `AccessPath.LegacyDisplayName` がパスの先頭から当てる
+  （`/AD` `/ADNB` → `AircraftDetail`、`/logy` → `Log` のようにルーティングの別名を吸収する）
+- SQL は「`route_key` のある行」と「無い行」を `Concat`（`UNION ALL`）で繋いだものを集計元にしている
+- **デプロイから 1 か月たって `access_log` が入れ替わったら、この移行措置は削除してよい**。
+  `AccessPath` の「ここから移行措置」の区画、`AccessStatsService.Legacy`、
+  `BuildControllersAsync` の legacy の塊が対象
+
+##### 訪問者の識別（Cookie）
+
+IP は携帯回線などで共有されるため、訪問者数は Cookie で数えています。
+
+- `VisitorIdIssuer` が `jaf_vid` Cookie を発行する。中身は **DataProtection で保護した文字列**で、
+  暗号化と改ざん検知が付くため、利用者が値を作って集計を水増しすることはできない
+- 中身はランダムな 16 桁と Cookie を配った日付だけで、個人を特定する情報は持たない。
+  HttpOnly / SameSite=Lax、有効期限 400 日。配ってから 30 日たったら同じ ID で配り直す
+- 鍵は DataProtection のキーリングに載り、アプリ名も固定してあるので、デプロイや再起動をまたいでも
+  同じ訪問者として数えられる
+- `access_log.visitor_id` に入るのは **クライアントが送ってきて検証に通った ID だけ**。
+  新しく発行した分は `NULL` のままにしてあるので、Cookie を持ち回らないクライアント（多くのボット）が
+  リクエストのたびに別の訪問者として数えられることはない。代わりに各訪問者の最初の 1 リクエストは
+  訪問者数に入らない
+- `/api`、`/Check`、`/Master`、`/SetCookie` には配らない
 
 ## 技術スタック
 
@@ -108,6 +180,7 @@ JAFleet/
 ├── Services/         業務ロジック
 │   ├── BulkRegister/ 同一型式一括登録のパーサ
 │   ├── JcabImport/   航空局 Excel の解除・解析・プレビュー生成
+│   ├── AccessStatsService.cs   access_log の集計（/AccessStats）
 │   ├── AircraftStore.cs        機体の登録・更新（単票編集と一括取込の共通処理）
 │   ├── SearchConditionStore.cs 名前付き検索条件の登録
 │   ├── TypeDetailStore.cs      詳細型式のその場登録
@@ -115,7 +188,7 @@ JAFleet/
 ├── Batch/            スクレイピングを伴う長時間処理と Slack 通知の組み立て
 ├── Jobs/             Quartz のジョブと RootScheduler
 ├── Middleware/       アクセスログ記録、条件付き自動ログイン
-├── Infrastructure/   管理者判定・Cloudflare Access・ハッシュ・HttpClient のユーティリティ
+├── Infrastructure/   管理者判定・Cloudflare Access・訪問者 Cookie・ハッシュ・HttpClient のユーティリティ
 ├── Ddl/              手動適用する DDL
 └── wwwroot/          静的ファイル
 
@@ -268,6 +341,11 @@ dotnet test JAFleet.sln
 
 EF Core の Migration は使わず、テーブル定義は手動で管理しています。
 アプリの変更に伴う DDL は `JAFleet/Ddl/` に置き、デプロイ前後の適切なタイミングで手動適用します。
+
+`alter_access_log_add_visitor_id.sql`（アクセス集計用の `visitor_id` / `route_key` 列と
+期間検索用インデックス）は**デプロイ前**に実行してください。列が無いまま新しいアプリが動くと
+アクセスログの INSERT が落ち、記録が止まります（書き込みはバックグラウンドのため、
+画面にはエラーが出ません）。
 
 主なテーブル・ビューは `JAFleet.Commons` の `JAFleetContext` を参照してください
 （`aircraft`、`aircraft_view`、`aircraft_history`、`aircraft_photo`、`working_status`、

@@ -42,6 +42,8 @@ builder.Services.AddProgressiveWebApp();
 //復号できなくなるため、アプリ名を固定する。
 //キーリング自体は従来どおり~/.aspnet/DataProtection-Keysに永続化される
 builder.Services.AddDataProtection().SetApplicationName("ja-fleet");
+//アクセス集計の訪問者識別。DataProtectionの鍵を使うのでその後ろに置く
+builder.Services.AddSingleton<VisitorIdIssuer>();
 //管理者認証はCloudflare Accessが行い、アプリはAccessが発行したJWTを検証するだけ
 builder.Services.AddCloudflareAccess(cfAccessTeamDomain, cfAccessAud);
 builder.Services.AddSingleton<IConfiguration>(config);

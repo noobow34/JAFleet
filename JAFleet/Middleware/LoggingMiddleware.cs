@@ -9,13 +9,15 @@ namespace JAFleet.Middleware
     {
         private readonly RequestDelegate _next;
         private readonly IServiceScopeFactory _services;
+        private readonly VisitorIdIssuer _visitorIdIssuer;
 
         private static string[] EXCLUDE_LIST = [".CSS", ".JS", ".PNG", ".JPG", ".JPEG", ".GIF", ".ICO", "/CHECK"];
 
-        public LoggingMiddleware(RequestDelegate next, IServiceScopeFactory serviceScopeFactory)
+        public LoggingMiddleware(RequestDelegate next, IServiceScopeFactory serviceScopeFactory, VisitorIdIssuer visitorIdIssuer)
         {
             _next = next;
             _services = serviceScopeFactory;
+            _visitorIdIssuer = visitorIdIssuer;
         }
 
         public async Task Invoke(HttpContext httpContext)
@@ -24,6 +26,12 @@ namespace JAFleet.Middleware
             AccessLog? log = null;
             if (loggingTarget)
             {
+                //Cookieの発行はレスポンスの書き込みが始まる前にしか出来ないため、後続処理へ渡す前に済ませる
+                string? visitorId = _visitorIdIssuer.ResolveAndIssue(httpContext);
+                //訪問者識別のCookieは中身が保護済みの長い文字列で、見るべき値はvisitor_idに入っている。
+                //全リクエスト分をそのまま持つとaccess_logが太るだけなのでここでは外す
+                var cookies = httpContext.Request.Cookies.Where(c => c.Key != VisitorIdIssuer.COOKIE_NAME).ToList();
+
                 log = new AccessLog
                 {
                     RequestTime = DateTime.Now
@@ -35,13 +43,13 @@ namespace JAFleet.Middleware
                     ,
                     RequestQuery = httpContext.Request.QueryString.ToString() != string.Empty ? httpContext.Request.QueryString.ToString() : null
                     ,
-                    RequestCookies = httpContext.Request.Cookies.Count != 0 ? string.Concat(httpContext.Request.Cookies) : null
+                    RequestCookies = cookies.Count != 0 ? string.Concat(cookies) : null
                     ,
                     UserAgent = httpContext.Request.Headers?["User-Agent"].FirstOrDefault()
                     ,
                     Referer = httpContext.Request.Headers?["Referer"].FirstOrDefault()
                     ,
-                    IsAdmin = AdminAuth.IsAdmin(httpContext)
+                    VisitorId = visitorId
                 };
             }
             Stopwatch? sw = null;
@@ -51,6 +59,12 @@ namespace JAFleet.Middleware
             {
                 sw!.Stop();
                 log.ResponseCode = httpContext.Response.StatusCode;
+                //このミドルウェアはUseAuthenticationより前に入るため、後続処理を通したあとでないと
+                //User.Identityが埋まっていない。ここで見ないとis_adminが常にfalseになる
+                log.IsAdmin = AdminAuth.IsAdmin(httpContext);
+                //ルーティングも後続処理の中で行われる。静的ファイルやどのルートにも当たらなかった
+                //リクエストではコントローラー名が取れず、アクセス集計はそれを「ページではない」と見る
+                log.RouteKey = RouteKey(httpContext);
                 _ = Task.Run(() =>
                 {
                     log.ResponseTime = sw.ElapsedMilliseconds;
@@ -65,6 +79,17 @@ namespace JAFleet.Middleware
                     context.SaveChanges();
                 });
             }
+        }
+
+        /// <summary>"コントローラー名/アクション名"。ルートに当たらなかったリクエストはnull</summary>
+        private static string? RouteKey(HttpContext httpContext)
+        {
+            RouteValueDictionary values = httpContext.GetRouteData().Values;
+            if (values["controller"] is not string controller || controller.Length == 0)
+            {
+                return null;
+            }
+            return values["action"] is string action && action.Length != 0 ? $"{controller}/{action}" : controller;
         }
     }
 

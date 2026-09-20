@@ -1,0 +1,241 @@
+@model JAFleet.Models.AccessStatsModel
+@using JAFleet.Services
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "アクセス集計";
+
+    //期間・ボット・管理者の切り替えリンクは、いま見ている条件を引き継いで作る
+    var adminQuery = Model.FromAdmin ? "&fromAdmin=true" : "";
+    Func<int, bool, bool, string> link = (days, includeBot, includeAdmin) =>
+        $"/AccessStats?days={days}&includeBot={includeBot.ToString().ToLower()}&includeAdmin={includeAdmin.ToString().ToLower()}{adminQuery}";
+
+}
+
+@section CssPartial {
+<style>
+/* ===== アクセス集計 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
+.as-page { padding: 16px 0 60px; }
+
+.as-header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.as-header h2 { margin: 0; font-size: 22px; font-weight: 700; color: #1e293b; }
+.as-header .range { font-size: 14px; color: #64748b; }
+
+.as-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.as-seg { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; background: #fff; }
+.as-seg a {
+    padding: 6px 13px; font-size: 13px; font-weight: 600; color: #334155;
+    text-decoration: none; border-right: 1px solid #e2e8f0;
+}
+.as-seg a:last-child { border-right: none; }
+.as-seg a:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.as-seg a.on { background: #0f172a; color: #fff; }
+.as-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 13px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+    font-size: 13px; font-weight: 600; color: #334155; text-decoration: none;
+}
+.as-toggle:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+/* 既定（除く）から外れている状態は色を付けて気付けるようにする */
+.as-toggle.on { color: #fff; }
+.as-toggle.on.bot { background: #f59e0b; border-color: #f59e0b; }
+.as-toggle.on.bot:hover { background: #d97706; color: #fff; }
+.as-toggle.on.adm { background: #8b5cf6; border-color: #8b5cf6; }
+.as-toggle.on.adm:hover { background: #7c3aed; color: #fff; }
+
+.as-note {
+    font-size: 12px; color: #94a3b8; line-height: 1.7;
+    margin-bottom: 18px; padding-left: 2px;
+}
+
+/* サマリ */
+.as-cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px; margin-bottom: 20px;
+}
+.as-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 13px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.as-card .lbl { display: block; font-size: 12px; font-weight: 700; color: #94a3b8; }
+.as-card .val { display: block; font-size: 26px; font-weight: 700; color: #1e293b; line-height: 1.3; }
+.as-card .sub { display: block; font-size: 11px; color: #cbd5e1; }
+
+/* パネル */
+.as-panel {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 14px 16px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    margin-bottom: 14px;
+}
+.as-panel h3 {
+    margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #334155;
+    display: flex; align-items: baseline; gap: 8px;
+}
+.as-panel h3 .hint { font-size: 11px; font-weight: 400; color: #cbd5e1; }
+.as-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.as-cols > .as-panel { margin-bottom: 14px; }
+
+/* 縦棒グラフ
+   縦軸と本体は必ず同じ高さでないと目盛りがズレるため、高さは変数1か所で持つ */
+.as-graph { display: flex; gap: 6px; --chart-h: 150px; }
+/* 目盛りの数値は線の高さに合わせて絶対配置する。グラフ本体と同じ高さを持たせて基準にする */
+.as-yaxis { position: relative; width: 46px; flex: 0 0 46px; height: var(--chart-h); }
+.as-yaxis .t {
+    position: absolute; right: 0; transform: translateY(50%);
+    font-size: 10px; color: #94a3b8; white-space: nowrap;
+}
+.as-plot { flex: 1 1 auto; min-width: 0; }
+.as-chart { position: relative; display: flex; align-items: flex-end; gap: 6px; height: var(--chart-h); }
+.as-chart .grid { position: absolute; left: 0; right: 0; height: 1px; background: #f1f5f9; }
+.as-chart .grid.zero { background: #e2e8f0; }
+.as-chart .col {
+    position: relative; z-index: 1; flex: 1 1 0; min-width: 0; height: 100%;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    border-radius: 3px 3px 0 0;
+}
+.as-chart .col:hover { background: #f8fafc; }
+.as-chart .bars { display: flex; align-items: flex-end; gap: 1px; height: 100%; }
+.as-chart .bar { flex: 1 1 0; border-radius: 2px 2px 0 0; min-height: 1px; }
+.as-chart .bar.pv { background: #3b82f6; }
+.as-chart .bar.uu { background: #22c55e; }
+.as-chart .bar.hour { background: #6366f1; }
+
+/* マウスオーバーで実数を出す吹き出し。グラフの上へ抜けるので棒に重ならない */
+.as-chart .tip {
+    position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    margin-bottom: 6px; padding: 5px 9px; border-radius: 6px; z-index: 5;
+    background: #0f172a; color: #fff; font-size: 11px; line-height: 1.7;
+    white-space: nowrap; text-align: left; pointer-events: none;
+    box-shadow: 0 2px 8px rgba(15,23,42,.25);
+    opacity: 0; visibility: hidden; transition: opacity .12s;
+}
+.as-chart .tip b { display: block; font-weight: 700; color: #cbd5e1; }
+.as-chart .tip .v { font-weight: 700; }
+.as-chart .col:hover .tip { opacity: 1; visibility: visible; }
+/* 端の列は中央寄せだとグラフの外へはみ出すので、内側へ寄せる */
+.as-chart .col:first-child .tip { left: 0; transform: none; }
+.as-chart .col:last-child .tip { left: auto; right: 0; transform: none; }
+
+.as-xaxis { display: flex; gap: 6px; margin-top: 5px; }
+.as-xaxis .lbl {
+    flex: 1 1 0; text-align: center; font-size: 10px; color: #94a3b8;
+    white-space: nowrap; overflow: hidden;
+}
+.as-legend { display: flex; gap: 12px; font-size: 11px; color: #64748b; margin-top: 8px; }
+.as-legend .key { display: inline-flex; align-items: center; gap: 4px; }
+.as-legend .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* 横棒つきの一覧 */
+.as-rank { display: flex; flex-direction: column; gap: 1px; }
+.as-rank .row2 {
+    position: relative; display: flex; align-items: center; gap: 8px;
+    padding: 5px 8px; border-radius: 4px; overflow: hidden;
+}
+.as-rank .row2 .fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: #eff6ff; border-radius: 4px; z-index: 0;
+}
+.as-rank .row2 .nm, .as-rank .row2 .ct, .as-rank .row2 .ms { position: relative; z-index: 1; }
+.as-rank .row2 .nm {
+    flex: 1 1 auto; min-width: 0; font-size: 13px; color: #334155;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.as-rank .row2 .nm a { color: #2563eb; text-decoration: none; }
+.as-rank .row2 .nm a:hover { text-decoration: underline; }
+.as-rank .row2 .ct { flex: 0 0 auto; font-size: 13px; font-weight: 700; color: #1e293b; }
+.as-rank .row2 .ms { flex: 0 0 auto; font-size: 11px; color: #94a3b8; width: 62px; text-align: right; }
+
+/* 名前と件数だけのチップ */
+.as-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.as-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 99px;
+    background: #f1f5f9; font-size: 13px; font-weight: 600; color: #334155;
+}
+.as-chip .cnt { font-size: 12px; color: #64748b; font-weight: 400; }
+
+/* 読み込み中 */
+.as-loading {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 80px 20px; color: #94a3b8; font-size: 13px;
+}
+.as-spinner {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid #e2e8f0; border-top-color: #3b82f6;
+    animation: as-spin .8s linear infinite;
+}
+@@keyframes as-spin { to { transform: rotate(360deg); } }
+/* アニメーションを控える設定の環境ではゆっくり回す */
+@@media (prefers-reduced-motion: reduce) { .as-spinner { animation-duration: 2.4s; } }
+.as-error {
+    padding: 40px 20px; text-align: center;
+    color: #b91c1c; font-size: 13px; font-weight: 600;
+}
+
+.as-empty { font-size: 13px; color: #cbd5e1; padding: 12px 4px; }
+
+@@media (max-width: 700px) {
+    .as-cols { grid-template-columns: 1fr; }
+    .as-header h2 { font-size: 18px; }
+    .as-graph { --chart-h: 120px; }
+}
+</style>
+}
+
+<div class="as-page">
+
+    <div class="as-header">
+        <h2>📊 アクセス集計</h2>
+        <span class="range">@Model.From.ToString("yyyy/MM/dd") 〜 @Model.To.ToString("yyyy/MM/dd HH:mm")</span>
+    </div>
+
+    <div class="as-controls">
+        <div class="as-seg">
+            @foreach (var d in AccessStatsService.DAY_CHOICES)
+            {
+                <a href="@link(d, Model.IncludeBot, Model.IncludeAdmin)" class="@(Model.Days == d ? "on" : "")">@(d == 1 ? "今日" : $"{d}日")</a>
+            }
+        </div>
+        <a href="@link(Model.Days, !Model.IncludeBot, Model.IncludeAdmin)" class="as-toggle @(Model.IncludeBot ? "on bot" : "")">
+            @(Model.IncludeBot ? "🤖 ボットを含む" : "🚫 ボットを除く")
+        </a>
+        <a href="@link(Model.Days, Model.IncludeBot, !Model.IncludeAdmin)" class="as-toggle @(Model.IncludeAdmin ? "on adm" : "")">
+            @(Model.IncludeAdmin ? "🛠 管理者を含む" : "🚫 管理者を除く")
+        </a>
+    </div>
+
+    <div class="as-note">
+        数えているのは<strong>コントローラーが返したページ</strong>だけです。静的ファイル・JSON API・AJAX は
+        「対象外」に回しています。ルートの記録を始める前の古い記録だけは、パスから推測して拾っています。<br />
+        ボットと管理者自身のアクセスは既定で除いています。上のボタンで含められます。<br />
+        訪問者数は署名付きCookieで見分けた数で、Cookieを持ち回らないクライアント（多くのボット）と
+        各訪問者の最初の1リクエストは含みません。<br />
+        access_log は31日で消えるため、遡れるのは最大31日分です。
+    </div>
+
+    @* 集計はここへ後から差し込む。重い問い合わせを枠の表示と切り離して、待っている間を見せる *@
+    <div id="stats">
+        <div class="as-loading">
+            <div class="as-spinner"></div>
+            <div>集計しています…</div>
+        </div>
+    </div>
+
+</div>
+
+@section ScriptsPartial {
+<script>
+    $(function () {
+        //枠はDBに触らず返ってくる。中身だけを取りに行き、届くまでスピナーを出しておく。
+        //期間やボットの切り替えは普通のリンクのまま。枠が軽いので読み直しても待たされない
+        $.get('/AccessStats/Data' + location.search)
+            .done(function (html) { $('#stats').html(html); })
+            .fail(function (xhr) {
+                $('#stats').html($('<div class="as-error">')
+                    .text('集計に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')'));
+            });
+    });
+</script>
+}

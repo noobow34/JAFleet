@@ -1,0 +1,263 @@
+@model JAFleet.Models.AccessStatsModel
+@{
+    //集計の中身だけを描く部分ビュー。/AccessStats/Data から返して画面へ差し込む。
+    //重い問い合わせをここへ閉じ込めているので、枠のほうは即座に返せる
+
+    //縦軸は「4目盛りで収まる切りのいい数」を天井にする。実データの最大値をそのまま天井にすると
+    //目盛りの数値が半端になって読めないため
+    Func<long, long> axisTop = max =>
+    {
+        if (max <= 4) { return 4; }
+        double target = max / 4.0;
+        double pow = Math.Pow(10, Math.Floor(Math.Log10(target)));
+        double[] mantissas = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+        double step = mantissas.Select(m => m * pow).First(s => s >= target);
+        return (long)Math.Ceiling(step) * 4;
+    };
+
+    var dailyTop = axisTop(Model.Daily.Count == 0 ? 0 : Model.Daily.Max(d => Math.Max(d.PageViews, d.Visitors)));
+    var hourlyTop = axisTop(Model.Hourly.Count == 0 ? 0 : Model.Hourly.Max(h => h.PageViews));
+    //目盛りは上から順に。0は一番下の線
+    var ticks = new[] { 4, 3, 2, 1, 0 };
+
+    var maxPathPv = Model.TopPaths.Count == 0 ? 1 : Math.Max(1L, Model.TopPaths.Max(p => p.PageViews));
+    var maxRegPv = Model.TopRegistrations.Count == 0 ? 1 : Math.Max(1L, Model.TopRegistrations.Max(r => r.Count));
+    var maxRefPv = Model.Referers.Count == 0 ? 1 : Math.Max(1L, Model.Referers.Max(r => r.Count));
+    //日別グラフは30日分でも横に収めたいので、日数でラベルを間引く
+    var dayLabelEvery = Model.Daily.Count > 14 ? 5 : 1;
+}
+
+@* ---- サマリ ---- *@
+<div class="as-cards">
+    <div class="as-card">
+        <span class="lbl">PV</span>
+        <span class="val">@Model.PageViews.ToString("N0")</span>
+        <span class="sub">ページ表示回数</span>
+    </div>
+    <div class="as-card">
+        <span class="lbl">訪問者</span>
+        <span class="val">@Model.Visitors.ToString("N0")</span>
+        <span class="sub">Cookieで識別</span>
+    </div>
+    <div class="as-card">
+        <span class="lbl">IP</span>
+        <span class="val">@Model.Ips.ToString("N0")</span>
+        <span class="sub">ユニークIP</span>
+    </div>
+    <div class="as-card">
+        <span class="lbl">平均応答</span>
+        <span class="val">@Model.AvgResponseMs.ToString("N0")<span style="font-size:14px"> ms</span></span>
+        <span class="sub">サーバ処理時間</span>
+    </div>
+    <div class="as-card">
+        <span class="lbl">エラー</span>
+        <span class="val">@Model.ErrorCount.ToString("N0")</span>
+        <span class="sub">ステータス400以上</span>
+    </div>
+    <div class="as-card">
+        <span class="lbl">対象外</span>
+        <span class="val">@Model.NonPageCount.ToString("N0")</span>
+        <span class="sub">静的ファイル・API等</span>
+    </div>
+</div>
+
+@* ---- 日別 ---- *@
+<div class="as-panel">
+    <h3>日別の推移</h3>
+    <div class="as-graph">
+        <div class="as-yaxis">
+            @foreach (var t in ticks)
+            {
+                <span class="t" style="bottom:@(t * 25)%">@((dailyTop / 4 * t).ToString("N0"))</span>
+            }
+        </div>
+        <div class="as-plot">
+            <div class="as-chart">
+                @foreach (var t in ticks)
+                {
+                    <div class="grid @(t == 0 ? "zero" : "")" style="bottom:@(t * 25)%"></div>
+                }
+                @foreach (var d in Model.Daily)
+                {
+                    <div class="col">
+                        <div class="tip">
+                            <b>@d.Date.ToString("M/d (ddd)")</b>
+                            PV <span class="v">@d.PageViews.ToString("N0")</span> ／
+                            訪問者 <span class="v">@d.Visitors.ToString("N0")</span>
+                        </div>
+                        <div class="bars">
+                            <div class="bar pv" style="height:@(d.PageViews * 100 / dailyTop)%"></div>
+                            <div class="bar uu" style="height:@(d.Visitors * 100 / dailyTop)%"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="as-xaxis">
+                @for (var i = 0; i < Model.Daily.Count; i++)
+                {
+                    <span class="lbl">@(i % dayLabelEvery == 0 || i == Model.Daily.Count - 1 ? Model.Daily[i].Date.ToString("M/d") : "")</span>
+                }
+            </div>
+            <div class="as-legend">
+                <span class="key"><span class="sw" style="background:#3b82f6"></span>PV</span>
+                <span class="key"><span class="sw" style="background:#22c55e"></span>訪問者</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ---- 時間帯別 ---- *@
+<div class="as-panel">
+    <h3>時間帯別のPV<span class="hint">期間合計</span></h3>
+    <div class="as-graph">
+        <div class="as-yaxis">
+            @foreach (var t in ticks)
+            {
+                <span class="t" style="bottom:@(t * 25)%">@((hourlyTop / 4 * t).ToString("N0"))</span>
+            }
+        </div>
+        <div class="as-plot">
+            <div class="as-chart">
+                @foreach (var t in ticks)
+                {
+                    <div class="grid @(t == 0 ? "zero" : "")" style="bottom:@(t * 25)%"></div>
+                }
+                @foreach (var h in Model.Hourly)
+                {
+                    <div class="col">
+                        <div class="tip">
+                            <b>@h.Hour 時台</b>
+                            PV <span class="v">@h.PageViews.ToString("N0")</span>
+                        </div>
+                        <div class="bars">
+                            <div class="bar hour" style="height:@(h.PageViews * 100 / hourlyTop)%"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="as-xaxis">
+                @foreach (var h in Model.Hourly)
+                {
+                    <span class="lbl">@(h.Hour % 3 == 0 ? h.Hour.ToString() : "")</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ---- 人気ページ / 機体詳細ランキング ---- *@
+<div class="as-cols">
+    <div class="as-panel">
+        <h3>人気ページ<span class="hint">上位20・平均応答</span></h3>
+        @if (Model.TopPaths.Count == 0)
+        {
+            <div class="as-empty">記録がありません</div>
+        }
+        else
+        {
+            <div class="as-rank">
+                @foreach (var p in Model.TopPaths)
+                {
+                    <div class="row2">
+                        <span class="fill" style="width:@(p.PageViews * 100 / maxPathPv)%"></span>
+                        <span class="nm" title="@p.Path">@p.Path</span>
+                        <span class="ct">@p.PageViews.ToString("N0")</span>
+                        <span class="ms">@p.AvgResponseMs.ToString("N0") ms</span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="as-panel">
+        <h3>機体詳細ランキング<span class="hint">レジごと・派生パス込み</span></h3>
+        @if (Model.TopRegistrations.Count == 0)
+        {
+            <div class="as-empty">記録がありません</div>
+        }
+        else
+        {
+            <div class="as-rank">
+                @foreach (var r in Model.TopRegistrations)
+                {
+                    <div class="row2">
+                        <span class="fill" style="width:@(r.Count * 100 / maxRegPv)%"></span>
+                        <span class="nm"><a href="/AD/@r.Name" target="_blank">@r.Name</a></span>
+                        <span class="ct">@r.Count.ToString("N0")</span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@* ---- リファラー / 内訳 ---- *@
+<div class="as-cols">
+    <div class="as-panel">
+        <h3>外部からの流入元<span class="hint">上位10</span></h3>
+        @if (Model.Referers.Count == 0)
+        {
+            <div class="as-empty">記録がありません</div>
+        }
+        else
+        {
+            <div class="as-rank">
+                @foreach (var r in Model.Referers)
+                {
+                    <div class="row2">
+                        <span class="fill" style="width:@(r.Count * 100 / maxRefPv)%"></span>
+                        <span class="nm" title="@r.Name">@r.Name</span>
+                        <span class="ct">@r.Count.ToString("N0")</span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="as-panel">
+        <h3>内訳</h3>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:6px">コントローラー別</div>
+        <div class="as-chips" style="margin-bottom:14px">
+            @foreach (var c in Model.Controllers)
+            {
+                <span class="as-chip">@c.Name <span class="cnt">@c.Count.ToString("N0")</span></span>
+            }
+        </div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:6px">端末</div>
+        <div class="as-chips" style="margin-bottom:14px">
+            @foreach (var d in Model.Devices)
+            {
+                <span class="as-chip">@d.Name <span class="cnt">@d.Count.ToString("N0")</span></span>
+            }
+        </div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:6px">ステータスコード</div>
+        <div class="as-chips">
+            @foreach (var s in Model.StatusCodes)
+            {
+                <span class="as-chip">@s.Name <span class="cnt">@s.Count.ToString("N0")</span></span>
+            }
+        </div>
+    </div>
+</div>
+
+@* ---- 遅いページ ---- *@
+<div class="as-panel">
+    <h3>遅いページ<span class="hint">20PV以上のパスを平均応答時間の順に</span></h3>
+    @if (Model.SlowPaths.Count == 0)
+    {
+        <div class="as-empty">対象がありません</div>
+    }
+    else
+    {
+        <div class="as-rank">
+            @foreach (var p in Model.SlowPaths)
+            {
+                <div class="row2">
+                    <span class="nm" title="@p.Path">@p.Path</span>
+                    <span class="ct">@p.AvgResponseMs.ToString("N0") ms</span>
+                    <span class="ms">@p.PageViews.ToString("N0") PV</span>
+                </div>
+            }
+        </div>
+    }
+</div>
