@@ -8,6 +8,16 @@
     int validCount = Model.Rows?.Count(r => r.Line.IsValid) ?? 0;
     int errorCount = Model.Rows?.Count(r => !r.Line.IsValid) ?? 0;
     int existsCount = Model.Rows?.Count(r => r.Line.IsValid && r.Exists) ?? 0;
+
+    @* 航空会社と詳細型式はこの画面の入力から読むので、相手のidだけ渡す *@
+    var seatConfigQuickAdd = new SeatConfigQuickAddModel
+    {
+        SelectId = "SeatConfig",
+        AirlineFieldId = "Airline",
+        TypeDetailFieldId = nameof(Model.TypeDetailId),
+        TypeList = Model.TypeList,
+        TypeDetailList = Model.TypeDetailList,
+    };
 }
 
 @section CssPartial {
@@ -36,6 +46,9 @@
 }
 .blk-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .blk-field label { margin: 0; font-size: 12px; font-weight: 600; color: #64748b; }
+/* 入力のとなりにその場登録のボタンを置く欄 */
+.blk-with-add { display: flex; align-items: center; min-width: 0; }
+.blk-with-add select { flex: 1; min-width: 0; }
 .blk-field select, .blk-field input[type=text] {
     height: 34px; max-width: 100%; padding: 4px 10px; font-size: 14px;
     border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b;
@@ -283,13 +296,17 @@
 
                 <div class="blk-field">
                     <label for="SeatConfig">コンフィグ</label>
-                    <select id="SeatConfig" name="SeatConfig">
-                        <option value="">　</option>
-                        @foreach (SeatConfiguration config in Model.SeatConfigurationList ?? [])
-                        {
-                            <option value="@config.ConfigId" selected="@(config.ConfigId == Model.SeatConfig)">@config.SeatConfigLong</option>
-                        }
-                    </select>
+                    <div class="blk-with-add">
+                        <select id="SeatConfig" name="SeatConfig">
+                            <option value="">　</option>
+                            @foreach (SeatConfiguration config in Model.SeatConfigurationList ?? [])
+                            {
+                                <option value="@config.ConfigId" selected="@(config.ConfigId == Model.SeatConfig)">@config.SeatConfigLong</option>
+                            }
+                        </select>
+                        @* マスタに無いコンフィグに出くわしたとき、この画面を離れずに足せるようにする *@
+                        <partial name="_SeatConfigQuickAdd" model="seatConfigQuickAdd" />
+                    </div>
                 </div>
 
                 <div class="blk-field">
@@ -451,6 +468,7 @@ JA805A,,65003</div>
 
 @section ScriptsPartial{
 <partial name="_TypeDetailPickerScript" />
+<partial name="_SeatConfigQuickAddScript" />
 <script>
     $(function () {
         // ---- 行数の表示 ----

@@ -1,0 +1,311 @@
+@model JAFleet.Models.SeatConfigModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "コンフィグマスタ";
+
+    string fromAdmin = Model.FromAdmin.ToString().ToLowerInvariant();
+
+    //航空会社・型式の選択肢。行の値がマスタに無いコードだった場合は、
+    //保存で勝手に書き換わらないようにその値だけ選択肢に足す。
+    async Task AirlineSelect(string name, string? selected, string blankText)
+    {
+        <select name="@name" class="scm-input">
+            <option value="">@blankText</option>
+            @foreach (var group in Model.AirlineList.GroupBy(a => a.AirlineGroup))
+            {
+                <optgroup label="@group.Key">
+                    @foreach (var airline in group)
+                    {
+                        <option value="@airline.AirlineCode" selected="@(airline.AirlineCode == selected)">@airline.AirlineNameJpShort</option>
+                    }
+                </optgroup>
+            }
+            @if (!string.IsNullOrEmpty(selected) && !Model.AirlineList.Any(a => a.AirlineCode == selected))
+            {
+                <option value="@selected" selected="selected">@selected（マスタ外）</option>
+            }
+        </select>
+    }
+
+    async Task TypeSelect(string name, string? selected, string blankText)
+    {
+        <select name="@name" class="scm-input">
+            <option value="">@blankText</option>
+            @foreach (var type in Model.TypeList)
+            {
+                <option value="@type.TypeCode" selected="@(type.TypeCode == selected)">@type.TypeName</option>
+            }
+            @if (!string.IsNullOrEmpty(selected) && !Model.TypeList.Any(t => t.TypeCode == selected))
+            {
+                <option value="@selected" selected="selected">@selected（マスタ外）</option>
+            }
+        </select>
+    }
+
+    void SeatInputs(JAFleet.Models.SeatConfigInput seats)
+    {
+        <input type="number" name="F" class="scm-input seat" value="@seats.F" min="1" max="1000" placeholder="F" aria-label="F" />
+        <input type="number" name="C" class="scm-input seat" value="@seats.C" min="1" max="1000" placeholder="C" aria-label="C" />
+        <input type="number" name="PY" class="scm-input seat" value="@seats.PY" min="1" max="1000" placeholder="PY" aria-label="PY" />
+        <input type="number" name="P" class="scm-input seat" value="@seats.P" min="1" max="1000" placeholder="P" aria-label="P" />
+        <input type="number" name="J" class="scm-input seat" value="@seats.J" min="1" max="1000" placeholder="J" aria-label="J" />
+        <input type="number" name="Y" class="scm-input seat" value="@seats.Y" min="1" max="1000" placeholder="Y" aria-label="Y" />
+    }
+}
+
+@section CssPartial {
+<style>
+/* ===== コンフィグマスタ =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
+.scm-page { padding: 16px 0 60px; max-width: 1180px; }
+.scm-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
+.scm-lead { font-size: 13px; color: #94a3b8; margin-bottom: 18px; line-height: 1.7; }
+
+.scm-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.scm-card-title { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px; }
+
+.scm-input {
+    height: 32px; padding: 3px 8px; min-width: 0; width: 100%;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+    font-size: 13px; color: #1e293b;
+}
+.scm-input.seat { text-align: right; font-family: Consolas, monospace; }
+.scm-input.seat::placeholder { color: #cbd5e1; }
+
+.scm-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 32px; padding: 0 12px;
+    border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.scm-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.scm-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.scm-btn.primary:hover { background: #1e293b; color: #fff; }
+.scm-btn.danger { color: #b91c1c; }
+.scm-btn.danger:hover { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.scm-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.scm-btn[disabled]:hover { background: #fff; color: #334155; }
+
+/* 一覧。列をそろえたいが tr の中に form は置けないので、行ごとに form をグリッドにする */
+.scm-table { overflow-x: auto; }
+.scm-row {
+    display: grid; align-items: center; gap: 6px; min-width: 1040px;
+    grid-template-columns: 148px 140px repeat(6, 54px) 54px minmax(150px, 1fr) 52px 128px;
+    padding: 6px 8px; border-bottom: 1px solid #f1f5f9; margin: 0;
+}
+.scm-row.head {
+    font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .03em;
+    border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;
+}
+.scm-row.head .seat, .scm-row.head .num { text-align: right; }
+.scm-row:hover { background: #f8fafc; }
+.scm-row.ng { background: #fef2f2; }
+.scm-sum { text-align: right; font-family: Consolas, monospace; font-size: 13px; color: #334155; }
+.scm-used { text-align: right; font-size: 12px; color: #64748b; }
+.scm-used.on { font-weight: 700; color: #1d4ed8; }
+.scm-ops { display: flex; gap: 6px; justify-content: flex-end; }
+.scm-code { font-family: Consolas, monospace; font-size: 11px; color: #cbd5e1; }
+
+.scm-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scm-filter .scm-input { width: 180px; }
+.scm-count { font-size: 12px; color: #94a3b8; margin-left: auto; }
+
+.scm-error {
+    border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #b91c1c;
+    font-weight: 600; line-height: 1.7;
+}
+.scm-ok {
+    border: 1px solid #a7f3d0; background: #ecfdf5; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 14px; color: #065f46;
+    font-weight: 700; line-height: 1.7;
+}
+.scm-empty { padding: 24px 8px; font-size: 13px; color: #94a3b8; }
+
+.scm-help {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc;
+    padding: 14px 18px; margin-top: 20px; font-size: 13px; color: #475569; line-height: 1.8;
+}
+.scm-help b { color: #334155; }
+.scm-help code {
+    font-family: Consolas, monospace; font-size: 12px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 4px;
+    padding: 1px 6px; color: #0f172a;
+}
+
+/* 新規登録は一覧と同じ並びにして、どの欄が何なのか見比べられるようにする */
+.scm-new { grid-template-columns: 148px 140px repeat(6, 54px) 54px minmax(150px, 1fr) 52px 128px; border-bottom: none; }
+</style>
+}
+
+<div class="scm-page">
+    <h2>💺 コンフィグマスタ</h2>
+    <div class="scm-lead">
+        航空会社・型式ごとの座席仕様です。単票編集（/E）と同一型式の一括登録の「コンフィグ」の選択肢になります。<br />
+        保存するとマスタのメモリキャッシュも読み直すので、マスタ再読込を押す必要はありません。
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="scm-error">⚠ @Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="scm-ok">✔ @Model.Message</div>
+    }
+
+    @* ---- 絞り込み ---- *@
+    <div class="scm-card">
+        <form class="scm-filter" method="get" asp-controller="SeatConfig" asp-action="Index">
+            <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+            @{ await AirlineSelect("airline", Model.FilterAirline, "航空会社（すべて）"); }
+            @{ await TypeSelect("type", Model.FilterType, "型式（すべて）"); }
+            <button type="submit" class="scm-btn">絞り込む</button>
+            @if (Model.FilterAirline != null || Model.FilterType != null)
+            {
+                <a class="scm-btn" href="/SeatConfig?fromAdmin=@fromAdmin">解除</a>
+            }
+            <span class="scm-count">@Model.Rows.Count 件 / 全 @Model.TotalCount 件</span>
+        </form>
+    </div>
+
+    @* ---- 新規登録 ---- *@
+    <div class="scm-card">
+        <div class="scm-card-title">＋ 新規登録</div>
+        <div class="scm-table">
+            <div class="scm-row head scm-new">
+                <div>航空会社</div>
+                <div>型式</div>
+                <div class="seat">F</div>
+                <div class="seat">C</div>
+                <div class="seat">PY</div>
+                <div class="seat">P</div>
+                <div class="seat">J</div>
+                <div class="seat">Y</div>
+                <div class="num">合計</div>
+                <div>座席図URL</div>
+                <div></div>
+                <div></div>
+            </div>
+            <form class="scm-row scm-new" method="post" asp-controller="SeatConfig" asp-action="Save">
+                <input type="hidden" name="filterAirline" value="@Model.FilterAirline" />
+                <input type="hidden" name="filterType" value="@Model.FilterType" />
+                <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+                @{ await AirlineSelect("Airline", Model.New.Airline, "選択"); }
+                @{ await TypeSelect("Type", Model.New.Type, "選択"); }
+                @{
+                    SeatInputs(Model.New);
+                    int newSum = (Model.New.F ?? 0) + (Model.New.C ?? 0) + (Model.New.PY ?? 0)
+                               + (Model.New.P ?? 0) + (Model.New.J ?? 0) + (Model.New.Y ?? 0);
+                }
+                <div class="scm-sum">@(newSum == 0 ? "―" : newSum.ToString())</div>
+                <input type="url" name="Url" class="scm-input" value="@Model.New.Url" placeholder="https://（任意）" />
+                <div></div>
+                <div class="scm-ops">
+                    <button type="submit" class="scm-btn primary">登録</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @* ---- 一覧 ---- *@
+    <div class="scm-card">
+        <div class="scm-card-title">登録済みのコンフィグ</div>
+
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="scm-empty">
+                @(Model.TotalCount == 0 ? "コンフィグが登録されていません。" : "この条件のコンフィグはありません。")
+            </div>
+        }
+        else
+        {
+            <div class="scm-table">
+                <div class="scm-row head">
+                    <div>航空会社</div>
+                    <div>型式</div>
+                    <div class="seat">F</div>
+                    <div class="seat">C</div>
+                    <div class="seat">PY</div>
+                    <div class="seat">P</div>
+                    <div class="seat">J</div>
+                    <div class="seat">Y</div>
+                    <div class="num">合計</div>
+                    <div>座席図URL</div>
+                    <div class="num">使用</div>
+                    <div></div>
+                </div>
+
+                @foreach (var row in Model.Rows)
+                {
+                    <form class="scm-row @(row.ConfigId == Model.ErrorConfigId ? "ng" : "")"
+                          method="post" asp-controller="SeatConfig" asp-action="Save">
+                        <input type="hidden" name="ConfigId" value="@row.ConfigId" />
+                        <input type="hidden" name="filterAirline" value="@Model.FilterAirline" />
+                        <input type="hidden" name="filterType" value="@Model.FilterType" />
+                        <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+                        @{ await AirlineSelect("Airline", row.Airline, "選択"); }
+                        @{
+                            await TypeSelect("Type", row.Type, "選択");
+                            SeatInputs(new JAFleet.Models.SeatConfigInput
+                            {
+                                F = row.F, C = row.C, PY = row.PY, P = row.P, J = row.J, Y = row.Y,
+                            });
+                        }
+                        <div class="scm-sum">@((row.F ?? 0) + (row.C ?? 0) + (row.PY ?? 0) + (row.P ?? 0) + (row.J ?? 0) + (row.Y ?? 0))</div>
+                        <input type="url" name="Url" class="scm-input" value="@row.Url" placeholder="https://（任意）" />
+                        <div class="scm-used @(row.UsedCount > 0 ? "on" : "")">@row.UsedCount</div>
+                        <div class="scm-ops">
+                            <button type="submit" class="scm-btn primary">保存</button>
+                            <button type="submit" class="scm-btn danger" formaction="/SeatConfig/Delete" formnovalidate
+                                    disabled="@(row.UsedCount > 0)"
+                                    title="@(row.UsedCount > 0 ? $"{row.UsedCount}機が使っているため削除できません" : "削除する")">
+                                削除
+                            </button>
+                        </div>
+                    </form>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="scm-help">
+        <b>席数の入れ方</b><br />
+        <code>F</code> ファースト／<code>C</code> ビジネス／<code>PY</code> プレミアムエコノミー／
+        <code>P</code> プレミアム（国内線）／<code>J</code> クラスJ／<code>Y</code> エコノミー・普通席。<br />
+        その区分が無い場合は<b>空欄</b>にしてください。0 を入れると「Y0」のように表示されてしまうため、0 以下は登録できません。
+        1区分でも入っていれば登録できます。<br />
+        航空会社・型式・席数がすべて同じコンフィグは、選ぶときに区別できないため登録できません。
+        座席図URLは任意で、いまはどの画面にも出していません（<code>aircraft_view.seat_url</code> に出ます）。<br />
+        <b>削除</b>はそのコンフィグを使っている機体が 0 機のときだけできます。「使用」列が機体数です。
+    </div>
+</div>
+
+@section ScriptsPartial{
+<script>
+    $(function () {
+        // 席数を直したら合計もその場で合わせる。保存前でも見比べられるように。
+        const recalc = function (form) {
+            let sum = 0;
+            $(form).find('input.seat').each(function () {
+                const value = parseInt($(this).val(), 10);
+                if (!isNaN(value)) { sum += value; }
+            });
+            $(form).find('.scm-sum').text(sum === 0 ? '―' : sum);
+        };
+
+        $('.scm-row').on('input change', 'input.seat', function () {
+            recalc($(this).closest('form'));
+        });
+
+        $('.scm-btn.danger').on('click', function () {
+            return confirm('このコンフィグを削除します。よろしいですか？');
+        });
+    });
+</script>
+}

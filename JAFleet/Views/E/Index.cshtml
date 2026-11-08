@@ -26,6 +26,16 @@
         TypeList = Model.TypeList,
         TypeDetailList = Model.TypeDetailList,
     };
+
+    @* 航空会社と詳細型式はこの画面の入力から読むので、相手のidだけ渡す *@
+    var seatConfigQuickAdd = new SeatConfigQuickAddModel
+    {
+        SelectId = "Aircraft_SeatConfig",
+        AirlineFieldId = "Aircraft_Airline",
+        TypeDetailFieldId = "Aircraft_TypeDetailId",
+        TypeList = Model.TypeList,
+        TypeDetailList = Model.TypeDetailList,
+    };
 }
 @if (Model.IsNew)
 {
@@ -124,6 +134,8 @@ else
                                                                                                            new SelectList(Model.SeatConfigurationList, "ConfigId", "SeatConfigLong"),
                                                                                                            "　",
                                                                                                            new { @class = "form-control" })
+            @* マスタに無いコンフィグに出くわしたとき、この画面を離れずに足せるようにする *@
+            <partial name="_SeatConfigQuickAdd" model="seatConfigQuickAdd" />
         </div>
     </div>
     <div class="row">
@@ -175,6 +187,7 @@ else
 </form>
 @section ScriptsPartial{
     <partial name="_TypeDetailPickerScript" />
+    <partial name="_SeatConfigQuickAddScript" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.4/clipboard.min.js" integrity="sha256-FiZwavyI2V6+EXO1U+xzLG3IKldpiTFf3153ea9zikQ=" crossorigin="anonymous"></script>
     <script>
         new ClipboardJS('.btn', {

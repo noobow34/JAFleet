@@ -1,0 +1,138 @@
+@model JAFleet.Models.SeatConfigQuickAddModel
+@*
+    コンフィグ（座席仕様）のその場登録。
+    コンフィグのセレクトのとなりに「＋」を置き、押すと席数だけ入れて登録できるモーダルを出す。
+    航空会社と型式は編集中の内容から決まるので、入れるのは席数だけでよい。
+    登録したものはその場でセレクトに足して選んだ状態にする。
+
+    使い方（画面側）:
+      <partial name="_SeatConfigQuickAdd" model="new SeatConfigQuickAddModel { ... }" />
+      @@section ScriptsPartial { <partial name="_SeatConfigQuickAddScript" /> }
+*@
+@{
+    string modalId = Model.SelectId + "QuickAdd";
+
+    //詳細型式→型式名。登録される型式を画面に出すためだけのもの。
+    Dictionary<string, string?> typeNameByCode = (Model.TypeList ?? [])
+        .ToDictionary(t => t.TypeCode, t => t.TypeName);
+
+    Dictionary<string, string> typeNames = (Model.TypeDetailList ?? [])
+        .Where(td => td.TypeDetailId != null && !string.IsNullOrEmpty(td.TypeCode))
+        .GroupBy(td => td.TypeDetailId!.Value)
+        .ToDictionary(
+            g => g.Key.ToString(),
+            g => typeNameByCode.TryGetValue(g.First().TypeCode!, out string? name) && !string.IsNullOrEmpty(name)
+                ? name!
+                : g.First().TypeCode!);
+}
+
+<style>
+/* ===== コンフィグのその場登録 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため remは使わずpxで指定すること。 */
+.scq-open {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; margin-left: 4px; vertical-align: middle;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+    font-size: 16px; font-weight: 700; color: #334155; cursor: pointer;
+}
+.scq-open:hover { background: #f1f5f9; border-color: #94a3b8; }
+
+.scq-modal .modal-dialog { width: 520px; max-width: 96%; }
+.scq-target {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+    padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc;
+    font-size: 14px; color: #1e293b;
+}
+.scq-target .lb { font-size: 12px; font-weight: 700; color: #94a3b8; }
+.scq-target .vl { font-weight: 700; }
+.scq-target .vl.empty { color: #b91c1c; font-weight: 600; }
+
+.scq-seats { display: flex; gap: 8px; }
+.scq-seat { flex: 1; min-width: 0; }
+.scq-seat label { display: block; margin: 0 0 3px; font-size: 12px; font-weight: 700; color: #64748b; text-align: center; }
+.scq-seat input {
+    width: 100%; height: 36px; padding: 4px 6px; text-align: right;
+    font-family: Consolas, monospace; font-size: 14px; color: #1e293b;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+}
+.scq-sum { margin-top: 10px; font-size: 13px; color: #64748b; text-align: right; }
+.scq-sum b { font-family: Consolas, monospace; font-size: 15px; color: #1e293b; }
+
+.scq-field { margin-top: 12px; }
+.scq-field label { display: block; margin: 0 0 3px; font-size: 12px; font-weight: 600; color: #64748b; }
+.scq-field input[type=url] {
+    width: 100%; height: 34px; padding: 4px 10px; font-size: 14px;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1e293b;
+}
+.scq-note { margin-top: 12px; font-size: 12px; color: #94a3b8; line-height: 1.7; }
+.scq-error {
+    display: none; margin-top: 12px; background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: 6px; padding: 8px 12px; font-size: 13px; color: #b91c1c; font-weight: 600;
+}
+.scq-btn {
+    display: inline-flex; align-items: center; padding: 7px 16px; border-radius: 6px;
+    border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.scq-btn:hover { background: #f1f5f9; }
+.scq-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.scq-btn.primary:hover { background: #1e293b; }
+.scq-btn[disabled] { opacity: .45; cursor: not-allowed; }
+</style>
+
+<button type="button" class="scq-open" data-scq-open="@modalId" title="この航空会社・型式でコンフィグを登録する">＋</button>
+
+@*
+    モーダルの入力欄にはnameを付けない。
+    この部品はフォームの中に置かれるので、nameがあると編集内容と一緒に送信されてしまう。
+*@
+<div class="modal fade scq-modal" id="@modalId" tabindex="-1" role="dialog"
+     data-scq-select="@Model.SelectId"
+     data-scq-airline="@Model.AirlineFieldId"
+     data-scq-typedetail="@Model.TypeDetailFieldId">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="閉じる"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">コンフィグの新規登録</h4>
+            </div>
+
+            <div class="modal-body">
+                <div class="scq-target">
+                    <span class="lb">航空会社</span><span class="vl scq-airline">―</span>
+                    <span class="lb" style="margin-left:12px">型式</span><span class="vl scq-type">―</span>
+                </div>
+
+                <div class="scq-seats">
+                    <div class="scq-seat"><label>F</label><input type="number" class="scq-f" min="1" max="1000" /></div>
+                    <div class="scq-seat"><label>C</label><input type="number" class="scq-c" min="1" max="1000" /></div>
+                    <div class="scq-seat"><label>PY</label><input type="number" class="scq-py" min="1" max="1000" /></div>
+                    <div class="scq-seat"><label>P</label><input type="number" class="scq-p" min="1" max="1000" /></div>
+                    <div class="scq-seat"><label>J</label><input type="number" class="scq-j" min="1" max="1000" /></div>
+                    <div class="scq-seat"><label>Y</label><input type="number" class="scq-y" min="1" max="1000" /></div>
+                </div>
+                <div class="scq-sum">合計 <b class="scq-total">―</b> 席</div>
+
+                <div class="scq-field">
+                    <label>座席図URL（任意）</label>
+                    <input type="url" class="scq-url" placeholder="https://" />
+                </div>
+
+                <div class="scq-note">
+                    その区分が無ければ空欄にしてください（0 は入れられません）。<br />
+                    同じ内容のコンフィグが既にあるときは、作らずにそれを選びます。
+                    一覧の整理はコンフィグマスタ（/SeatConfig）から。
+                </div>
+
+                <div class="scq-error"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="scq-btn" data-dismiss="modal">キャンセル</button>
+                <button type="button" class="scq-btn primary scq-submit">登録して選択</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" class="scq-typenames" data-scq-for="@modalId">@Json.Serialize(typeNames)</script>
