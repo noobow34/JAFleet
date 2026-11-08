@@ -46,7 +46,8 @@ namespace JAFleet.Controllers
                 model.IsNew = true;
                 model.LinkPage = $"https://ja-fleet.noobow.me/AD/{id.ToUpper()}";
             }
-            else
+            //レジ無しで開いた新規登録（/E）はここに来る。idが無いので機体は引けない。
+            else if (!string.IsNullOrEmpty(id))
             {
                 AircraftView? av = _context.AircraftViews.Where(av => av.RegistrationNumber == id.ToUpper()).SingleOrDefault();
                 if (av != null) 
