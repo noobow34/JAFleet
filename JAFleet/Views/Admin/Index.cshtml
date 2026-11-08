@@ -100,6 +100,7 @@
             </div>
             <button type="button" class="adm-btn primary" id="editBtn">編集</button>
             <button type="button" class="adm-btn" id="detailBtn">詳細</button>
+            <button type="button" class="adm-btn" id="historyBtn">更新履歴</button>
             <a class="adm-btn" href="/E?fromAdmin=true" style="margin-left:auto">＋ 新規登録</a>
         </div>
     </div>
@@ -255,6 +256,11 @@
 
         $('#detailBtn').on('click', function () {
             if (registration() !== '') { location.href = '/AD/' + registration() + '?fromAdmin=true'; }
+        });
+
+        // レジ未入力でも、履歴はレジ検索から始められるので開く
+        $('#historyBtn').on('click', function () {
+            location.href = '/AircraftHistory?reg=' + registration() + '&fromAdmin=true';
         });
 
         $('#reg').on('keydown', function (e) {

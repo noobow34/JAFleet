@@ -177,7 +177,14 @@ else
     <div class="row">
         <div class="form-group">
             <input type="button" value="戻る" class="btn btn-default" onclick="history.back();" />
-            <input type="submit" value="登録" class="btn btn-primary" onclick="$('#copy').click();" />
+            @* 押した時点の「履歴を作成しない」の状態を読んで確認する。クリップボードへのコピーは登録するときだけ *@
+            <input type="submit" value="登録" class="btn btn-primary" id="store" />
+            @if (!Model.IsNew)
+            {
+                @* 間違った内容で積まれた履歴を直しに行くための入口 *@
+                <a class="btn btn-default"
+                   href="/AircraftHistory?reg=@Model.Aircraft!.RegistrationNumber&fromAdmin=@Model.FromAdmin.ToString().ToLowerInvariant()">更新履歴</a>
+            }
         </div>
     </div>
 
@@ -185,6 +192,68 @@ else
     @Html.HiddenFor(model => model.NoHead)
     @Html.HiddenFor(model => model.FromAdmin)
 </form>
+
+@*
+    登録の確認。履歴を残すか残さないかは後から気づきにくいので、どちらでも必ず出す。
+    中身は押した時点の「履歴を作成しない」の状態でJSから差し替える。
+    入力欄が無いのでフォームの中に置いても害は無いが、送信の邪魔をしないよう外に出してある。
+*@
+<style>
+/* ===== 登録の確認 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため remは使わずpxで指定すること。 */
+.ecf-modal .modal-dialog { width: 460px; max-width: 94%; }
+.ecf-modal .modal-content { border-radius: 10px; }
+.ecf-modal .modal-title { font-size: 16px; font-weight: 700; color: #1e293b; }
+.ecf-reg {
+    font-family: Consolas, monospace; font-size: 20px; font-weight: 700;
+    color: #0f172a; margin-bottom: 10px;
+}
+.ecf-state {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;
+    border: 1px solid #e2e8f0; background: #f8fafc;
+}
+.ecf-state.keep { border-color: #a7f3d0; background: #ecfdf5; }
+.ecf-state.drop { border-color: #fde68a; background: #fffbeb; }
+.ecf-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 4px; white-space: nowrap; }
+.ecf-state.keep .ecf-badge { background: #dcfce7; color: #166534; }
+.ecf-state.drop .ecf-badge { background: #fef3c7; color: #92400e; }
+.ecf-state.new .ecf-badge { background: #dbeafe; color: #1d4ed8; }
+.ecf-state .ecf-msg { font-size: 13px; font-weight: 600; color: #334155; line-height: 1.6; }
+.ecf-note { font-size: 12px; color: #94a3b8; line-height: 1.7; }
+.ecf-btn {
+    display: inline-flex; align-items: center; padding: 7px 18px; border-radius: 6px;
+    border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.ecf-btn:hover { background: #f1f5f9; }
+.ecf-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.ecf-btn.primary:hover { background: #1e293b; }
+</style>
+
+<div class="modal fade ecf-modal" id="storeConfirm" tabindex="-1" role="dialog" aria-labelledby="storeConfirmTitle">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="閉じる"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="storeConfirmTitle">登録の確認</h4>
+            </div>
+            <div class="modal-body">
+                <div class="ecf-reg">@(Model.IsNew ? "新規登録" : Model.Aircraft?.RegistrationNumber)</div>
+                <div class="ecf-state">
+                    <span class="ecf-badge"></span>
+                    <span class="ecf-msg"></span>
+                </div>
+                <div class="ecf-note"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="ecf-btn" data-dismiss="modal">キャンセル</button>
+                <button type="button" class="ecf-btn primary" id="storeConfirmOk">登録する</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section ScriptsPartial{
     <partial name="_TypeDetailPickerScript" />
     <partial name="_SeatConfigQuickAddScript" />
@@ -194,6 +263,47 @@ else
             text: function () {
                 return document.querySelector('input[type=hidden]').value;
             }
+        });
+
+        // 登録の前に確認する。履歴を残すか残さないかは後から気づきにくいので、どちらでも必ず出す。
+        const storeConfirm = $('#storeConfirm');
+        const storeForm = $('#store').closest('form');
+
+        $('#store').on('click', function (e) {
+            e.preventDefault();
+
+            const isNew = @(Model.IsNew.ToString().ToLowerInvariant());
+            const notUpdate = $('#NotUpdateDate').prop('checked');
+            const state = storeConfirm.find('.ecf-state');
+
+            state.removeClass('new keep drop');
+            if (isNew) {
+                state.addClass('new');
+                storeConfirm.find('.ecf-badge').text('新規登録');
+                storeConfirm.find('.ecf-msg').text('このレジを新しく登録します。');
+                storeConfirm.find('.ecf-note').text('新規登録では更新履歴は積まれません。');
+            } else if (notUpdate) {
+                state.addClass('drop');
+                storeConfirm.find('.ecf-badge').text('履歴を残さない');
+                storeConfirm.find('.ecf-msg').text('更新履歴を残さずに、いまの内容を上書きします。');
+                storeConfirm.find('.ecf-note').text('「履歴を作成しない」にチェックが入っています。上書き前の内容は残りません。');
+            } else {
+                state.addClass('keep');
+                storeConfirm.find('.ecf-badge').text('履歴を残す');
+                storeConfirm.find('.ecf-msg').text('いまの内容を更新履歴に残してから登録します。');
+                storeConfirm.find('.ecf-note').text('「履歴を作成しない」のチェックが外れています。機体詳細の履歴に1件増えます。');
+            }
+
+            storeConfirm.modal('show');
+        });
+
+        storeConfirm.on('shown.bs.modal', function () { $('#storeConfirmOk').trigger('focus'); });
+
+        $('#storeConfirmOk').on('click', function () {
+            storeConfirm.modal('hide');
+            //登録するときだけリンクURLをクリップボードへ入れる
+            $('#copy').click();
+            storeForm[0].submit();
         });
 
         $('#Aircraft_TypeDetailId').change(function () {

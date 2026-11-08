@@ -44,14 +44,17 @@ namespace JAFleet.Services
             }
         }
 
-        /// <summary>更新前の内容をaircraft_historyにコピーする</summary>
-        private static void AddHistory(JAFleetContext context, string? registrationNumber, DateTime storeDate)
+        /// <summary>
+        /// いまのaircraftの内容をaircraft_historyにコピーする。積んだ行を返す（SaveChangesは呼ばない）。
+        /// 更新のときの退避に使うほか、更新履歴の画面からリカバリ用に1件作るのにも使う。
+        /// </summary>
+        public static AircraftHistory? AddHistory(JAFleetContext context, string? registrationNumber, DateTime storeDate)
         {
             Aircraft? origin = context.Aircrafts.AsNoTracking()
                 .FirstOrDefault(a => a.RegistrationNumber == registrationNumber);
             if (origin == null)
             {
-                return;
+                return null;
             }
 
             ILoggerFactory logger = LoggerFactory.Create(builder => builder.AddDebug());
@@ -71,6 +74,7 @@ namespace JAFleet.Services
             history.Seq = (maxseq?.maxseq ?? 0) + 1;
 
             context.AircraftHistories.Add(history);
+            return history;
         }
     }
 }

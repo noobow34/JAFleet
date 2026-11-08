@@ -1,0 +1,567 @@
+@using JAFleet.Commons.Data
+@model JAFleet.Models.AircraftHistoryModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "更新履歴の編集";
+
+    string fromAdmin = Model.FromAdmin.ToString().ToLowerInvariant();
+    string regInput = Model.Reg != null && Model.Reg.StartsWith("JA") ? Model.Reg[2..] : Model.Reg ?? "";
+
+    //コンフィグの選択肢は単票編集と同じで、その行の航空会社と型式で絞る。
+    //いま付いているものが絞り込みから外れていても、選択が消えないように足しておく。
+    IEnumerable<SeatConfiguration> ConfigsFor(JAFleet.Models.AircraftHistoryInput row)
+    {
+        string? typeCode = Model.TypeDetailList.FirstOrDefault(t => t.TypeDetailId == row.TypeDetailId)?.TypeCode;
+        IEnumerable<SeatConfiguration> q = Model.SeatConfigurationList;
+        if (!string.IsNullOrEmpty(row.Airline))
+        {
+            q = q.Where(sc => sc.Airline == row.Airline);
+        }
+        if (!string.IsNullOrEmpty(typeCode))
+        {
+            q = q.Where(sc => sc.Type == typeCode);
+        }
+        if (row.SeatConfig != null && !q.Any(sc => sc.ConfigId == row.SeatConfig))
+        {
+            SeatConfiguration? current = Model.SeatConfigurationList.FirstOrDefault(sc => sc.ConfigId == row.SeatConfig);
+            if (current != null)
+            {
+                q = q.Append(current);
+            }
+        }
+        return q;
+    }
+}
+
+@section CssPartial {
+<link rel="stylesheet" href="~/lib/jquery-ui/jquery-ui.min.css">
+<style>
+/* ===== 更新履歴の編集 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
+.ahx-page { padding: 16px 0 60px; max-width: 1400px; }
+.ahx-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
+.ahx-lead { font-size: 13px; color: #94a3b8; margin-bottom: 18px; line-height: 1.7; }
+
+.ahx-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.ahx-card-head {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.ahx-card-title { font-size: 13px; font-weight: 700; color: #334155; }
+.ahx-card-title .cnt { font-weight: 400; color: #94a3b8; margin-left: 6px; }
+
+.ahx-reg { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ahx-reg-input { display: flex; align-items: center; }
+.ahx-prefix {
+    height: 36px; display: flex; align-items: center; padding: 0 10px;
+    background: #f1f5f9; border: 1px solid #cbd5e1; border-right: none;
+    border-radius: 6px 0 0 6px; font-size: 15px; font-weight: 700; color: #64748b;
+}
+#reg {
+    height: 36px; width: 130px; padding: 4px 10px;
+    border: 1px solid #cbd5e1; border-radius: 0 6px 6px 0;
+    font-size: 15px; font-weight: 600; color: #1e293b; text-transform: uppercase;
+}
+#reg::placeholder { color: #cbd5e1; font-weight: 400; }
+
+.ahx-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 32px; padding: 0 14px;
+    border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.ahx-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.ahx-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.ahx-btn.primary:hover { background: #1e293b; color: #fff; }
+.ahx-btn.danger { color: #b91c1c; }
+.ahx-btn.danger:hover { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.ahx-btn.tall { height: 36px; }
+.ahx-btn.icon { width: 32px; padding: 0; font-size: 12px; color: #64748b; }
+
+.ahx-table-wrap { overflow-x: auto; }
+table.ahx-table { width: 100%; min-width: 1680px; border-collapse: collapse; font-size: 13px; }
+.ahx-table th {
+    font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .03em;
+    text-align: left; padding: 0 6px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+}
+.ahx-table td { padding: 5px 6px; border-bottom: 1px solid #f1f5f9; color: #1e293b; vertical-align: middle; }
+.ahx-table tr.ahx-row:hover td { background: #f8fafc; }
+.ahx-table tr.ahx-row.ng td { background: #fef2f2; }
+.ahx-table tr.cur td { background: #f1f5f9; font-weight: 600; }
+
+/* 列幅。中身の入力欄は幅100%にして、列幅でそろえる */
+.ahx-table col.c-seq { width: 72px; }
+.ahx-table col.c-at { width: 158px; }
+.ahx-table col.c-airline { width: 122px; }
+.ahx-table col.c-type { width: 190px; }
+.ahx-table col.c-serial { width: 104px; }
+.ahx-table col.c-date { width: 112px; }
+.ahx-table col.c-ope { width: 116px; }
+.ahx-table col.c-config { width: 172px; }
+.ahx-table col.c-wifi { width: 122px; }
+.ahx-table col.c-livery { width: 140px; }
+.ahx-table col.c-remarks { width: 160px; }
+.ahx-table col.c-ops { width: 118px; }
+
+.ahx-table input[type=text], .ahx-table input[type=number], .ahx-table select {
+    width: 100%; height: 30px; min-width: 0; padding: 2px 6px; font-size: 13px;
+    border: 1px solid #cbd5e1; border-radius: 5px; background: #fff; color: #1e293b;
+}
+.ahx-table input.at { font-family: Consolas, monospace; font-size: 12px; }
+.ahx-table input.num { text-align: right; font-family: Consolas, monospace; }
+.ahx-ops { display: flex; gap: 4px; justify-content: flex-end; }
+.ahx-with-add { display: flex; align-items: center; min-width: 0; }
+.ahx-with-add select { flex: 1; min-width: 0; }
+
+/* 一覧に出していない項目。行ごとに開く。 */
+tr.ahx-detail > td { background: #f8fafc; padding: 12px 14px; }
+.ahx-detail-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 14px;
+}
+.ahx-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ahx-field label { margin: 0; font-size: 11px; font-weight: 700; color: #94a3b8; }
+.ahx-check { display: flex; align-items: center; gap: 6px; height: 30px; margin: 0; font-size: 13px; font-weight: 600; color: #475569; }
+.ahx-check input { width: 15px; height: 15px; margin: 0; }
+
+.ahx-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.ahx-badge.now { background: #dbeafe; color: #1d4ed8; }
+.ahx-badge.warn { background: #fef3c7; color: #92400e; }
+
+.ahx-error {
+    border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #b91c1c;
+    font-weight: 600; line-height: 1.7;
+}
+.ahx-ok {
+    border: 1px solid #a7f3d0; background: #ecfdf5; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 14px; color: #065f46;
+    font-weight: 700; line-height: 1.7;
+}
+.ahx-empty { padding: 20px 8px; font-size: 13px; color: #94a3b8; }
+.ahx-save-bar { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.ahx-save-bar .note { font-size: 12px; color: #94a3b8; }
+
+.ahx-help {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc;
+    padding: 14px 18px; margin-top: 20px; font-size: 13px; color: #475569; line-height: 1.8;
+}
+.ahx-help b { color: #334155; }
+.ahx-help code {
+    font-family: Consolas, monospace; font-size: 12px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 4px;
+    padding: 1px 6px; color: #0f172a;
+}
+
+/* 削除・履歴作成の確認ダイアログ */
+.ahx-modal .modal-dialog { width: 460px; max-width: 94%; }
+.ahx-modal .modal-content { border-radius: 10px; }
+.ahx-modal .modal-title { font-size: 16px; font-weight: 700; color: #1e293b; }
+.ahx-dlg-reg { font-family: Consolas, monospace; font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 10px; }
+.ahx-dlg-msg { font-size: 14px; font-weight: 600; color: #334155; line-height: 1.7; margin-bottom: 8px; }
+.ahx-dlg-note { font-size: 12px; color: #94a3b8; line-height: 1.7; }
+#ahxConfirmOk.danger { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+#ahxConfirmOk.danger:hover { background: #991b1b; color: #fff; }
+</style>
+}
+
+<div class="ahx-page">
+    <h2>🕘 更新履歴の編集</h2>
+    <div class="ahx-lead">
+        機体詳細に出る更新履歴（<code style="font-family:Consolas,monospace">aircraft_history</code>）です。
+        単票編集や航空局Excel取込で機体を更新したときに自動で積まれます。<br />
+        間違った内容で積まれてしまった履歴を直す・消すための画面で、普段は触る必要がありません。
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="ahx-error">⚠ @Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="ahx-ok">✔ @Model.Message</div>
+    }
+
+    @* ---- レジ検索 ---- *@
+    <div class="ahx-card">
+        <form class="ahx-reg" method="get" asp-controller="AircraftHistory" asp-action="Index">
+            <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+            <div class="ahx-reg-input">
+                <span class="ahx-prefix">JA</span>
+                <input type="text" id="reg" name="reg" value="@regInput" autocomplete="off" placeholder="226P" />
+            </div>
+            <button type="submit" class="ahx-btn primary tall">履歴を見る</button>
+            @if (Model.Reg != null)
+            {
+                <a class="ahx-btn tall" href="/E/@Model.Reg?fromAdmin=@fromAdmin">@Model.Reg を編集</a>
+                <a class="ahx-btn tall" href="/AD/@Model.Reg?fromAdmin=@fromAdmin">詳細を見る</a>
+            }
+        </form>
+    </div>
+
+    @if (Model.Reg == null)
+    {
+        <div class="ahx-card">
+            <div class="ahx-empty">レジを入れると、その機体の更新履歴が出ます。</div>
+        </div>
+    }
+    else
+    {
+        <form method="post" asp-controller="AircraftHistory" asp-action="Save">
+            <input type="hidden" name="reg" value="@Model.Reg" />
+            <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+
+            <div class="ahx-card">
+                <div class="ahx-card-head">
+                    <span class="ahx-card-title">
+                        @Model.Reg の更新履歴<span class="cnt">@Model.Rows.Count 件</span>
+                    </span>
+                    @if (Model.Current != null)
+                    {
+                        @* 「履歴を作成しない」を外し忘れて消えた履歴を作り直すための入口 *@
+                        <button type="submit" class="ahx-btn ahx-confirm" style="margin-left:auto" formnovalidate
+                                formaction="/AircraftHistory/Snapshot"
+                                data-confirm-title="履歴を1件作る"
+                                data-confirm-msg="いまの機体情報をそのままコピーして、履歴に1件足します。"
+                                data-confirm-note="「履歴を作成しない」のチェックを外し忘れて消えてしまった履歴を、作り直すためのものです。作ったあとに中身と日時を直してください。編集中の内容は保存されません。"
+                                data-confirm-ok="作る">
+                            ＋ いまの内容で履歴を作る
+                        </button>
+                    }
+                </div>
+
+                @if (Model.AircraftNotFound)
+                {
+                    <div class="ahx-error" style="margin:0 0 12px">
+                        ⚠ @Model.Reg は機体マスタにありません。履歴だけが残っている状態です。
+                    </div>
+                }
+
+                @if (Model.Rows.Count == 0 && Model.Current == null)
+                {
+                    <div class="ahx-empty">このレジの履歴はありません。</div>
+                }
+                else
+                {
+                    <div class="ahx-table-wrap">
+                        <table class="ahx-table">
+                            <colgroup>
+                                <col class="c-seq" /><col class="c-at" /><col class="c-at" />
+                                <col class="c-airline" /><col class="c-type" /><col class="c-serial" />
+                                <col class="c-date" /><col class="c-ope" /><col class="c-config" />
+                                <col class="c-wifi" /><col class="c-livery" /><col class="c-remarks" />
+                                <col class="c-ops" />
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>SEQ</th>
+                                    <th>履歴登録日時</th>
+                                    <th>更新日時</th>
+                                    <th>航空会社</th>
+                                    <th>詳細型式</th>
+                                    <th>製造番号</th>
+                                    <th>登録年月日</th>
+                                    <th>運用状況</th>
+                                    <th>コンフィグ</th>
+                                    <th>Wi-Fi</th>
+                                    <th>特別塗装</th>
+                                    <th>備考</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Current != null)
+                                {
+                                    @* いまの内容。見比べるために出すだけで、直すのは単票編集から *@
+                                    <tr class="cur">
+                                        <td><span class="ahx-badge now">現在</span></td>
+                                        <td>―</td>
+                                        <td>@Model.Current.UpdateTime?.ToString("yyyy/MM/dd HH:mm:ss")</td>
+                                        <td>@Model.Current.AirlineName</td>
+                                        <td>@Model.Current.TypeDetailName</td>
+                                        <td>@Model.Current.SerialNumber</td>
+                                        <td>@Model.Current.RegisterDate</td>
+                                        <td>@Model.Current.OperationName</td>
+                                        <td>@Model.Current.SeatConfigText</td>
+                                        <td>@Model.Current.WifiName</td>
+                                        <td>@Model.Current.SpecialLivery</td>
+                                        <td>@Model.Current.Remarks</td>
+                                        <td>
+                                            <div class="ahx-ops">
+                                                <a class="ahx-btn" href="/E/@Model.Reg?fromAdmin=@fromAdmin">単票編集</a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+
+                                @for (int i = 0; i < Model.Rows.Count; i++)
+                                {
+                                    var row = Model.Rows[i];
+                                    int ahId = row.AhId;
+                                    bool typeDetailMissing = !Model.TypeDetailList.Any(t => t.TypeDetailId == row.TypeDetailId);
+
+                                    @* 詳細型式とコンフィグは単票編集と同じ部品を使う。idは行ごとに分ける。 *@
+                                    var typeDetailPicker = new TypeDetailPickerModel
+                                    {
+                                        FieldName = $"rows[{i}].TypeDetailId",
+                                        FieldId = $"TypeDetail_{ahId}",
+                                        SelectedId = row.TypeDetailId,
+                                        TypeList = Model.TypeList,
+                                        TypeDetailList = Model.TypeDetailList,
+                                    };
+                                    var seatConfigQuickAdd = new SeatConfigQuickAddModel
+                                    {
+                                        SelectId = $"SeatConfig_{ahId}",
+                                        AirlineFieldId = $"Airline_{ahId}",
+                                        TypeDetailFieldId = $"TypeDetail_{ahId}",
+                                        TypeList = Model.TypeList,
+                                        TypeDetailList = Model.TypeDetailList,
+                                    };
+
+                                    <tr class="ahx-row @(ahId == Model.ErrorAhId ? "ng" : "")" data-ahid="@ahId">
+                                        <td>
+                                            <input type="hidden" name="rows[@i].AhId" value="@ahId" />
+                                            <input type="number" class="num" name="rows[@i].Seq" value="@row.Seq" min="1" aria-label="SEQ" />
+                                        </td>
+                                        <td>
+                                            <input type="text" class="at" name="rows[@i].HistoryRegisterAt"
+                                                   value="@row.HistoryRegisterAt?.ToString("yyyy/MM/dd HH:mm:ss")" aria-label="履歴登録日時" />
+                                        </td>
+                                        <td>
+                                            <input type="text" class="at" name="rows[@i].UpdateTime"
+                                                   value="@row.UpdateTime?.ToString("yyyy/MM/dd HH:mm:ss")" aria-label="更新日時" />
+                                        </td>
+                                        <td>
+                                            <select name="rows[@i].Airline" id="Airline_@ahId" aria-label="航空会社">
+                                                <option value="">　</option>
+                                                @foreach (Airline airline in Model.AirlineList)
+                                                {
+                                                    <option value="@airline.AirlineCode" selected="@(airline.AirlineCode == row.Airline)">@airline.AirlineNameJpShort</option>
+                                                }
+                                                @if (!string.IsNullOrEmpty(row.Airline) && !Model.AirlineList.Any(a => a.AirlineCode == row.Airline))
+                                                {
+                                                    <option value="@row.Airline" selected="selected">@row.Airline（マスタ外）</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td>
+                                            @await Html.PartialAsync("_TypeDetailPicker", typeDetailPicker)
+                                            @if (typeDetailMissing)
+                                            {
+                                                <span class="ahx-badge warn" title="詳細型式がマスタにないため、機体詳細の履歴からこの行が落ちます">マスタ外</span>
+                                            }
+                                        </td>
+                                        <td><input type="text" name="rows[@i].SerialNumber" value="@row.SerialNumber" aria-label="製造番号" /></td>
+                                        <td><input type="text" name="rows[@i].RegisterDate" value="@row.RegisterDate" aria-label="登録年月日" /></td>
+                                        <td>
+                                            <select name="rows[@i].OperationCode" aria-label="運用状況">
+                                                <option value="">　</option>
+                                                @foreach (Code operation in Model.OperationList)
+                                                {
+                                                    <option value="@operation.Key" selected="@(operation.Key == row.OperationCode)">@operation.Value</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <div class="ahx-with-add">
+                                                <select name="rows[@i].SeatConfig" id="SeatConfig_@ahId" aria-label="コンフィグ">
+                                                    <option value="">　</option>
+                                                    @foreach (SeatConfiguration config in ConfigsFor(row))
+                                                    {
+                                                        <option value="@config.ConfigId" selected="@(config.ConfigId == row.SeatConfig)">@config.SeatConfigLong</option>
+                                                    }
+                                                </select>
+                                                <partial name="_SeatConfigQuickAdd" model="seatConfigQuickAdd" />
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <select name="rows[@i].WifiCode" aria-label="Wi-Fi">
+                                                <option value="">　</option>
+                                                @foreach (Code wifi in Model.WifiList)
+                                                {
+                                                    <option value="@wifi.Key" selected="@(wifi.Key == row.WifiCode)">@wifi.Value</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td><input type="text" name="rows[@i].SpecialLivery" value="@row.SpecialLivery" aria-label="特別塗装" /></td>
+                                        <td><input type="text" name="rows[@i].Remarks" value="@row.Remarks" aria-label="備考" /></td>
+                                        <td>
+                                            <div class="ahx-ops">
+                                                <button type="button" class="ahx-btn icon ahx-toggle" data-target="detail_@ahId"
+                                                        title="一覧に出ていない項目を開く">⋯</button>
+                                                <button type="submit" class="ahx-btn danger ahx-confirm" formnovalidate
+                                                        formaction="/AircraftHistory/Delete" name="ahId" value="@ahId"
+                                                        data-confirm-title="履歴の削除"
+                                                        data-confirm-msg="SEQ @row.Seq の履歴を削除します。"
+                                                        data-confirm-note="元に戻せません。削除してもSEQは詰めません。編集中の内容は保存されません。"
+                                                        data-confirm-ok="削除する"
+                                                        data-confirm-danger="true">削除</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    @* ---- 一覧に出していない項目 ---- *@
+                                    <tr class="ahx-detail" id="detail_@ahId" style="display:none">
+                                        <td colspan="13">
+                                            <div class="ahx-detail-grid">
+                                                <div class="ahx-field">
+                                                    <label>リンクURL</label>
+                                                    <input type="text" name="rows[@i].LinkUrl" value="@row.LinkUrl" />
+                                                </div>
+                                                <div class="ahx-field">
+                                                    <label>テストレジ</label>
+                                                    <input type="text" name="rows[@i].TestRegistration" value="@row.TestRegistration" />
+                                                </div>
+                                                <div class="ahx-field">
+                                                    <label>整備通知</label>
+                                                    <label class="ahx-check">
+                                                        <input type="checkbox" name="rows[@i].MaintenanceNotify" value="true" checked="@row.MaintenanceNotify" />
+                                                        通知する
+                                                    </label>
+                                                    <input type="hidden" name="rows[@i].MaintenanceNotify" value="false" />
+                                                </div>
+                                                <div class="ahx-field">
+                                                    <label>作成日時</label>
+                                                    <input type="text" class="at" name="rows[@i].CreationTime"
+                                                           value="@row.CreationTime?.ToString("yyyy/MM/dd HH:mm:ss")" />
+                                                </div>
+                                                <div class="ahx-field">
+                                                    <label>実更新日時</label>
+                                                    <input type="text" class="at" name="rows[@i].ActualUpdateTime"
+                                                           value="@row.ActualUpdateTime?.ToString("yyyy/MM/dd HH:mm:ss")" />
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="ahx-save-bar">
+                        <button type="submit" class="ahx-btn primary tall">まとめて保存</button>
+                        <span class="note">直した行だけが更新されます。1件でも入力に不備があると、どの行も保存しません。</span>
+                    </div>
+                }
+            </div>
+        </form>
+
+        @*
+            削除と履歴作成の確認。押したボタンのdata-confirm-*で中身を差し替える。
+            送信の邪魔をしないようフォームの外に置いてある。
+        *@
+        <div class="modal fade ahx-modal" id="ahxConfirm" tabindex="-1" role="dialog" aria-labelledby="ahxConfirmTitle">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="閉じる"><span aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title ahx-dlg-title" id="ahxConfirmTitle"></h4>
+                    </div>
+                    <div class="modal-body">
+                        <div class="ahx-dlg-reg">@Model.Reg</div>
+                        <div class="ahx-dlg-msg"></div>
+                        <div class="ahx-dlg-note"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="ahx-btn tall" data-dismiss="modal">キャンセル</button>
+                        <button type="button" class="ahx-btn tall primary" id="ahxConfirmOk"></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ahx-help">
+            <b>この画面の立ち位置</b><br />
+            履歴は機体を更新したときに <code>AircraftStore</code> が自動で積みます。単票編集（<code>/E</code>）で
+            「履歴を作成しない」にチェックを入れると積まれません。ここから履歴を<b>足すことはできません</b>。<br />
+            <b>⋯</b> を押すと、一覧に出していない項目（リンクURL・テストレジ・整備通知・作成日時・実更新日時）が開きます。
+            開いていなくても保存の対象です。<br />
+            <b>SEQ</b> はレジごとの連番で、機体詳細の履歴はこの順（降順）に並びます。削除しても詰めません
+            （並び順にしか使わないので、飛んでいても表示は変わりません）。重複だけはできないようにしてあります。<br />
+            <b>詳細型式</b>が「マスタ外」の行は、<code>aircraft_history_view</code> から落ちるため
+            <b>機体詳細の履歴に出てきません</b>。直して正しい詳細型式を選べば出るようになります。
+        </div>
+    }
+</div>
+
+@section ScriptsPartial{
+<script src="/lib/jquery-ui/jquery-ui.min.js"></script>
+<partial name="_TypeDetailPickerScript" />
+<partial name="_SeatConfigQuickAddScript" />
+<script>
+    $(function () {
+        $.ajax({ url: '/Master/GetAllReg', dataType: 'json', cache: false })
+            .done(function (data) { $('#reg').autocomplete({ source: data }); });
+
+        // 削除と履歴作成の確認。OKのあとは同じボタンを押し直して、
+        // formaction と name/value が付いたそのままの送信にする。
+        const dialog = $('#ahxConfirm');
+        const dialogOk = $('#ahxConfirmOk');
+        let pending = null;
+        let allowSubmit = false;
+
+        $('.ahx-confirm').on('click', function (e) {
+            if (allowSubmit) {
+                allowSubmit = false;
+                return;
+            }
+            e.preventDefault();
+
+            const button = $(this);
+            pending = this;
+            dialog.find('.ahx-dlg-title').text(button.attr('data-confirm-title'));
+            dialog.find('.ahx-dlg-msg').text(button.attr('data-confirm-msg'));
+            dialog.find('.ahx-dlg-note').text(button.attr('data-confirm-note'));
+            dialogOk.text(button.attr('data-confirm-ok'))
+                    .toggleClass('danger', button.attr('data-confirm-danger') === 'true');
+            dialog.modal('show');
+        });
+
+        dialog.on('shown.bs.modal', function () { dialogOk.trigger('focus'); });
+
+        dialogOk.on('click', function () {
+            dialog.modal('hide');
+            allowSubmit = true;
+            pending.click();
+        });
+
+        // 一覧に出していない項目の開け閉め
+        $('.ahx-toggle').on('click', function () {
+            const detail = $('#' + $(this).attr('data-target'));
+            detail.toggle(detail.css('display') === 'none');
+        });
+
+        // コンフィグはその行の航空会社と詳細型式で絞る（/E と同じ）
+        $('.ahx-row').each(function () {
+            const ahId = $(this).attr('data-ahid');
+            const airline = $('#Airline_' + ahId);
+            const typeDetail = $('#TypeDetail_' + ahId);
+            const seatConfig = $('#SeatConfig_' + ahId);
+
+            const recreate = function () {
+                $.ajax({
+                    type: 'GET',
+                    url: '/Master/SeatConfiguration/?airline=' + airline.val()
+                         + '&typeDetailId=' + (typeDetail.val() || 0),
+                    cache: false
+                }).done(function (data) {
+                    const selected = seatConfig.val();
+                    seatConfig.find('option').remove();
+                    seatConfig.append($('<option>').text('　').attr('value', ''));
+                    $.each(data || [], function (index, config) {
+                        seatConfig.append($('<option>').text(config.seatConfigLong).attr('value', config.configId));
+                    });
+                    //絞り込みに残っていれば選び直す
+                    seatConfig.val(selected);
+                });
+            };
+
+            airline.on('change', recreate);
+            typeDetail.on('change', recreate);
+        });
+    });
+</script>
+}
