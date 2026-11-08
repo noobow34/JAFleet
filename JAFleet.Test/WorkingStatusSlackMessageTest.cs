@@ -38,7 +38,7 @@ namespace JAFleet.Test
         public void BuildBlocksAsTable()
         {
             var blocks = WorkingStatusSlackMessage.BuildBlocks(SampleNotify());
-            var json = JsonConvert.SerializeObject(blocks, Default.JsonSettings(Default.SlackTypeResolver()).SerializerSettings);
+            var json = JsonConvert.SerializeObject(blocks, Default.JsonSettings(Default.Logger).SerializerSettings);
             Console.WriteLine(json);
 
             var parsed = System.Text.Json.JsonDocument.Parse(json).RootElement;
@@ -84,7 +84,7 @@ namespace JAFleet.Test
         public void BuildBlocksWithoutSections()
         {
             var blocks = WorkingStatusSlackMessage.BuildBlocks(new WorkingStatusNotifyJson { LogDate = "20260816" });
-            var json = JsonConvert.SerializeObject(blocks, Default.JsonSettings(Default.SlackTypeResolver()).SerializerSettings);
+            var json = JsonConvert.SerializeObject(blocks, Default.JsonSettings(Default.Logger).SerializerSettings);
 
             Assert.IsFalse(json.Contains("\"table\""));
             StringAssert.Contains(json, "状態が変化した機体はありませんでした。");
