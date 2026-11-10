@@ -390,6 +390,12 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` | 航空局 Excel を Gmail から取り込む（`/JcabImport`）。3 つ揃ったときだけ Gmail の枠が使える。スコープは `gmail.readonly`。取得方法は[Gmail API の設定](#gmail-api-の設定) |
 | `CF_ACCESS_DEV_ADMIN` | 開発専用。`ASPNETCORE_ENVIRONMENT=Development` かつ `1` のときだけ、認証済みの管理者になりすます（手元では Access の JWT が手に入らないため） |
 
+起動時に、開発専用のものを除く各変数が読めたかどうかを `変数名:Loaded` / `変数名:NotSet` で
+ログに出します（値そのものは出しません）。本番は `pass` から取るため、`gpg-agent` の解錠に
+失敗していると**無言で空のまま起動**してしまいます。そこに気付けるようにするためのもので、
+`journalctl -u ja-fleet` で確認できます。変数を増やしたら `Program.cs` の
+`requiredEnvVars` にも足してください。
+
 ## 管理者認証（Cloudflare Access）
 
 サイトはほぼ全ページが認証なしで見え、**管理者だけを見分けて**編集リンクや管理機能を出す、という作りです。

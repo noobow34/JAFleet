@@ -9,21 +9,29 @@ using Microsoft.Extensions.WebEncoders;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
 
-Console.WriteLine($"SLACK_BOT_TOKEN:{Environment.GetEnvironmentVariable("SLACK_BOT_TOKEN")?.Length ?? 0}");
+//新しい環境変数を追加した場合は、この一覧にも追加すること（起動時の読み込み確認用）。
+//passから取れていないと無言で空のまま起動してしまうため、読めたかどうかだけをログに出す。
+//値そのものは出さない。GMAIL_*は未設定でも起動できる（取込画面にアップロード経路が残るため）
+string[] requiredEnvVars = [
+    "SLACK_BOT_TOKEN",
+    "JAFLEET_CONNECTION_STRING",
+    "CF_ACCESS_TEAM_DOMAIN",
+    "CF_ACCESS_AUD",
+    "ADMIN_KEY",
+    "ADMIN_VALUE",
+    "GMAIL_CLIENT_ID",
+    "GMAIL_CLIENT_SECRET",
+    "GMAIL_REFRESH_TOKEN",
+];
+foreach (string name in requiredEnvVars)
+{
+    bool loaded = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(name));
+    Console.WriteLine($"{name}:{(loaded ? "Loaded" : "NotSet")}");
+}
+
 string connectionString = Environment.GetEnvironmentVariable("JAFLEET_CONNECTION_STRING") ?? "";
-Console.WriteLine($"JAFLEET_CONNECTION_STRING:{connectionString?.Length ?? 0}");
 string cfAccessTeamDomain = Environment.GetEnvironmentVariable("CF_ACCESS_TEAM_DOMAIN") ?? "";
 string cfAccessAud = Environment.GetEnvironmentVariable("CF_ACCESS_AUD") ?? "";
-Console.WriteLine($"CF_ACCESS_TEAM_DOMAIN:{cfAccessTeamDomain.Length}");
-Console.WriteLine($"CF_ACCESS_AUD:{cfAccessAud.Length}");
-string adminKey = Environment.GetEnvironmentVariable("ADMIN_KEY") ?? "";
-Console.WriteLine($"ADMIN_KEY:{adminKey.Length}");
-string adminValue = Environment.GetEnvironmentVariable("ADMIN_VALUE") ?? "";
-Console.WriteLine($"ADMIN_VALUE:{adminValue.Length}");
-//航空局Excelの取込（/JcabImport）がGmailを見るのに使う。未設定でも起動はできる（アップロード経路が残る）
-Console.WriteLine($"GMAIL_CLIENT_ID:{Environment.GetEnvironmentVariable("GMAIL_CLIENT_ID")?.Length ?? 0}");
-Console.WriteLine($"GMAIL_CLIENT_SECRET:{Environment.GetEnvironmentVariable("GMAIL_CLIENT_SECRET")?.Length ?? 0}");
-Console.WriteLine($"GMAIL_REFRESH_TOKEN:{Environment.GetEnvironmentVariable("GMAIL_REFRESH_TOKEN")?.Length ?? 0}");
 
 //EPPlusは非商用ライセンス。設定しないと初回利用時に例外になる
 OfficeOpenXml.ExcelPackage.License.SetNonCommercialPersonal("noobow34");
