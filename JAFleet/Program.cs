@@ -20,6 +20,10 @@ string adminKey = Environment.GetEnvironmentVariable("ADMIN_KEY") ?? "";
 Console.WriteLine($"ADMIN_KEY:{adminKey.Length}");
 string adminValue = Environment.GetEnvironmentVariable("ADMIN_VALUE") ?? "";
 Console.WriteLine($"ADMIN_VALUE:{adminValue.Length}");
+//航空局Excelの取込（/JcabImport）がGmailを見るのに使う。未設定でも起動はできる（アップロード経路が残る）
+Console.WriteLine($"GMAIL_CLIENT_ID:{Environment.GetEnvironmentVariable("GMAIL_CLIENT_ID")?.Length ?? 0}");
+Console.WriteLine($"GMAIL_CLIENT_SECRET:{Environment.GetEnvironmentVariable("GMAIL_CLIENT_SECRET")?.Length ?? 0}");
+Console.WriteLine($"GMAIL_REFRESH_TOKEN:{Environment.GetEnvironmentVariable("GMAIL_REFRESH_TOKEN")?.Length ?? 0}");
 
 //EPPlusは非商用ライセンス。設定しないと初回利用時に例外になる
 OfficeOpenXml.ExcelPackage.License.SetNonCommercialPersonal("noobow34");

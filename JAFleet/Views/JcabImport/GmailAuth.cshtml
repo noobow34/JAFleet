@@ -1,0 +1,150 @@
+@model JAFleet.Models.JcabGmailAuthModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "Gmail連携の認可";
+}
+@*
+    refresh tokenを取るためだけの画面（開発環境専用）。
+    取れたトークンはここに出すだけで保存しない。passへ入れるのは人の手。
+*@
+
+@section CssPartial {
+<style>
+/* ===== Gmail連携の認可 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため 1rem = 10px になる。remは使わずpxで指定すること。 */
+.ga-page { padding: 16px 0 60px; max-width: 760px; }
+.ga-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
+.ga-lead { font-size: 14px; color: #64748b; margin-bottom: 18px; line-height: 1.7; }
+.ga-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.ga-title { font-size: 15px; font-weight: 700; color: #334155; margin: 0 0 12px; }
+.ga-step { font-size: 14px; color: #334155; line-height: 1.9; margin: 0 0 10px; padding-left: 2px; }
+.ga-step .no {
+    display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center;
+    border-radius: 50%; background: #0f172a; color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px;
+}
+.ga-code {
+    display: block; font-family: monospace; font-size: 13px; color: #0f172a; word-break: break-all;
+    background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; margin: 6px 0 2px;
+}
+.ga-btn {
+    display: inline-flex; align-items: center; padding: 8px 18px; border-radius: 6px;
+    border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.ga-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.ga-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.ga-btn.primary:hover { background: #1e293b; color: #fff; }
+.ga-btn.small { padding: 4px 12px; font-size: 13px; }
+.ga-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-top: 1px solid #e2e8f0; padding-top: 14px; margin-top: 16px; }
+.ga-hint { font-size: 12px; color: #94a3b8; line-height: 1.7; }
+.ga-error {
+    border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;
+    font-size: 13px; color: #b91c1c; line-height: 1.7; word-break: break-all;
+}
+.ga-done { border: 1px solid #bbf7d0; background: #f0fdf4; }
+.ga-done .ga-title { color: #15803d; }
+.ga-token {
+    font-family: monospace; font-size: 13px; color: #0f172a; word-break: break-all;
+    background: #fff; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;
+}
+</style>
+}
+
+<div class="ga-page">
+    <h2>🔑 Gmail連携の認可</h2>
+    <div class="ga-lead">
+        Excel取込がGmailを読むための <code>GMAIL_REFRESH_TOKEN</code> をここで取ります。
+        Googleの同意画面は人がブラウザで通る必要があるため、<strong>手元で動かしているこのアプリ自身</strong>を
+        リダイレクト先にして受け取ります（n8nの「Connect my account」と同じことを自前でやるだけ）。<br />
+        <strong>この画面は開発環境でしか開けません。</strong>取ったトークンは保存されないので、
+        表示されたらその場で <code>pass</code> に入れてください。
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="ga-error">@Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.RefreshToken))
+    {
+        <div class="ga-card ga-done">
+            <div class="ga-title">✔ refresh token が取れました</div>
+            <div class="ga-token" id="token">@Model.RefreshToken</div>
+            <button type="button" class="ga-btn small" id="copyToken">コピー</button>
+            <div class="ga-hint" style="margin-top:12px">
+                この値は<strong>ここでしか表示されません</strong>（アプリは保存しません）。
+                本番サーバで次を実行して <code>pass</code> に入れ、<code>ja-fleet.service</code> から渡してください。
+            </div>
+            <span class="ga-code">pass insert ja-fleet.noobow.me/ja-fleet/gmail_refresh_token</span>
+            <div class="ga-hint">
+                手元で続けて試すなら <code>launchSettings.json</code> の
+                <code>GMAIL_REFRESH_TOKEN</code> に入れてアプリを再起動します。
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="ga-card">
+            <div class="ga-title">手順</div>
+            <div class="ga-step">
+                <span class="no">1</span>Google Cloud Console で Gmail API を有効にし、
+                OAuth クライアント ID を<strong>「ウェブ アプリケーション」</strong>で作る。
+                承認済みのリダイレクト URI に次を<strong>そのまま</strong>登録する（完全一致が必要）。
+                <span class="ga-code" id="redirectUri">@Model.RedirectUri</span>
+                <button type="button" class="ga-btn small" id="copyRedirect">コピー</button>
+            </div>
+            <div class="ga-step">
+                <span class="no">2</span>クライアント ID とシークレットを
+                <code>launchSettings.json</code> の <code>GMAIL_CLIENT_ID</code> /
+                <code>GMAIL_CLIENT_SECRET</code> に入れて、このアプリを再起動する。
+            </div>
+            <div class="ga-step">
+                <span class="no">3</span>下のボタンで同意する。要求するのは
+                <strong>Gmailの読み取り（@JAFleet.Services.Gmail.GmailClient.SCOPE）だけ</strong>。
+                同意すると、この画面に戻ってトークンが表示される。
+            </div>
+
+            <div class="ga-actions">
+                <span class="ga-hint">
+                    同意画面が「テスト」状態のプロジェクトだと、取れたトークンは7日で失効します。
+                </span>
+                <span style="margin-left:auto">
+                    @if (Model.ConsentUrl != null)
+                    {
+                        <a class="ga-btn primary" href="@Model.ConsentUrl">Googleの同意画面へ</a>
+                    }
+                    else
+                    {
+                        <span class="ga-hint">クライアント未設定のため進めません</span>
+                    }
+                </span>
+            </div>
+        </div>
+    }
+
+    <div class="ga-card">
+        <div class="ga-title">取込画面へ戻る</div>
+        <a class="ga-btn" href="@Url.Action("Index", "JcabImport")">📥 Excel取込</a>
+    </div>
+</div>
+
+@section ScriptsPartial{
+<script>
+    $(function () {
+        const copy = function (selector, button) {
+            const text = $(selector).text().trim();
+            navigator.clipboard.writeText(text).then(function () {
+                const original = $(button).text();
+                $(button).text('コピーしました');
+                setTimeout(function () { $(button).text(original); }, 1500);
+            });
+        };
+
+        $('#copyToken').on('click', function () { copy('#token', this); });
+        $('#copyRedirect').on('click', function () { copy('#redirectUri', this); });
+    });
+</script>
+}

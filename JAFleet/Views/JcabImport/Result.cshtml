@@ -152,9 +152,17 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap">
         @if (Model.SessionId != null)
         {
-            <a class="imp-btn" href="@Url.Action("Resume", "JcabImport", new { id = Model.SessionId, fromAdmin = Model.FromAdmin })">プレビューに戻る</a>
+            <a class="imp-btn" data-busy="作業内容を読み込んでいます…"
+               href="@Url.Action("Resume", "JcabImport", new { id = Model.SessionId, fromAdmin = Model.FromAdmin })">プレビューに戻る</a>
+            @*ダウンロードは画面が切り替わらないので data-busy を付けない*@
             <a class="imp-btn" href="@Url.Action("Download", "JcabImport", new { id = Model.SessionId })">復号版をダウンロード</a>
         }
         <a class="imp-btn primary" href="@Url.Action("Index", "JcabImport", new { fromAdmin = Model.FromAdmin })">別のファイルを取り込む</a>
     </div>
+
+    <partial name="_BusyOverlay" />
 </div>
+
+@section ScriptsPartial{
+<partial name="_BusyOverlayScript" />
+}

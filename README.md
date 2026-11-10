@@ -47,7 +47,7 @@
 | 単票編集 | `/E/{レジ}` | 機体情報の新規登録・更新。更新時は `aircraft_history` へ退避。登録ボタンでは履歴を残すかどうかを確認する |
 | 更新履歴の編集 | `/AircraftHistory?reg={レジ}` | 機体詳細に出る更新履歴（`aircraft_history`）の修正・削除 |
 | 同一型式の一括登録 | `/BulkRegister` | 「レジ / 登録年月日 / 製造番号」をタブ・カンマ・空白区切りで貼り付けてまとめて登録 |
-| 航空局 Excel 取込 | `/JcabImport` | 国土交通省航空局から届くパスワード付き Excel を解除して取り込む |
+| 航空局 Excel 取込 | `/JcabImport` | 国土交通省航空局から届くパスワード付き Excel を、Gmail から直接またはアップロードで取り込む |
 | コンフィグマスタ | `/SeatConfig` | 航空会社・型式ごとの座席仕様（コンフィグ）を登録・更新・削除する |
 | マスタ再読込 | `/ReloadMaster` | 航空会社・型式などのマスタをメモリへ読み直す |
 | 定期実行ジョブ | `/Scheduler` | Quartz のジョブの有効・無効と cron 式を変更する |
@@ -57,14 +57,93 @@
 
 #### 航空局 Excel 取込の流れ
 
-1. `/JcabImport` にファイルをアップロード。パスワードは送信元から通知されている規則に従って組み立て、
-   受け取りから日が空いていても開けるよう、送信日を数日分遡って自動で試す。
-   組み立てに使う値は `code` テーブルに持たせ、リポジトリには置かない。
+1. `/JcabImport` でファイルを取り込む。入口は 2 つある。
+   - **Gmail から**（通常はこちら）。届いているメールの一覧から選んで「取込」を押すだけ。
+     パスワードに関する入力は要らない（後述）
+   - **アップロード**。手元のファイルを選び、送信年月日と内線番号からパスワードを組み立てる。
+     受け取りから日が空いていても開けるよう、送信日を数日分遡って自動で試す。
+     組み立てに使う内線番号は `code` テーブルに持たせ、リポジトリには置かない
 2. NEW / DEL / TRAN / CNG / RESERVATION / CANCEL の各シートを解析し、レジ単位のプレビューを作る。
    プレビューは「そのまま取り込める」「人の判断が要る」「移転登録」「対象外」に分類される。
 3. 途中で保存すると `jcab_import_session` に復号済みファイルと編集内容（JSON）が残り、後から再開できる。
    再開時は Excel を解析し直したうえで編集内容を被せるため、最新のマスタ・機体情報と突き合わせられる。
 4. 実行すると `AircraftStore` 経由で 1 トランザクションにまとめて登録・更新する。
+
+押してから画面が切り替わるまで数秒かかる操作（Gmail からの取込、Excel の解析、再開、取込の実行）は、
+画面全体をぐるぐるで覆います（共有部分ビュー `_BusyOverlay` と `_BusyOverlayScript`。待たせる要素に
+`data-busy="〇〇しています…"` を付けるだけ）。覆っている間はボタンを押せないので、**取込の二度押しで
+一時保存が 2 つできる事故も防げます**。ファイルを返すだけで画面が切り替わらないダウンロード系には
+付けていません（覆ったまま戻らなくなるため）。
+
+##### Gmail からの取込
+
+メールそのものに必要な情報が全部載っているため、**人が入れる値は無くなります**。
+
+| メールの中身 | 使い道 |
+| --- | --- |
+| 送信日時 | パスワードの「送信年月日」。日本時間で見る |
+| 件名の `2026年8月分` | 一覧に出す対象月。Excel を開く前の目安 |
+| 件名の `(再送)` `【再送】` | 再送の印。再送分のパスワードは**元のメールの送信年月日**のままなので、ここでも送信日を遡って試す |
+| 本文の `（内線48146）`、宛先の `register48146@` | 内線番号。`code` テーブルの登録値で開けなかったときに使う |
+
+- 候補の検索式は `JcabImportConstant.GMAIL_QUERY`。差出人は担当官個人のアドレスで**異動のたびに変わる**ため
+  ドメイン（`from:mlit.go.jp`）で見て、件名の「航空機登録情報」で絞る。画面の入力欄で一時的に変えられるが、
+  保存はしない（既定値を変えるならコードを直す）
+- パスワードは **登録済みの内線番号 → メールから読んだ番号** の順に、送信年月日を
+  `PASSWORD_RETRY_DAYS` 日分遡って総当たりする。メールの番号で開けた場合は、
+  担当官が代わったと見て `code` テーブルを**その番号に更新する**（次回からは 1 回で当たる）。
+  本文の charset が ISO-2022-JP だと .NET 本体では読めず「内線」が文字化けするが、
+  宛先アドレスは ASCII なのでそちらから拾える
+- `jcab_import_session.gmail_message_id` にどのメールから作ったかを残す。一覧では
+  そのメールを「作業中・再開」と出して、同じメールから一時保存を二重に作らないよう誘導する
+- Gmail の **`attachment_id` はメールを取得するたびに変わる**（同じメール・同じ添付でも別の値になる）。
+  そのため一覧と取込の間で往復させられない。どの添付かは取り直しても変わらない
+  `partId`（MIME の木の中の位置）で指し、本体の取得にはそのとき得た `attachment_id` を使う
+- Gmail への問い合わせは数秒かかることがあるため、画面の枠（`Index`）とメール一覧
+  （部分ビュー `_GmailList`、`GET /JcabImport/GmailList`）に分けてある。アクセス集計と同じ作り
+- スコープは **`gmail.readonly` だけ**。アプリからメールボックスを書き換えることはできないので、
+  取込済みの管理は上記のとおり JAFleet 側の DB で行う。ラベルも付けない
+- 未設定でも起動する。その場合は Gmail の枠に設定方法だけが出て、アップロードで従来どおり取り込める
+
+###### Gmail API の設定
+
+Google の同意画面は人がブラウザで通る必要があるため、**手元でこのアプリを動かして 1 回だけ認可**し、
+得た refresh token を本番へ持っていきます（n8n の「Connect my account」と同じこと。n8n も画面に
+入れるのは ID とシークレットだけですが、同意の結果として受け取った refresh token を自分の DB に
+持っています）。refresh token は**クライアント（`client_id`）に紐づく**ので、手元で取ったものを
+本番でそのまま使えます。要求するスコープは `gmail.readonly` だけ。
+
+1. Google Cloud Console で **Gmail API を有効化**する（n8n で Gmail を使っているプロジェクトでよい。
+   同意画面が「テスト」のままだと refresh token が 7 日で失効するため、**公開（本番）**にしておく）。
+2. OAuth クライアント ID を **ウェブ アプリケーション**として作り、承認済みのリダイレクト URI に
+   `http://localhost:5000/JcabImport/GmailAuth` を登録する（localhost は http でよい。
+   完全一致が要るので、ポートまで合わせる）。
+3. クライアント ID とシークレットを `launchSettings.json` の `GMAIL_CLIENT_ID` /
+   `GMAIL_CLIENT_SECRET` に入れて手元で起動し、**`/JcabImport/GmailAuth`** を開いて
+   「Google の同意画面へ」を押す。同意すると同じ画面に戻り、refresh token が表示される。
+4. 得た 3 つをサーバの `pass` に入れ、`ja-fleet.service` の `ExecStart` で環境変数として渡す
+   （他のシークレットと同じ運用。詳細は `ja-fleet.noobow.me` リポジトリ）。
+
+`/JcabImport/GmailAuth` は **`ASPNETCORE_ENVIRONMENT=Development` のときだけ開く**
+（`IsDevelopment()` と `AdminAuth.IsAdmin` の両方を見て、外れていれば `NotFound`）。
+refresh token を画面に表示する経路を本番に残さないためです。表示するだけで、アプリは保存しません。
+
+```
+pass insert ja-fleet.noobow.me/ja-fleet/gmail_client_id
+pass insert ja-fleet.noobow.me/ja-fleet/gmail_client_secret
+pass insert ja-fleet.noobow.me/ja-fleet/gmail_refresh_token
+```
+
+```
+export GMAIL_CLIENT_ID=$(pass ja-fleet.noobow.me/ja-fleet/gmail_client_id); \
+export GMAIL_CLIENT_SECRET=$(pass ja-fleet.noobow.me/ja-fleet/gmail_client_secret); \
+export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_token); \
+```
+
+- refresh token は**環境変数のまま**使い、DB にもディスクにも書かない。アクセストークンは
+  プロセス内のメモリに有効期限まで持つだけ（`GmailClient`）。
+- アカウントのパスワード変更やアクセス権の取り消しで refresh token が失効すると、
+  画面に `invalid_grant` が出る。その場合は 3 をやり直して `pass` を入れ替える。
 
 #### 更新履歴の編集
 
@@ -218,6 +297,7 @@ IP は携帯回線などで共有されるため、訪問者数は Cookie で数
 - Quartz.NET によるジョブスケジューリング
 - AngleSharp によるスクレイピング（Flightradar24 / JetPhotos）
 - EPPlus（航空局 Excel の解析。非商用ライセンス）
+- Gmail API（航空局 Excel の取込元。使うのは 3 つのエンドポイントだけなので SDK は入れず `HttpClient` で直接叩く）
 - AutoMapper、Crc32.NET、BuildBundlerMinifier、WebEssentials.AspNetCore.PWA
 - Bootstrap 3 / jQuery / jQuery UI / DataTables
 - テストは MSTest
@@ -254,7 +334,8 @@ JAFleet/
 ├── Models/           画面用モデル
 ├── Services/         業務ロジック
 │   ├── BulkRegister/ 同一型式一括登録のパーサ
-│   ├── JcabImport/   航空局 Excel の解除・解析・プレビュー生成
+│   ├── JcabImport/   航空局 Excel の解除・解析・プレビュー生成とメール本体の読み取り
+│   ├── Gmail/        Gmail API の最小クライアント（検索・1 通取得・添付取得）
 │   ├── AccessStatsService.cs   access_log の集計（/AccessStats）
 │   ├── AircraftStore.cs        機体の登録・更新（単票編集と一括取込の共通処理）
 │   ├── SearchConditionStore.cs 名前付き検索条件の登録
@@ -306,6 +387,7 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | `ADMIN_KEY` / `ADMIN_VALUE` | 管理者の端末を見分けるための Cookie の名前と値。一致した場合のみ未認証時に `/Account/Login` へ自動リダイレクトする（認可そのものは Cloudflare Access が行う） |
 | `SLACK_BOT_TOKEN` | Slack 通知（`Noobow.Commons` の `SlackUtil`） |
 | `ENCRYPTION_KEY` | `Noobow.Commons` の `AesEncryption` が使用 |
+| `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` | 航空局 Excel を Gmail から取り込む（`/JcabImport`）。3 つ揃ったときだけ Gmail の枠が使える。スコープは `gmail.readonly`。取得方法は[Gmail API の設定](#gmail-api-の設定) |
 | `CF_ACCESS_DEV_ADMIN` | 開発専用。`ASPNETCORE_ENVIRONMENT=Development` かつ `1` のときだけ、認証済みの管理者になりすます（手元では Access の JWT が手に入らないため） |
 
 ## 管理者認証（Cloudflare Access）
@@ -423,6 +505,9 @@ EF Core の Migration は使わず、テーブル定義は手動で管理して�
 期間検索用インデックス）は**デプロイ前**に実行してください。列が無いまま新しいアプリが動くと
 アクセスログの INSERT が落ち、記録が止まります（書き込みはバックグラウンドのため、
 画面にはエラーが出ません）。
+
+`alter_jcab_import_session_add_gmail_message_id.sql`（Gmail 取込の `gmail_message_id` 列）も
+**デプロイ前**に実行してください。列が無いと `/JcabImport` が開けません。
 
 主なテーブル・ビューは `JAFleet.Commons` の `JAFleetContext` を参照してください
 （`aircraft`、`aircraft_view`、`aircraft_history`、`aircraft_photo`、`working_status`、

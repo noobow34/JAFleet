@@ -1,0 +1,70 @@
+@model JAFleet.Models.JcabGmailListModel
+@*
+    Gmailに届いている取込候補の一覧。/JcabImport/GmailList が返す部分ビュー。
+    添付の本体は載せない（取り込む時点で取り直す）。
+*@
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="imp-mail-error">@Model.ErrorMessage</div>
+}
+else if (Model.Messages.Count == 0)
+{
+    <div class="imp-hint">該当するメールがありませんでした。（検索条件: @Model.Query）</div>
+}
+else
+{
+    foreach (JAFleet.Models.JcabGmailMessageModel message in Model.Messages)
+    {
+        <div class="imp-mail">
+            <div class="imp-mail-body">
+                <div class="imp-mail-title">
+                    @if (message.IsResend)
+                    {
+                        <span class="imp-tag resend">再送</span>
+                    }
+                    @if (message.TargetMonth != null)
+                    {
+                        <span class="imp-tag month">@message.TargetMonth</span>
+                    }
+                    @message.Subject
+                </div>
+                <div class="imp-mail-meta">
+                    送信 @message.SentAt.ToString("yyyy/MM/dd HH:mm")
+                    ／ @message.From
+                    @if (message.Attachments.Count > 0)
+                    {
+                        <text>／ @string.Join("、", message.Attachments.Select(a => $"{a.FileName}（{a.Size / 1024}KB）")) </text>
+                    }
+                </div>
+            </div>
+            <div class="imp-mail-action">
+                @if (message.Attachments.Count == 0)
+                {
+                    <span class="imp-hint">Excelの添付なし</span>
+                }
+                else
+                {
+                    @if (message.SessionId != null)
+                    {
+                        <a class="imp-btn primary" data-busy="作業内容を読み込んでいます…"
+                           href="@Url.Action("Resume", "JcabImport", new { id = message.SessionId, fromAdmin = Model.FromAdmin })">作業中・再開</a>
+                    }
+                    @foreach (JAFleet.Models.JcabGmailAttachmentModel attachment in message.Attachments)
+                    {
+                        <form method="post" asp-action="AnalyzeGmail" asp-controller="JcabImport" class="imp-mail-form">
+                            <input type="hidden" name="messageId" value="@message.MessageId" />
+                            @*添付の指定はpartId。attachment_idはメールを取り直すと変わるので往復させられない*@
+                            <input type="hidden" name="partId" value="@attachment.PartId" />
+                            <input type="hidden" name="FromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
+                            <button type="submit" class="imp-btn @(message.SessionId == null ? "primary" : "")"
+                                    data-busy="@attachment.FileName を取り込んでいます…">
+                                @(message.Attachments.Count == 1 ? "取込" : attachment.FileName)
+                            </button>
+                        </form>
+                    }
+                }
+            </div>
+        </div>
+    }
+}

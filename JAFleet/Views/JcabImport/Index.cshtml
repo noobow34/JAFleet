@@ -67,6 +67,29 @@
 .imp-error-title { font-size: 14px; font-weight: 700; color: #b91c1c; margin-bottom: 6px; }
 .imp-error-body { font-size: 13px; color: #b91c1c; line-height: 1.6; }
 
+/* Gmailの取込候補 */
+.imp-mail {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 4px; border-bottom: 1px solid #f1f5f9;
+}
+.imp-mail:last-child { border-bottom: none; }
+.imp-mail-body { flex: 1 1 320px; min-width: 0; }
+.imp-mail-title { font-size: 14px; font-weight: 700; color: #1e293b; }
+.imp-mail-meta { font-size: 12px; color: #94a3b8; margin-top: 2px; word-break: break-all; }
+.imp-mail-action { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+.imp-mail-form { margin: 0; }
+.imp-tag {
+    display: inline-block; padding: 1px 7px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; margin-right: 4px; vertical-align: 1px;
+}
+.imp-tag.month { background: #e0edff; color: #1d4ed8; }
+.imp-tag.resend { background: #fef3c7; color: #b45309; }
+.imp-mail-error {
+    border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; color: #b91c1c; line-height: 1.6;
+}
+.imp-spin { font-size: 13px; color: #94a3b8; padding: 8px 4px; }
+
 /* 再開できる作業 */
 .imp-session {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -95,6 +118,46 @@
         </div>
     }
 
+    <div class="imp-card">
+        <div class="imp-section-title">📧 Gmailから取り込む</div>
+        @if (Model.GmailConfigured)
+        {
+            <div class="imp-row">
+                <label class="imp-label" for="gmailQuery">検索条件</label>
+                <input type="text" id="gmailQuery" value="@Model.GmailQuery" style="flex:1 1 260px" />
+                <button type="button" class="imp-btn" id="gmailSearch">探す</button>
+            </div>
+            <div class="imp-hint" style="margin-bottom:10px">
+                送信年月日も内線番号もメールから分かるので、パスワードの入力は要りません。
+                検索条件を変えられるのはこの画面の中だけです（既定値はアプリが持っています）。
+                @if (Model.GmailAuthAvailable)
+                {
+                    <text>
+                        トークンが失効したら
+                        <a href="@Url.Action("GmailAuth", "JcabImport")">認可をやり直す</a>。
+                    </text>
+                }
+            </div>
+            <div id="gmailList"><div class="imp-spin">Gmailを見ています…</div></div>
+        }
+        else
+        {
+            <div class="imp-hint">
+                Gmail連携が未設定です。<code>GMAIL_CLIENT_ID</code> / <code>GMAIL_CLIENT_SECRET</code> /
+                <code>GMAIL_REFRESH_TOKEN</code> を設定すると、届いたメールを一覧から選んで取り込めます。
+                @if (Model.GmailAuthAvailable)
+                {
+                    <text>
+                        <br />
+                        <code>GMAIL_REFRESH_TOKEN</code> は
+                        <a href="@Url.Action("GmailAuth", "JcabImport")">このアプリで認可して取得</a>できます
+                        （開発環境でだけ開ける画面）。
+                    </text>
+                }
+            </div>
+        }
+    </div>
+
     @if (Model.Sessions?.Any() == true)
     {
         <div class="imp-card">
@@ -108,7 +171,8 @@
                         最終保存 @session.UpdatedAt.ToString("yyyy/MM/dd HH:mm")
                     </span>
                     <span style="margin-left:auto;display:flex;gap:8px">
-                        <a class="imp-btn" href="@Url.Action("Resume", "JcabImport", new { id = session.SessionId, fromAdmin = Model.FromAdmin })">再開</a>
+                        <a class="imp-btn" data-busy="作業内容を読み込んでいます…"
+                           href="@Url.Action("Resume", "JcabImport", new { id = session.SessionId, fromAdmin = Model.FromAdmin })">再開</a>
                         <form method="post" asp-action="DeleteSession" asp-route-fromAdmin="@Model.FromAdmin"
                               onsubmit="return confirm('@session.FileName の作業内容を削除します。よろしいですか。');">
                             <input type="hidden" name="id" value="@session.SessionId" />
@@ -123,6 +187,7 @@
     <form method="post" enctype="multipart/form-data" asp-controller="JcabImport" asp-action="Analyze">
         <input type="hidden" name="FromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
         <div class="imp-card">
+            <div class="imp-section-title">📎 手元のファイルから取り込む</div>
             <div class="imp-drop">
                 <div class="imp-drop-title">航空局のExcelを選択</div>
                 <div class="imp-drop-note">パスワード付きのままで構いません</div>
@@ -163,17 +228,43 @@
             <div class="imp-actions">
                 <span class="imp-hint">解除できない場合は送信年月日を@(JAFleet.Services.JcabImport.JcabImportConstant.PASSWORD_RETRY_DAYS)日前まで遡って自動で試します</span>
                 <div style="margin-left:auto;display:flex;gap:10px">
+                    @*ダウンロードは画面が切り替わらないので、ぐるぐる（data-busy）を付けてはいけない*@
                     <button type="submit" class="imp-btn" formaction="@Url.Action("Decrypt", "JcabImport")">解除してダウンロード</button>
-                    <button type="submit" class="imp-btn primary">解除して解析</button>
+                    <button type="submit" class="imp-btn primary" data-busy="Excelを解除して解析しています…">解除して解析</button>
                 </div>
             </div>
         </div>
     </form>
+
+    <partial name="_BusyOverlay" />
 </div>
 
 @section ScriptsPartial{
+<partial name="_BusyOverlayScript" />
 <script>
     $(function () {
+        //Gmailの一覧は枠とは別に取りに行く。APIの応答を待って画面が出ないのを避けるため
+        const loadGmail = function () {
+            $('#gmailList').html('<div class="imp-spin">Gmailを見ています…</div>');
+            $.get('@Url.Action("GmailList", "JcabImport")', {
+                query: $('#gmailQuery').val() || '',
+                fromAdmin: '@Model.FromAdmin.ToString().ToLowerInvariant()'
+            })
+                .done(function (html) { $('#gmailList').html(html); })
+                .fail(function (xhr) {
+                    $('#gmailList').html($('<div class="imp-mail-error">')
+                        .text('Gmailの一覧を取得できませんでした (' + xhr.status + ' ' + xhr.statusText + ')'));
+                });
+        };
+
+        if ($('#gmailQuery').length) {
+            loadGmail();
+            $('#gmailSearch').on('click', loadGmail);
+            $('#gmailQuery').on('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); loadGmail(); }
+            });
+        }
+
         let shown = false;
 
         const buildPassword = function () {

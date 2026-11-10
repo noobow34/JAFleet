@@ -476,8 +476,9 @@
         <div class="imp-footer">
             <label><input type="checkbox" id="noHistoryAll" /> 全行「履歴を作成しない」</label>
             <span class="imp-count"><span id="selectedCount">0</span> 件を取込</span>
-            <button type="submit" class="imp-btn" formaction="@Url.Action("Save", "JcabImport")" style="margin-left:auto">一時保存</button>
-            <button type="submit" class="imp-btn primary">取込を実行</button>
+            <button type="submit" class="imp-btn" formaction="@Url.Action("Save", "JcabImport")" style="margin-left:auto"
+                    data-busy="編集内容を保存しています…">一時保存</button>
+            <button type="submit" class="imp-btn primary" data-busy="取り込んでいます…">取込を実行</button>
         </div>
     </form>
 
@@ -522,9 +523,12 @@
             </div>
         </div>
     </div>
+
+    <partial name="_BusyOverlay" />
 </div>
 
 @section ScriptsPartial{
+<partial name="_BusyOverlayScript" />
 <script>
     $(function () {
         // ---- セレクトの選択肢をテンプレートから配る ----

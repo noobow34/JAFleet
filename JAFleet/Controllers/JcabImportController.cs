@@ -1,4 +1,5 @@
-using JAFleet.Services;
+﻿using JAFleet.Services;
+using JAFleet.Services.Gmail;
 using JAFleet.Services.JcabImport;
 using JAFleet.Commons.Data;
 using JAFleet.Models;
@@ -11,14 +12,25 @@ namespace JAFleet.Controllers
 {
     /// <summary>
     /// 航空局から届くパスワード付きExcelを取り込む画面。
-    /// アップロード→解除→解析→プレビューで内容を確認・編集し、選んだ分だけDBに反映する。
+    /// 取得→解除→解析→プレビューで内容を確認・編集し、選んだ分だけDBに反映する。
     /// 解除したファイルと編集内容は一時保存に残るので、途中で離れても再開できる。
+    ///
+    /// ファイルの取得口は2つある。
+    ///   Gmailから: 届いたメールを一覧から選ぶ。送信年月日も内線番号もメールから分かるので入力が要らない
+    ///   アップロード: 手元のファイルを選ぶ。Gmail連携が死んでいるときや古いメールを掘るときの逃げ道
     /// </summary>
     public class JcabImportController : Controller
     {
         private readonly JAFleetContext _context;
 
-        public JcabImportController(JAFleetContext context) => _context = context;
+        /// <summary>refresh tokenを取る画面を開発環境だけに限るために見ている</summary>
+        private readonly IWebHostEnvironment _environment;
+
+        public JcabImportController(JAFleetContext context, IWebHostEnvironment environment)
+        {
+            _context = context;
+            _environment = environment;
+        }
 
         public IActionResult Index([FromQuery] bool fromAdmin)
         {
@@ -27,17 +39,12 @@ namespace JAFleet.Controllers
                 return NotFound();
             }
 
-            JcabImportModel model = new()
-            {
-                Title = "Excel取込",
-                Extension = LoadExtension(),
-                FromAdmin = fromAdmin,
-                Sessions = LoadSessions(),
-            };
+            JcabImportModel model = new() { Title = "Excel取込", FromAdmin = fromAdmin };
+            LoadIndexLists(model);
             return View(model);
         }
 
-        /// <summary>解除して解析し、一時保存を作ってプレビューを表示する</summary>
+        /// <summary>アップロードされたファイルを解除して解析し、一時保存を作ってプレビューを表示する</summary>
         [HttpPost]
         [RequestSizeLimit(30 * 1024 * 1024)]
         public IActionResult Analyze(IFormFile? file, JcabImportModel model)
@@ -51,10 +58,231 @@ namespace JAFleet.Controllers
             ExcelOpenResult? opened = OpenUploaded(file, model);
             if (opened == null || !opened.Success)
             {
-                model.Sessions = LoadSessions();
+                LoadIndexLists(model);
                 return View("Index", model);
             }
 
+            return AnalyzeOpened(opened, model, null);
+        }
+
+        /// <summary>
+        /// Gmailに届いたメールの添付をそのまま取り込む。
+        /// 送信年月日はメールそのものから分かるので入力が要らず、内線番号も
+        /// 登録値とメールから読み取った値の両方を試すため、担当官が異動していても解除できる。
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> AnalyzeGmail(string? messageId, string? partId, JcabImportModel model)
+        {
+            if (!AdminAuth.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            model.Title = "Excel取込";
+            if (string.IsNullOrWhiteSpace(messageId))
+            {
+                model.ErrorMessage = "メールが指定されていません。";
+                LoadIndexLists(model);
+                return View("Index", model);
+            }
+
+            GmailMessage message;
+            GmailAttachment? attachment;
+            byte[] raw;
+            try
+            {
+                //添付の本体は一覧に載せていないので、取り込む時点で取り直す。
+                //このときattachment_idは一覧を出したときと違う値になる（Gmailは取得ごとに変える）ので、
+                //どの添付かは画面から渡ってきたpartIdで突き合わせる
+                message = await GmailClient.GetMessageAsync(messageId);
+                List<GmailAttachment> excels = message.Attachments.Where(a => a.IsXlsx).ToList();
+                attachment = excels.FirstOrDefault(a => a.PartId == partId)
+                             //partIdが合わなくてもExcelが1つだけなら迷う余地が無いのでそれを使う
+                             ?? (excels.Count == 1 ? excels[0] : null);
+
+                if (attachment == null)
+                {
+                    model.ErrorMessage = excels.Count == 0
+                        ? "そのメールにExcelの添付が見つかりませんでした。"
+                        : "どの添付を取り込むか特定できませんでした。一覧を更新してからやり直してください。";
+                    LoadIndexLists(model);
+                    return View("Index", model);
+                }
+
+                if (attachment.InlineData == null && string.IsNullOrEmpty(attachment.AttachmentId))
+                {
+                    model.ErrorMessage = $"添付「{attachment.FileName}」の中身を取得できませんでした。";
+                    LoadIndexLists(model);
+                    return View("Index", model);
+                }
+
+                raw = attachment.InlineData ?? await GmailClient.GetAttachmentAsync(messageId, attachment.AttachmentId!);
+            }
+            catch (Exception ex)
+            {
+                model.ErrorMessage = $"Gmailから取得できませんでした。{ex.Message}";
+                LoadIndexLists(model);
+                return View("Index", model);
+            }
+
+            model.FileName = attachment.FileName;
+            model.SendDate = message.SendDate;
+
+            //登録済みの内線番号を優先し、当たらなければメールから拾う。
+            //宛先（register+内線番号@）も見ているのは、本文のcharsetが読めず文字化けしても
+            //ASCIIのアドレスからなら拾えるため
+            string? registered = LoadExtension();
+            List<string?> candidates =
+                [registered, .. JcabMailParser.ParseExtensions($"{message.BodyText}\n{message.To}")];
+
+            ExcelOpenResult opened = JcabExcelOpener.Open(
+                raw, message.SendDate, candidates, JcabImportConstant.PASSWORD_RETRY_DAYS);
+
+            model.WasEncrypted = opened.WasEncrypted;
+            model.MatchedSendDate = opened.MatchedSendDate;
+            model.Extension = opened.MatchedExtension ?? registered;
+
+            if (!opened.Success)
+            {
+                model.ErrorMessage = opened.ErrorMessage;
+                LoadIndexLists(model);
+                return View("Index", model);
+            }
+
+            //登録が無い（または古い）のにメールから読んだ番号で開けたら、次回のために登録しておく
+            if (opened.MatchedExtension != null && opened.MatchedExtension != registered)
+            {
+                StoreExtension(opened.MatchedExtension);
+                model.Message = $"メールから内線番号 {opened.MatchedExtension} を読み取り、登録し直しました。";
+            }
+
+            return AnalyzeOpened(opened, model, messageId);
+        }
+
+        /// <summary>
+        /// Gmailの取込候補の一覧。画面から呼ばれて部分ビューを返す。
+        /// Gmailへの問い合わせは遅くなりうるため、取込画面の枠とは分けてある。
+        /// </summary>
+        public async Task<IActionResult> GmailList([FromQuery] string? query, [FromQuery] bool fromAdmin)
+        {
+            if (!AdminAuth.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            JcabGmailListModel model = new()
+            {
+                Query = string.IsNullOrWhiteSpace(query) ? JcabImportConstant.GMAIL_QUERY : query.Trim(),
+                FromAdmin = fromAdmin,
+            };
+
+            if (!GmailClient.IsConfigured)
+            {
+                model.ErrorMessage = "Gmail連携が未設定です。"
+                                   + "GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET / GMAIL_REFRESH_TOKEN を設定してください。";
+                return PartialView("_GmailList", model);
+            }
+
+            List<GmailMessage> messages;
+            try
+            {
+                messages = await GmailClient.SearchAsync(model.Query, JcabImportConstant.GMAIL_SEARCH_MAX);
+            }
+            catch (Exception ex)
+            {
+                model.ErrorMessage = $"Gmailの検索に失敗しました。{ex.Message}";
+                return PartialView("_GmailList", model);
+            }
+
+            //このメールから作った一時保存があれば、取込ではなく再開へ誘導する
+            List<string> ids = messages.Select(m => m.Id).ToList();
+            Dictionary<string, int> sessions = _context.JcabImportSessions.AsNoTracking()
+                .Where(s => s.GmailMessageId != null && ids.Contains(s.GmailMessageId))
+                .GroupBy(s => s.GmailMessageId!)
+                .Select(g => new { MessageId = g.Key, SessionId = g.Max(s => s.SessionId) })
+                .ToDictionary(x => x.MessageId, x => x.SessionId);
+
+            model.Messages = messages.Select(m => new JcabGmailMessageModel
+            {
+                MessageId = m.Id,
+                Subject = m.Subject,
+                From = m.From,
+                SentAt = m.SentAt,
+                TargetMonth = JcabMailParser.ParseTargetMonth(m.Subject),
+                IsResend = JcabMailParser.IsResend(m.Subject),
+                SessionId = sessions.TryGetValue(m.Id, out int sessionId) ? sessionId : null,
+                Attachments = m.Attachments.Where(a => a.IsXlsx).Select(a => new JcabGmailAttachmentModel
+                {
+                    PartId = a.PartId,
+                    FileName = a.FileName,
+                    Size = a.Size,
+                }).ToList(),
+            }).ToList();
+
+            return PartialView("_GmailList", model);
+        }
+
+        /// <summary>
+        /// Gmailのrefresh tokenを取るためだけの画面。**開発環境でしか開けない**。
+        ///
+        /// Googleの同意画面はブラウザで人が操作しないと通れないので、手元でこのアプリを動かし、
+        /// このアプリ自身をリダイレクト先にして認可コードを受け取り、refresh tokenに交換する
+        /// （n8nが「Connect my account」でやっているのと同じこと）。
+        /// 得たトークンは画面に出すだけで、DBにもディスクにも書かない。passに入れるのは人の手でやる。
+        ///
+        /// トークンはクライアント（client_id）に紐づくので、ここで取ったものを本番でそのまま使える。
+        /// 本番に置かないのは、refresh tokenを画面に表示する経路をサーバに残したくないため。
+        /// </summary>
+        public async Task<IActionResult> GmailAuth([FromQuery] string? code, [FromQuery] string? error)
+        {
+            if (!AdminAuth.IsAdmin(HttpContext) || !_environment.IsDevelopment())
+            {
+                return NotFound();
+            }
+
+            JcabGmailAuthModel model = new()
+            {
+                Title = "Gmail連携の認可",
+                //Google Cloud Consoleに登録する値と完全に一致させる必要があるので、実行中のURLから組み立てる
+                RedirectUri = $"{Request.Scheme}://{Request.Host}{Url.Action(nameof(GmailAuth))}",
+            };
+
+            if (!GmailClient.HasClient)
+            {
+                model.ErrorMessage = "GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET が設定されていません。"
+                                   + "launchSettings.jsonに入れてから開き直してください。";
+                return View(model);
+            }
+
+            model.ConsentUrl = GmailClient.BuildConsentUrl(model.RedirectUri);
+
+            if (!string.IsNullOrEmpty(error))
+            {
+                model.ErrorMessage = $"同意画面で中断されました。（{error}）";
+                return View(model);
+            }
+
+            if (!string.IsNullOrEmpty(code))
+            {
+                try
+                {
+                    model.RefreshToken = await GmailClient.ExchangeCodeAsync(code, model.RedirectUri);
+                }
+                catch (Exception ex)
+                {
+                    model.ErrorMessage = ex.Message;
+                }
+            }
+
+            return View(model);
+        }
+
+        /// <summary>
+        /// 解除済みのExcelを解析して一時保存を作り、プレビューを表示する。
+        /// gmailMessageIdはGmailから取り込んだときだけ入る（どのメールから作ったかの印）。
+        /// </summary>
+        private IActionResult AnalyzeOpened(ExcelOpenResult opened, JcabImportModel model, string? gmailMessageId)
+        {
             using ExcelPackage package = opened.Package!;
             try
             {
@@ -68,6 +296,7 @@ namespace JAFleet.Controllers
                     TargetMonth = parsed.TargetMonth?.ToString("yyyy/MM"),
                     FileData = JcabExcelOpener.ToDecryptedBytes(package),
                     OverridesJson = JcabRowOverrideSerializer.Serialize([]),
+                    GmailMessageId = gmailMessageId,
                     CreatedAt = DateTime.Now,
                     UpdatedAt = DateTime.Now,
                 };
@@ -80,7 +309,7 @@ namespace JAFleet.Controllers
             catch (Exception ex)
             {
                 model.ErrorMessage = $"解析に失敗しました。{ex.Message}";
-                model.Sessions = LoadSessions();
+                LoadIndexLists(model);
                 return View("Index", model);
             }
 
@@ -99,8 +328,7 @@ namespace JAFleet.Controllers
             JcabImportModel model = new() { Title = "Excel取込", FromAdmin = fromAdmin, SessionId = id };
             if (!TryLoadPreview(model, out _))
             {
-                model.Extension = LoadExtension();
-                model.Sessions = LoadSessions();
+                LoadIndexLists(model);
                 return View("Index", model);
             }
 
@@ -120,8 +348,7 @@ namespace JAFleet.Controllers
             model.Title = "Excel取込";
             if (!TryLoadPreview(model, out JcabImportSession? session, model.Rows))
             {
-                model.Extension = LoadExtension();
-                model.Sessions = LoadSessions();
+                LoadIndexLists(model);
                 return View("Index", model);
             }
 
@@ -167,8 +394,7 @@ namespace JAFleet.Controllers
             model.Title = "Excel取込";
             if (!TryLoadPreview(model, out JcabImportSession? session, model.Rows))
             {
-                model.Extension = LoadExtension();
-                model.Sessions = LoadSessions();
+                LoadIndexLists(model);
                 return View("Index", model);
             }
 
@@ -206,7 +432,7 @@ namespace JAFleet.Controllers
             ExcelOpenResult? opened = OpenUploaded(file, model);
             if (opened == null || !opened.Success)
             {
-                model.Sessions = LoadSessions();
+                LoadIndexLists(model);
                 return View("Index", model);
             }
 
@@ -307,8 +533,7 @@ namespace JAFleet.Controllers
             model.Title = "Excel取込";
             if (!TryLoadPreview(model, out JcabImportSession? session))
             {
-                model.Extension = LoadExtension();
-                model.Sessions = LoadSessions();
+                LoadIndexLists(model);
                 return View("Index", model);
             }
 
@@ -371,6 +596,19 @@ namespace JAFleet.Controllers
             session.OverridesJson = JcabRowOverrideSerializer.Serialize(overrides);
             session.UpdatedAt = DateTime.Now;
             _context.SaveChanges();
+        }
+
+        /// <summary>
+        /// 取込画面（Index）を返す前に、画面に要る一覧を揃える。
+        /// 内線番号と検索式は画面から送られてきた値を優先するため、入っていなければ補う。
+        /// </summary>
+        private void LoadIndexLists(JcabImportModel model)
+        {
+            model.Extension ??= LoadExtension();
+            model.Sessions = LoadSessions();
+            model.GmailConfigured = GmailClient.IsConfigured;
+            model.GmailQuery ??= JcabImportConstant.GMAIL_QUERY;
+            model.GmailAuthAvailable = _environment.IsDevelopment();
         }
 
         private List<JcabImportSession> LoadSessions()

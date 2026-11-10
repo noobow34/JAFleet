@@ -15,8 +15,14 @@ namespace JAFleet.Services.JcabImport
         /// <summary>実際に解除できた送信年月日</summary>
         public DateOnly? MatchedSendDate { get; set; }
 
+        /// <summary>実際に解除できた内線番号。候補を複数試すGmail取込で使う。</summary>
+        public string? MatchedExtension { get; set; }
+
         /// <summary>試した送信年月日（画面に出して手入力の手がかりにする）</summary>
         public List<DateOnly> TriedSendDates { get; set; } = [];
+
+        /// <summary>試した内線番号</summary>
+        public List<string> TriedExtensions { get; set; } = [];
 
         public string? ErrorMessage { get; set; }
     }
@@ -39,6 +45,13 @@ namespace JAFleet.Services.JcabImport
 
         /// <summary>送信年月日と内線番号からパスワードを組み立てて開く。失敗したら日付を遡って再試行する。</summary>
         public static ExcelOpenResult Open(byte[] raw, DateOnly sendDate, string? extension, int retryDays)
+            => Open(raw, sendDate, [extension], retryDays);
+
+        /// <summary>
+        /// 内線番号の候補を順に試す版。Gmail取込では登録値のほかにメール本文から読み取った
+        /// 番号も渡せるので、担当官が異動して番号が変わっていても解除できる。
+        /// </summary>
+        public static ExcelOpenResult Open(byte[] raw, DateOnly sendDate, IEnumerable<string?> extensions, int retryDays)
         {
             ExcelOpenResult result = new() { WasEncrypted = IsEncrypted(raw) };
 
@@ -48,7 +61,13 @@ namespace JAFleet.Services.JcabImport
                 return OpenPlain(raw, result);
             }
 
-            if (string.IsNullOrWhiteSpace(extension))
+            result.TriedExtensions = extensions
+                .Where(e => !string.IsNullOrWhiteSpace(e))
+                .Select(e => e!.Trim())
+                .Distinct()
+                .ToList();
+
+            if (result.TriedExtensions.Count == 0)
             {
                 result.ErrorMessage = "内線番号が登録されていません。内線番号を入力してください。";
                 return result;
@@ -59,28 +78,34 @@ namespace JAFleet.Services.JcabImport
             {
                 DateOnly tryDate = sendDate.AddDays(-i);
                 result.TriedSendDates.Add(tryDate);
-                try
+                foreach (string tryExtension in result.TriedExtensions)
                 {
-                    result.Package = new ExcelPackage(ToReadWriteStream(raw), BuildPassword(tryDate, extension));
-                    result.MatchedSendDate = tryDate;
-                    result.Success = true;
-                    return result;
-                }
-                catch (SecurityException ex)
-                {
-                    //パスワード違い。次の日付へ
-                    lastException = ex;
-                }
-                catch (Exception ex)
-                {
-                    //パスワード以外の理由で開けない場合は日付を変えても無駄なので打ち切る
-                    result.ErrorMessage = $"ファイルを開けませんでした。{ex.Message}";
-                    return result;
+                    try
+                    {
+                        result.Package = new ExcelPackage(ToReadWriteStream(raw), BuildPassword(tryDate, tryExtension));
+                        result.MatchedSendDate = tryDate;
+                        result.MatchedExtension = tryExtension;
+                        result.Success = true;
+                        return result;
+                    }
+                    catch (SecurityException ex)
+                    {
+                        //パスワード違い。次の候補へ
+                        lastException = ex;
+                    }
+                    catch (Exception ex)
+                    {
+                        //パスワード以外の理由で開けない場合は候補を変えても無駄なので打ち切る
+                        result.ErrorMessage = $"ファイルを開けませんでした。{ex.Message}";
+                        return result;
+                    }
                 }
             }
 
-            string tried = string.Join(" / ", result.TriedSendDates.Select(d => d.ToString("yyyyMMdd")));
-            result.ErrorMessage = $"パスワードが違います。{tried} の{result.TriedSendDates.Count}通りを試しました。"
+            string triedDates = string.Join(" / ", result.TriedSendDates.Select(d => d.ToString("yyyyMMdd")));
+            string triedExtensions = string.Join(" / ", result.TriedExtensions);
+            int count = result.TriedSendDates.Count * result.TriedExtensions.Count;
+            result.ErrorMessage = $"パスワードが違います。送信年月日 {triedDates} × 内線番号 {triedExtensions} の{count}通りを試しました。"
                                 + $"送信年月日か内線番号を確認するか、パスワードを直接入力してください。（{lastException?.Message}）";
             return result;
         }

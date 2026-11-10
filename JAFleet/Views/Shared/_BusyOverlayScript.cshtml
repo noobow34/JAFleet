@@ -1,0 +1,22 @@
+@*
+    _BusyOverlay.cshtml を動かすスクリプト。
+    jQueryは_Layoutの末尾で読み込まれるので、画面側の @@section ScriptsPartial の中に置くこと。
+
+    data-busy を持つ要素を押したらぐるぐるを出す。あとから差し込まれる部分ビュー
+    （Gmailのメール一覧）の中のボタンにも効かせるため、documentに委譲して拾う。
+*@
+<script>
+    $(function () {
+        const overlay = $('#busyOverlay');
+
+        $(document).on('click', '[data-busy]', function () {
+            $('#busyText').text($(this).attr('data-busy') || '処理しています…');
+            overlay.prop('hidden', false);
+        });
+
+        //ブラウザの戻るで表示された場合、覆ったままだと操作できなくなるので必ず消す
+        $(window).on('pageshow', function () {
+            overlay.prop('hidden', true);
+        });
+    });
+</script>

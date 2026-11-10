@@ -12,7 +12,7 @@
         <form method="post" asp-controller="JcabImport" asp-action="CreateSearchCondition" style="margin-left:auto">
             <input type="hidden" name="SessionId" value="@Model.SessionId" />
             <input type="hidden" name="FromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
-            <button type="submit" class="imp-btn">この内容で登録</button>
+            <button type="submit" class="imp-btn" data-busy="検索条件を登録しています…">この内容で登録</button>
         </form>
     </div>
     <div class="imp-sc-regs">@string.Join("  ", Model.ImportedRegistrations)</div>

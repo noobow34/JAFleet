@@ -21,6 +21,18 @@ namespace JAFleet.Models
         [Display(Name = "パスワードを直接入力")]
         public string? ManualPassword { get; set; }
 
+        /// <summary>Gmail連携が設定されているか（環境変数が揃っているか）</summary>
+        [BindNever]
+        public bool GmailConfigured { get; set; }
+
+        /// <summary>Gmailの検索式。既定はJcabImportConstant.GMAIL_QUERYで、画面で一時的に変えられる。</summary>
+        [BindNever]
+        public string? GmailQuery { get; set; }
+
+        /// <summary>refresh tokenを取る画面（開発環境専用）への導線を出すか</summary>
+        [BindNever]
+        public bool GmailAuthAvailable { get; set; }
+
         [BindNever]
         public string? ErrorMessage { get; set; }
 
