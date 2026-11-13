@@ -49,6 +49,25 @@ namespace JAFleet.Controllers
         }
 
         /// <summary>
+        /// 詳細型式の選択モーダルから型式を新規登録する。
+        /// 足そうとした詳細型式の親の型式ごとマスタに無いことがあるので、
+        /// 詳細型式のその場登録と同じように、編集中の画面を離れずに追加できるようにしてある。
+        /// </summary>
+        [HttpPost]
+        public IActionResult CreateType(string? typeCode, string? typeName, string? makerCode, string? displayOrder)
+        {
+            if (!AdminAuth.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            TypeStore.Result result = TypeStore.Create(_context, typeCode, typeName, makerCode, displayOrder);
+            return result.Error != null
+                ? Json(new { error = result.Error })
+                : Json(new { code = result.Code, name = result.Name, duplicated = result.Duplicated });
+        }
+
+        /// <summary>
         /// 詳細型式の選択モーダルから新規登録する。
         /// マスタに無い型式に出くわしたとき、編集中の画面を離れずに追加できるようにするためのもの。
         /// </summary>

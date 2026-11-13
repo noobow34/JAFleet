@@ -1,4 +1,4 @@
-@*
+﻿@*
     _TypeDetailPicker.cshtml を動かすスクリプト。
     jQueryは_Layoutの末尾で読み込まれるので、画面側の @@section ScriptsPartial の中に置くこと。
     画面内のピッカーは全部まとめて初期化するので、画面側から呼ぶものは無い。
@@ -15,11 +15,15 @@
             const opener = $('[data-tdp-open="' + modal.attr('id') + '"]');
 
             const search = modal.find('.tdp-search');
-            const types = modal.find('.tdp-type');
             const empty = modal.find('.tdp-empty');
-            const error = modal.find('.tdp-error');
+            const error = modal.find('.tdp-detail-error');
+            const typeError = modal.find('.tdp-newtype-error');
+            const newType = modal.find('.tdp-new-type');
             //新規登録した分を後から足すので再代入する
             let details = modal.find('.tdp-detail');
+
+            //型式も新規登録で後から増える。取り違えないよう引き直して使う。
+            const types = function () { return modal.find('.tdp-type'); };
 
             //この部品はフォームの中に置かれる。中に入力欄があるとEnterでフォームが送信されてしまうので、
             //初期化のときにフォームの外（body直下）へ出しておく。
@@ -29,7 +33,7 @@
             // 検索語があるときは型式をまたいで探す。型式の選択より検索を優先する。
             const refresh = function () {
                 const keyword = (search.val() || '').trim().toLowerCase();
-                const typeCode = types.filter('.on').attr('data-type') || '';
+                const typeCode = types().filter('.on').attr('data-type') || '';
                 let shown = 0;
 
                 details.each(function () {
@@ -47,8 +51,8 @@
                 empty.toggle(shown === 0);
             };
 
-            types.on('click', function () {
-                types.removeClass('on');
+            modal.on('click', '.tdp-type', function () {
+                types().removeClass('on');
                 $(this).addClass('on');
                 //型式を選び直したら検索語は邪魔になるので消す
                 search.val('');
@@ -74,11 +78,18 @@
                 select($(this).attr('data-id'), $(this).attr('data-name'));
             });
 
-            // ---- 選ぶ / 新規登録の切り替え ----
-            const showPage = function (isNew) {
-                modal.find('.tdp-page-select').toggle(!isNew);
-                modal.find('.tdp-page-new').toggle(isNew);
-                modal.find('.tdp-title').text(isNew ? '詳細型式の新規登録' : '詳細型式を選ぶ');
+            // ---- 選ぶ / 詳細型式の新規登録 / 型式の新規登録 の切り替え ----
+            const titles = {
+                select: '詳細型式を選ぶ',
+                new: '詳細型式の新規登録',
+                newtype: '型式の新規登録'
+            };
+
+            const showPage = function (page) {
+                modal.find('.tdp-page-select').toggle(page === 'select');
+                modal.find('.tdp-page-new').toggle(page === 'new');
+                modal.find('.tdp-page-newtype').toggle(page === 'newtype');
+                modal.find('.tdp-title').text(titles[page]);
             };
 
             modal.find('.tdp-to-new').on('click', function () {
@@ -86,11 +97,23 @@
                 //探していた語をそのまま名前の下書きにする
                 modal.find('.tdp-new-name').val(search.val() || '');
                 modal.find('.tdp-new-code').val('');
-                modal.find('.tdp-new-type').val(types.filter('.on').attr('data-type') || '');
-                showPage(true);
+                newType.val(types().filter('.on').attr('data-type') || '');
+                showPage('new');
             });
 
-            modal.find('.tdp-to-select').on('click', function () { showPage(false); });
+            modal.find('.tdp-to-select').on('click', function () { showPage('select'); });
+
+            //詳細型式の入力は消さずに残す。型式を足したら続きを入れてもらう。
+            modal.find('.tdp-to-newtype').on('click', function () {
+                typeError.hide().text('');
+                modal.find('.tdp-newtype-code').val('');
+                modal.find('.tdp-newtype-name').val('');
+                modal.find('.tdp-newtype-maker').val('');
+                modal.find('.tdp-newtype-order').val('');
+                showPage('newtype');
+            });
+
+            modal.find('.tdp-newtype-back').on('click', function () { showPage('new'); });
 
             modal.find('.tdp-new-name, .tdp-new-code').on('keydown', function (e) {
                 if (e.key === 'Enter') {
@@ -100,7 +123,7 @@
             });
 
             opener.on('click', function () {
-                showPage(false);
+                showPage('select');
                 refresh();
                 modal.modal('show');
             });
@@ -124,23 +147,79 @@
                         return;
                     }
 
+                    const typeCode = newType.val() || '';
+                    const typeName = modal.find('.tdp-new-type option:selected').text();
+
                     //登録したものを一覧にも足す。閉じて開き直しても選べる。
                     if (details.filter('[data-id="' + data.id + '"]').length === 0) {
                         const added = $('<button type="button" class="tdp-detail">')
                             .attr('data-id', data.id)
-                            .attr('data-type', modal.find('.tdp-new-type').val())
+                            .attr('data-type', typeCode)
                             .attr('data-name', data.name)
                             .append($('<span class="nm">').text(data.name))
-                            .append($('<span class="tp">').text(modal.find('.tdp-new-type option:selected').text()));
+                            .append($('<span class="tp">').text(typeName));
                         modal.find('.tdp-details').append($('<li>').append(added));
                         details = details.add(added);
                     }
 
+                    //型式ごと新規登録した直後は左の一覧に出ていない（詳細型式が0件の型式は出していないため）。
+                    //これで絞り込みからも辿れる。
+                    if (typeCode !== '' && types().filter('[data-type="' + typeCode + '"]').length === 0) {
+                        modal.find('.tdp-types').append($('<li>').append(
+                            $('<button type="button" class="tdp-type">')
+                                .attr('data-type', typeCode)
+                                .append($('<span class="nm">').text(typeName))
+                                .append($('<span class="cnt">').text('1'))));
+                    }
+
                     search.val('');
-                    showPage(false);
+                    showPage('select');
                     select(String(data.id), data.name);
                 }).fail(function (xhr) {
                     error.text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
+                }).always(function () {
+                    button.prop('disabled', false);
+                });
+            });
+
+            // ---- 型式の新規登録 ----
+            modal.find('.tdp-newtype-code, .tdp-newtype-name, .tdp-newtype-order').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    modal.find('.tdp-newtype-submit').click();
+                }
+            });
+
+            modal.find('.tdp-newtype-submit').on('click', function () {
+                const button = $(this);
+                button.prop('disabled', true);
+
+                $.ajax({
+                    url: '/Master/CreateType',
+                    type: 'POST',
+                    data: {
+                        typeCode: modal.find('.tdp-newtype-code').val(),
+                        typeName: modal.find('.tdp-newtype-name').val(),
+                        makerCode: modal.find('.tdp-newtype-maker').val(),
+                        displayOrder: modal.find('.tdp-newtype-order').val()
+                    }
+                }).done(function (data) {
+                    if (data.error) {
+                        typeError.text(data.error).show();
+                        return;
+                    }
+
+                    //登録した型式を詳細型式側の選択肢に足して選ばせる。
+                    //同じ画面に複数のピッカーがあっても、開いているモーダルの分だけ足せば用は足りる
+                    //（この画面を保存したあとは読み直されるため）。
+                    if (newType.find('option[value="' + data.code + '"]').length === 0) {
+                        newType.append($('<option>').attr('value', data.code).text(data.name));
+                    }
+                    newType.val(data.code);
+
+                    showPage('new');
+                }).fail(function (xhr) {
+                    typeError.text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
                 }).always(function () {
                     button.prop('disabled', false);
                 });

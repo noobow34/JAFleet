@@ -38,6 +38,7 @@ namespace JAFleet.Services
             _lcc = context.Airlines.AsNoTracking().Where(p => p.AirlineGroupCode == AirlineGroupCode.LCC && !p.Deleted).OrderBy(p => p.DisplayOrder).ToArray();
             _other = context.Airlines.AsNoTracking().Where(p => p.AirlineGroupCode == AirlineGroupCode.Other && !p.Deleted).OrderBy(p => p.DisplayOrder).ToArray();
             _type = context.Types.AsNoTracking().OrderBy(p => p.DisplayOrder).ToArray();
+            _maker = context.Makers.AsNoTracking().OrderBy(p => p.MakerCode).ToArray();
             _wifi = context.Codes.AsNoTracking().Where(p => p.CodeType == CodeType.WIFI).OrderBy(p => p.Key).ToArray();
             _typeDetailGroup = context.TypeDetailViews.AsNoTracking().OrderBy(p => p.DisplayOrder).ThenBy(p => p.TypeDetailName).ToArray();
             _seatConfiguration = context.SeatConfigurations.AsNoTracking().OrderBy(p => p.Airline).ThenBy(p => p.Type).ToArray();
@@ -112,6 +113,10 @@ namespace JAFleet.Services
 
         private static JAFleet.Commons.Data.Type[]? _type = null;
         public static JAFleet.Commons.Data.Type[]? Type { get { return _type; } }
+
+        /// <summary>型式のその場登録でメーカーを選ばせるために読む</summary>
+        private static Maker[]? _maker = null;
+        public static Maker[]? Maker { get { return _maker; } }
 
         public static TypeDetailView[]? _typeDetailGroup = null;
         public static TypeDetailView[]? TypeDetailGroup { get { return _typeDetailGroup; } }

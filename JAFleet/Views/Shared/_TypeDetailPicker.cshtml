@@ -1,4 +1,5 @@
-@using JAFleet.Commons.Data
+﻿@using JAFleet.Commons.Data
+@using JAFleet.Services
 @model JAFleet.Models.TypeDetailPickerModel
 @*
     型式→詳細型式の2段で選ぶピッカー。
@@ -23,6 +24,12 @@
 
     Dictionary<string, string?> typeNames = (Model.TypeList ?? [])
         .ToDictionary(t => t.TypeCode, t => t.TypeName);
+
+    //型式の新規登録で選ばせるメーカー。和名・英名のどちらかが空のこともあるのでコードまで落とす。
+    string MakerLabel(Maker maker)
+        => !string.IsNullOrEmpty(maker.MakerNameJp) ? maker.MakerNameJp!
+         : !string.IsNullOrEmpty(maker.MakerNameEn) ? maker.MakerNameEn!
+         : maker.MakerCode;
 }
 
 <style>
@@ -85,6 +92,14 @@
     display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;
     padding: 8px 12px; font-size: 13px; color: #b91c1c; font-weight: 600;
 }
+/* 型式のセレクトと「＋」を横に並べる。型式ごとマスタに無いときはここから足す。 */
+.tdp-with-add { display: flex; gap: 6px; }
+.tdp-with-add select { flex: 1; min-width: 0; }
+.tdp-add {
+    flex: 0 0 auto; width: 34px; height: 34px; padding: 0; justify-content: center;
+    font-size: 15px; line-height: 1;
+}
+.tdp-note { margin: -6px 0 12px; font-size: 12px; color: #94a3b8; }
 
 @@media (max-width: 600px) {
     .tdp-cols { flex-direction: column; }
@@ -166,14 +181,18 @@
             <div class="modal-body tdp-page-new" style="display:none">
                 <div class="tdp-field">
                     <label>型式</label>
-                    <select class="tdp-new-type">
-                        <option value="">　</option>
-                        @foreach (JAFleet.Commons.Data.Type type in Model.TypeList ?? [])
-                        {
-                            <option value="@type.TypeCode">@type.TypeName</option>
-                        }
-                    </select>
+                    <div class="tdp-with-add">
+                        <select class="tdp-new-type">
+                            <option value="">　</option>
+                            @foreach (JAFleet.Commons.Data.Type type in Model.TypeList ?? [])
+                            {
+                                <option value="@type.TypeCode">@type.TypeName</option>
+                            }
+                        </select>
+                        <button type="button" class="tdp-btn tdp-add tdp-to-newtype" title="型式を新規登録">＋</button>
+                    </div>
                 </div>
+                <div class="tdp-note">選びたい型式が無いときは「＋」から型式ごと登録できます。</div>
 
                 <div class="tdp-field">
                     <label>詳細型式名</label>
@@ -185,11 +204,46 @@
                     <input type="text" class="tdp-new-code" />
                 </div>
 
-                <div class="tdp-error"></div>
+                <div class="tdp-error tdp-detail-error"></div>
             </div>
             <div class="modal-footer tdp-page-new" style="display:none">
                 <button type="button" class="tdp-btn tdp-to-select" style="float:left">← 一覧に戻る</button>
                 <button type="button" class="tdp-btn primary tdp-new-submit">登録して選択</button>
+            </div>
+
+            @* ---- 型式の新規登録（詳細型式の1階層上） ---- *@
+            <div class="modal-body tdp-page-newtype" style="display:none">
+                <div class="tdp-field">
+                    <label>型式コード</label>
+                    <input type="text" class="tdp-newtype-code" placeholder="B789 など" />
+                </div>
+
+                <div class="tdp-field">
+                    <label>型式名</label>
+                    <input type="text" class="tdp-newtype-name" placeholder="787-9 など" />
+                </div>
+
+                <div class="tdp-field">
+                    <label>メーカー（任意）</label>
+                    <select class="tdp-newtype-maker">
+                        <option value="">　</option>
+                        @foreach (Maker maker in MasterManager.Maker ?? [])
+                        {
+                            <option value="@maker.MakerCode">@MakerLabel(maker)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="tdp-field">
+                    <label>表示順（任意）</label>
+                    <input type="text" class="tdp-newtype-order" placeholder="空欄なら一覧の最後" />
+                </div>
+
+                <div class="tdp-error tdp-newtype-error"></div>
+            </div>
+            <div class="modal-footer tdp-page-newtype" style="display:none">
+                <button type="button" class="tdp-btn tdp-newtype-back" style="float:left">← 詳細型式に戻る</button>
+                <button type="button" class="tdp-btn primary tdp-newtype-submit">登録して選択</button>
             </div>
         </div>
     </div>

@@ -1,3 +1,4 @@
+﻿@using JAFleet.Services
 @using JAFleet.Services.JcabImport
 @model JAFleet.Models.JcabImportModel
 @{
@@ -170,6 +171,11 @@
     font-size: 13px; color: #475569;
 }
 .tdm-source b { color: #0f172a; font-family: monospace; }
+/* 型式のセレクトと「＋」を横に並べる。型式ごとマスタに無いときはここから足す。 */
+.tdm-with-add { display: flex; gap: 6px; }
+.tdm-with-add select { flex: 1; min-width: 0; }
+.tdm-add { flex: 0 0 auto; width: 34px; padding: 0; justify-content: center; font-size: 15px; line-height: 1; }
+.tdm-note { margin: -6px 0 12px; font-size: 12px; color: #94a3b8; }
 .tdm-error {
     display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;
     padding: 8px 12px; font-size: 13px; color: #b91c1c; font-weight: 600;
@@ -488,21 +494,25 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal" aria-label="閉じる"><span aria-hidden="true">&times;</span></button>
-                    <h4 class="modal-title">詳細型式の新規登録</h4>
+                    <h4 class="modal-title" id="tdTitle">詳細型式の新規登録</h4>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body" id="tdPageDetail">
                     <div class="tdm-source">Excelの型式: <b id="tdSource"></b></div>
 
                     <div class="tdm-field">
                         <label for="tdTypeCode">型式</label>
-                        <select id="tdTypeCode">
-                            <option value="">　</option>
-                            @foreach (var type in Model.TypeList ?? [])
-                            {
-                                <option value="@type.TypeCode">@type.TypeName</option>
-                            }
-                        </select>
+                        <div class="tdm-with-add">
+                            <select id="tdTypeCode">
+                                <option value="">　</option>
+                                @foreach (var type in Model.TypeList ?? [])
+                                {
+                                    <option value="@type.TypeCode">@type.TypeName</option>
+                                }
+                            </select>
+                            <button type="button" class="imp-btn tdm-add" id="tdAddType" title="型式を新規登録">＋</button>
+                        </div>
                     </div>
+                    <div class="tdm-note">選びたい型式が無いときは「＋」から型式ごと登録できます。</div>
 
                     <div class="tdm-field">
                         <label for="tdName">詳細型式名</label>
@@ -516,9 +526,46 @@
 
                     <div class="tdm-error" id="tdError"></div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer" id="tdFootDetail">
                     <button type="button" class="imp-btn" data-dismiss="modal">キャンセル</button>
                     <button type="button" class="imp-btn primary" id="tdSubmit">登録して選択</button>
+                </div>
+
+                @* ---- 型式の新規登録（詳細型式の1階層上） ---- *@
+                <div class="modal-body" id="tdPageType" style="display:none">
+                    <div class="tdm-source">Excelの型式: <b id="tdTypeSource"></b></div>
+
+                    <div class="tdm-field">
+                        <label for="tdTypeNewCode">型式コード</label>
+                        <input type="text" id="tdTypeNewCode" placeholder="B789 など" />
+                    </div>
+
+                    <div class="tdm-field">
+                        <label for="tdTypeNewName">型式名</label>
+                        <input type="text" id="tdTypeNewName" placeholder="787-9 など" />
+                    </div>
+
+                    <div class="tdm-field">
+                        <label for="tdTypeNewMaker">メーカー（任意）</label>
+                        <select id="tdTypeNewMaker">
+                            <option value="">　</option>
+                            @foreach (var maker in MasterManager.Maker ?? [])
+                            {
+                                <option value="@maker.MakerCode">@(!string.IsNullOrEmpty(maker.MakerNameJp) ? maker.MakerNameJp : !string.IsNullOrEmpty(maker.MakerNameEn) ? maker.MakerNameEn : maker.MakerCode)</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="tdm-field">
+                        <label for="tdTypeNewOrder">表示順（任意）</label>
+                        <input type="text" id="tdTypeNewOrder" placeholder="空欄なら一覧の最後" />
+                    </div>
+
+                    <div class="tdm-error" id="tdTypeError"></div>
+                </div>
+                <div class="modal-footer" id="tdFootType" style="display:none">
+                    <button type="button" class="imp-btn" id="tdTypeBack" style="float:left">← 詳細型式に戻る</button>
+                    <button type="button" class="imp-btn primary" id="tdTypeSubmit">登録して選択</button>
                 </div>
             </div>
         </div>
@@ -631,14 +678,68 @@
         // ---- 詳細型式の新規登録モーダル ----
         let targetSelectName = null;
 
+        // 詳細型式／型式の2ページを1つのモーダルで切り替える
+        const showTypePage = function (isType) {
+            $('#tdPageDetail, #tdFootDetail').toggle(!isType);
+            $('#tdPageType, #tdFootType').toggle(isType);
+            $('#tdTitle').text(isType ? '型式の新規登録' : '詳細型式の新規登録');
+        };
+
         $(document).on('click', '.imp-addtype', function () {
             targetSelectName = $(this).data('select');
-            $('#tdSource').text($(this).data('source') || '');
+            $('#tdSource, #tdTypeSource').text($(this).data('source') || '');
             $('#tdName').val($(this).data('name') || '');
             $('#tdCode').val($(this).data('name') || '');
             $('#tdTypeCode').val('');
             $('#tdError').hide().text('');
+            showTypePage(false);
             $('#typeDetailModal').modal('show');
+        });
+
+        // ---- 型式の新規登録 ----
+        $('#tdAddType').on('click', function () {
+            $('#tdTypeError').hide().text('');
+            $('#tdTypeNewCode').val('');
+            $('#tdTypeNewName').val('');
+            $('#tdTypeNewMaker').val('');
+            $('#tdTypeNewOrder').val('');
+            showTypePage(true);
+        });
+
+        $('#tdTypeBack').on('click', function () { showTypePage(false); });
+
+        $('#tdTypeSubmit').on('click', function () {
+            const button = $(this);
+            button.prop('disabled', true);
+
+            $.ajax({
+                url: '/JcabImport/CreateType',
+                type: 'POST',
+                data: {
+                    typeCode: $('#tdTypeNewCode').val(),
+                    typeName: $('#tdTypeNewName').val(),
+                    makerCode: $('#tdTypeNewMaker').val(),
+                    displayOrder: $('#tdTypeNewOrder').val()
+                }
+            }).done(function (data) {
+                if (data.error) {
+                    $('#tdTypeError').text(data.error).show();
+                    return;
+                }
+
+                // 登録した型式を詳細型式側の選択肢に足して選ばせる
+                const select = $('#tdTypeCode');
+                if (select.find('option[value="' + data.code + '"]').length === 0) {
+                    select.append($('<option>').attr('value', data.code).text(data.name));
+                }
+                select.val(data.code);
+
+                showTypePage(false);
+            }).fail(function (xhr) {
+                $('#tdTypeError').text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
+            }).always(function () {
+                button.prop('disabled', false);
+            });
         });
 
         $('#tdSubmit').on('click', function () {

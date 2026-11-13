@@ -750,6 +750,24 @@ namespace JAFleet.Controllers
         }
 
         /// <summary>
+        /// プレビュー画面のモーダルから型式を新規登録する。
+        /// Excelの型式がマスタに無いとき、親の型式ごと無いこともあるため。
+        /// </summary>
+        [HttpPost]
+        public IActionResult CreateType(string? typeCode, string? typeName, string? makerCode, string? displayOrder)
+        {
+            if (!AdminAuth.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            TypeStore.Result result = TypeStore.Create(_context, typeCode, typeName, makerCode, displayOrder);
+            return result.Error != null
+                ? Json(new { error = result.Error })
+                : Json(new { code = result.Code, name = result.Name, duplicated = result.Duplicated });
+        }
+
+        /// <summary>
         /// プレビュー画面のモーダルから詳細型式を新規登録する。
         /// Excelの型式がマスタに無いとき、別画面に移らずその場で追加できるようにするためのもの。
         /// </summary>

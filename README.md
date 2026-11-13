@@ -161,7 +161,7 @@ export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_toke
   実際に変わった行だけ更新し、1 件でも入力に不備があればどの行も保存しない
 - 一覧に出していない項目（リンク URL・テストレジ・整備通知・作成日時・実更新日時）は
   行の「⋯」で開く。開いていなくても保存の対象になる
-- 詳細型式の選択と、コンフィグの選択・その場登録は単票編集と同じ部品を使う
+- 詳細型式の選択（と型式・詳細型式のその場登録）、コンフィグの選択・その場登録は単票編集と同じ部品を使う
 - 日時は秒までしか出していないので、**秒まで一致していれば元の値を残す**。
   そうしないと、触っていない行まで秒未満が切り捨てられて更新されてしまう
 - 履歴は機体を更新した結果として積まれるものなので、普通の「追加」は置いていない。
@@ -199,6 +199,27 @@ export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_toke
 4. 単票編集（チェック入り）で `aircraft.update_time` をミスした保存の時刻に直す
 
 覚えていない場合は DB のバックアップから引くしかない。
+
+#### 型式・詳細型式のその場登録
+
+型式（`type`）と詳細型式（`type_detail`）は、これまで行を足すには DB を直接触る必要がありました。
+新しい機種が出てきたときに編集中の画面を離れなくてよいよう、**詳細型式を選ぶモーダルの中で
+2 段とも登録できる**ようにしてあります（`TypeStore` / `TypeDetailStore`）。
+
+- 入口は**詳細型式の選択モーダル**（`_TypeDetailPicker.cshtml`。単票編集・同一型式の一括登録・
+  更新履歴の編集で使う共通部品）と、**航空局 Excel 取込のプレビュー**（`Preview.cshtml` のモーダル）。
+  どちらも「一覧から選ぶ → 詳細型式を登録する → 型式を登録する」の 3 段をモーダル内で行き来する
+- 詳細型式の登録画面で型式の選択肢に無いものは、**横の「＋」から型式ごと登録できる**。
+  登録すると型式の選択肢に出て選ばれた状態で詳細型式の入力に戻るので、そのまま続けられる
+- 型式コードは `type` の主キーで `/Aircraft/Type/{型式コード}` の URL にも入るため、
+  **半角英数字と `-` `_` `.` だけ**通す。メーカー（`maker` から選ぶ）と表示順は任意。
+  表示順を空欄にすると一覧の最後に並ぶ（PostgreSQL の昇順は NULL が後）
+- **同じものが既にあってもエラーにせず、それを返して選ぶ**（型式はコード、詳細型式は名前で見る）。
+  欲しいのは「その行」であって作ること自体ではないため。コンフィグのその場登録と同じ考え方
+- 登録すると `MasterManager.ReadAll` も走るので、マスタ再読込を押す必要はない
+- エンドポイントは `POST /Master/CreateType`・`POST /Master/CreateTypeDetail`（モーダル用）と
+  `POST /JcabImport/CreateType`・`POST /JcabImport/CreateTypeDetail`（取込プレビュー用）。
+  いずれも `AdminAuth.IsAdmin` を通らなければ `NotFound`
 
 #### コンフィグマスタ
 
@@ -405,6 +426,7 @@ JAFleet/
 │   ├── AccessStatsService.cs   access_log の集計（/AccessStats）
 │   ├── AircraftStore.cs        機体の登録・更新（単票編集と一括取込の共通処理）
 │   ├── SearchConditionStore.cs 名前付き検索条件の登録
+│   ├── TypeStore.cs            型式のその場登録
 │   ├── TypeDetailStore.cs      詳細型式のその場登録
 │   ├── SeatConfigStore.cs      コンフィグ（座席仕様）の登録・更新・削除
 │   ├── AircraftHistoryStore.cs 更新履歴の修正・削除
