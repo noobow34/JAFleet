@@ -14,9 +14,11 @@ namespace JAFleet.Services.JcabImport
         /// Gmailから取込候補を探す検索式。
         /// 差出人は担当官個人のアドレスで異動のたびに変わるためドメインで見る。
         /// 件名の「航空機登録情報」は再送（(再送)や【再送】が前に付く）でも共通。
-        /// 画面で一時的に変えられるので、ここは既定値。
+        /// in:inboxを付けているのは、取り込んだらアーカイブする運用で
+        /// 「受信トレイに残っている＝まだ取り込んでいない」ことにするため。
+        /// 済んだ分を掘り返したいときは画面で一時的に外せる。
         /// </summary>
-        public const string GMAIL_QUERY = "from:mlit.go.jp subject:航空機登録情報 has:attachment";
+        public const string GMAIL_QUERY = "from:mlit.go.jp subject:航空機登録情報 has:attachment in:inbox";
 
         /// <summary>Gmailから一度に取ってくる件数。1通ずつAPIを叩くので欲張らない。</summary>
         public const int GMAIL_SEARCH_MAX = 10;

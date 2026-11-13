@@ -129,7 +129,8 @@
             </div>
             <div class="imp-hint" style="margin-bottom:10px">
                 送信年月日も内線番号もメールから分かるので、パスワードの入力は要りません。
-                検索条件を変えられるのはこの画面の中だけです（既定値はアプリが持っています）。
+                既定では受信トレイだけを見ます（取り込んだらアーカイブする前提）。
+                検索条件を変えられるのはこの画面の中だけです。
                 @if (Model.GmailAuthAvailable)
                 {
                     <text>
@@ -138,7 +139,8 @@
                     </text>
                 }
             </div>
-            <div id="gmailList"><div class="imp-spin">Gmailを見ています…</div></div>
+            @*Gmailを読むのは「探す」を押したときだけ。開いただけでは空のまま*@
+            <div id="gmailList"><div class="imp-spin">「探す」を押すと、届いているメールを一覧にします。</div></div>
         }
         else
         {
@@ -243,7 +245,8 @@
 <partial name="_BusyOverlayScript" />
 <script>
     $(function () {
-        //Gmailの一覧は枠とは別に取りに行く。APIの応答を待って画面が出ないのを避けるため
+        //Gmailは「探す」を押したときだけ読む。画面を開くたびに叩くと、
+        //アップロードで取り込みたいだけのときや開き直すたびに無駄にAPIを呼ぶため
         const loadGmail = function () {
             $('#gmailList').html('<div class="imp-spin">Gmailを見ています…</div>');
             $.get('@Url.Action("GmailList", "JcabImport")', {
@@ -258,7 +261,6 @@
         };
 
         if ($('#gmailQuery').length) {
-            loadGmail();
             $('#gmailSearch').on('click', loadGmail);
             $('#gmailQuery').on('keydown', function (e) {
                 if (e.key === 'Enter') { e.preventDefault(); loadGmail(); }

@@ -10,7 +10,14 @@
 }
 else if (Model.Messages.Count == 0)
 {
-    <div class="imp-hint">該当するメールがありませんでした。（検索条件: @Model.Query）</div>
+    <div class="imp-hint">
+        該当するメールがありませんでした。（検索条件: @Model.Query）
+        @if (Model.Query.Contains("in:inbox"))
+        {
+            @*取り込んでアーカイブしたものは受信トレイから消えるので、掘り返したいときの案内を出す*@
+            <text><br />取り込み済み（アーカイブ済み）のものも探すなら、検索条件から <code>in:inbox</code> を外してください。</text>
+        }
+    </div>
 }
 else
 {
