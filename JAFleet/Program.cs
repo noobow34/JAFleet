@@ -11,7 +11,8 @@ using System.Text.Unicode;
 
 //新しい環境変数を追加した場合は、この一覧にも追加すること（起動時の読み込み確認用）。
 //passから取れていないと無言で空のまま起動してしまうため、読めたかどうかだけをログに出す。
-//値そのものは出さない。GMAIL_*は未設定でも起動できる（取込画面にアップロード経路が残るため）
+//値そのものは出さない。GMAIL_*は未設定でも起動できる（取込画面にアップロード経路が残るため）。
+//GEMINI_API_KEYも未設定でも起動できる（特別塗装ニュースの判定ができないだけ）
 string[] requiredEnvVars = [
     "SLACK_BOT_TOKEN",
     "JAFLEET_CONNECTION_STRING",
@@ -22,6 +23,7 @@ string[] requiredEnvVars = [
     "GMAIL_CLIENT_ID",
     "GMAIL_CLIENT_SECRET",
     "GMAIL_REFRESH_TOKEN",
+    "GEMINI_API_KEY",
 ];
 foreach (string name in requiredEnvVars)
 {

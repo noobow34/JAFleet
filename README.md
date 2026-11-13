@@ -49,6 +49,7 @@
 | 同一型式の一括登録 | `/BulkRegister` | 「レジ / 登録年月日 / 製造番号」をタブ・カンマ・空白区切りで貼り付けてまとめて登録 |
 | 航空局 Excel 取込 | `/JcabImport` | 国土交通省航空局から届くパスワード付き Excel を、Gmail から直接またはアップロードで取り込む |
 | コンフィグマスタ | `/SeatConfig` | 航空会社・型式ごとの座席仕様（コンフィグ）を登録・更新・削除する |
+| 特別塗装ニュース | `/LiveryNews` | Aviation Wire の RSS から Gemini が作った特別塗装の更新候補を承認・却下する |
 | マスタ再読込 | `/ReloadMaster` | 航空会社・型式などのマスタをメモリへ読み直す |
 | 定期実行ジョブ | `/Scheduler` | Quartz のジョブの有効・無効と cron 式を変更する |
 | バッチ手動実行 | `/Batch/RefreshWorkingStatusAndPhoto`<br>`/Batch/RefreshPhoto` | 定期ジョブと同じ処理を手動で起動 |
@@ -218,6 +219,65 @@ export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_toke
 - 座席図 URL（`seat_configuration.url`）は任意。いまはどの画面にも出していないが、
   `aircraft_view.seat_url` として取り出せる
 
+#### 特別塗装ニュースの承認
+
+`/LiveryNews` は、ニュースから特別塗装（`aircraft.special_livery`）を拾って更新する画面です。
+けんけつノートのルーム情報チェックと同じ作りで、**機械が候補を作り、人が承認したときだけ DB が変わります**。
+
+1. 日次ジョブ `CheckSpecialLiveryNewsJob` が Aviation Wire の RSS（`https://www.aviationwire.jp/feed`）を取得する
+2. まだ判定していない記事だけを Gemini に投げ、「特別塗装機が新たに登場した記事か」を判定させる。
+   本文は RSS に載らない（冒頭の抜粋だけ）ため、`url_context` で記事そのものを読ませる
+3. 特別塗装と判定されたら、記事に出てきた機体ごとに更新候補（`livery_news_candidate`）を作り、Slack へ通知する
+4. `/LiveryNews` で候補を確認し、承認すると `AircraftStore` 経由で `aircraft.special_livery` を更新する
+   （単票編集と同じ処理を通るので、更新前の内容は `aircraft_history` に残る）
+
+- **RSS の取得には User-Agent が要る**。Aviation Wire は User-Agent が空のリクエストを 403 で返す
+  （ヘッダの中身は見ておらず、何か入っていれば通る）。.NET の `HttpClient` は既定で User-Agent を
+  送らないため、付けずに叩くと必ず 403 になる。値は `LiveryNewsConstant.USER_AGENT`
+- **判定した記事は特別塗装でなかったものも `livery_news` に残す**。チェック済みの印なので、
+  同じ記事を二度 Gemini に投げることはない（RSS は毎回同じ記事を返すため）
+- 登録済みの特別塗装と同じ内容だった候補は、作りはするが**「差分なし」として処理済み**にする。
+  同じ塗装の記事が何本も出ても未処理として溜まらない
+- 記事からレジを読めなかったときも候補は作る。レジ欄を空のまま出すので、人が入れてから承認する。
+  「JA926A（787-9）」のように型式までくっついてきた場合も読み取り失敗として空にする
+  （誤ったレジを既定値にして、そのまま承認されるのを防ぐため）
+- 塗装名とレジは**画面で直せる**。承認すると直した値が `aircraft` に入り、`livery_news_candidate` にも
+  その値が残る。Gemini が出した元の値は `livery_news.gemini_result` に JSON のまま残る
+- 却下すると機体情報は変えずに処理済みにする。押し間違いを戻せないので確認ダイアログを出す
+- 「いま確認する」はジョブを待たずに RSS を確認する。記事ごとに数秒待つため 1 回が数分かかることがあり、
+  **バッチ手動実行と同じく裏で動かしてすぐ画面を返す**。終わると Slack に通知が飛ぶので、画面を読み直す。
+  日次ジョブと重なって同じ記事を二重に投げないよう、実行中かどうかは `LiveryNewsChecker.Processing` で見張る
+- **RSS に載るのは直近 10 本ほど**。1 日の記事数がこれを超えると、次の実行までに流れた記事は判定されない。
+  取りこぼしが気になるなら `/Scheduler` で cron 式を数時間おきに変える。判定済みの記事は投げ直さないので、
+  実行を増やしても Gemini の呼び出し回数は増えない
+- 判定の線引きは `GeminiLiveryJudge.BuildPrompt` のプロンプトだけで決まる。外した判定が続くならここを直す。
+  使うモデルは `LiveryNewsConstant.GEMINI_MODEL`
+- `GEMINI_API_KEY` が未設定のときは、画面にその旨が出て「いま確認する」が押せない
+
+##### 試すとき
+
+特別塗装のニュースが実際に出るのを待たなくても、画面の一番下にある「🧪 お試し（テスト用）」から一連を通せます。
+通る処理は日次ジョブとまったく同じ（`LiveryNewsChecker.SaveJudgementAsync`）なので、
+ここで動いたならジョブでも同じように動きます。
+
+| やりたいこと | 操作 | DB | Slack |
+| --- | --- | --- | --- |
+| 判定の線引きを見たい | 記事 URL（または本文）を入れて**判定だけする** | 触らない | 飛ばない |
+| 一連を通したい | 記事 URL を入れて**判定して候補を作る** | 記事と候補を作る | 飛ぶ |
+| 承認の反映だけ試したい | レジと塗装名を入れて**候補を手で作る** | 候補を 1 件作る | 飛ばない |
+
+- 「判定だけする」は **Gemini の応答 JSON をそのまま画面に出す**。抽出されたレジが候補にどう入るか
+  （読み取れずに空になるかどうか）も並べて出すので、プロンプトを直す目安になる
+- **本文の貼り付けだけでも判定できる**ので、架空のニュースを書いて挙動を確かめられる
+  （候補を作るほうは一覧から記事を開けるようにしたいので URL 必須）
+- 「候補を手で作る」は Gemini を通さない。レート制限も課金も気にせず、承認 → `aircraft` の更新 →
+  更新履歴 → 写真の取り直しだけを何度でも試せる。記事欄は「（手動で作った候補）」になり、
+  URL が `manual:` で始まるため画面ではリンクにしない
+- 試したものは「判定した記事」の**削除**で片付ける。記事と未処理の候補が消え、同じ記事をもう一度
+  判定できるようになる（プロンプトを直したあとの再判定にも使う）。
+  **承認・却下した候補が付いている記事は消せない**（何を承認したのかが分からなくなるため）
+- 過去の特別塗装の記事は Aviation Wire のサイト内検索（「特別塗装」「スペシャルマーキング」など）で探せる
+
 #### アクセス集計
 
 `/AccessStats` は `LoggingMiddleware` が書いている `access_log` を集計します。
@@ -297,6 +357,7 @@ IP は携帯回線などで共有されるため、訪問者数は Cookie で数
 - Quartz.NET によるジョブスケジューリング
 - AngleSharp によるスクレイピング（Flightradar24 / JetPhotos）
 - EPPlus（航空局 Excel の解析。非商用ライセンス）
+- Gemini API（特別塗装ニュースの判定。`generateContent` を 1 つ叩くだけなので SDK は入れず `HttpClient` で直接叩く）
 - Gmail API（航空局 Excel の取込元。使うのは 3 つのエンドポイントだけなので SDK は入れず `HttpClient` で直接叩く）
 - AutoMapper、Crc32.NET、BuildBundlerMinifier、WebEssentials.AspNetCore.PWA
 - Bootstrap 3 / jQuery / jQuery UI / DataTables
@@ -336,6 +397,7 @@ JAFleet/
 │   ├── BulkRegister/ 同一型式一括登録のパーサ
 │   ├── JcabImport/   航空局 Excel の解除・解析・プレビュー生成とメール本体の読み取り
 │   ├── Gmail/        Gmail API の最小クライアント（検索・1 通取得・添付取得）
+│   ├── Livery/       特別塗装ニュースの取得・判定・承認（RSS / Gemini / 反映）
 │   ├── AccessStatsService.cs   access_log の集計（/AccessStats）
 │   ├── AircraftStore.cs        機体の登録・更新（単票編集と一括取込の共通処理）
 │   ├── SearchConditionStore.cs 名前付き検索条件の登録
@@ -374,6 +436,7 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | `RefreshWorkingStatusAndPhotoJob` | 退役以外の全機体について Flightradar24 を巡回し、稼働状況と写真を更新。変化を稼働チェックログと Slack 通知用テキストとして記録 |
 | `RefreshRetiredAircraftPhotoJob` | 退役・抹消済み機体の写真のみ更新 |
 | `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する |
+| `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
 
 ## 環境変数
 
@@ -388,6 +451,7 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | `SLACK_BOT_TOKEN` | Slack 通知（`Noobow.Commons` の `SlackUtil`） |
 | `ENCRYPTION_KEY` | `Noobow.Commons` の `AesEncryption` が使用 |
 | `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` | 航空局 Excel を Gmail から取り込む（`/JcabImport`）。3 つ揃ったときだけ Gmail の枠が使える。スコープは `gmail.readonly`。取得方法は[Gmail API の設定](#gmail-api-の設定) |
+| `GEMINI_API_KEY` | 特別塗装ニュースの判定（`/LiveryNews`）。未設定でも起動でき、その場合は判定ができないだけ |
 | `CF_ACCESS_DEV_ADMIN` | 開発専用。`ASPNETCORE_ENVIRONMENT=Development` かつ `1` のときだけ、認証済みの管理者になりすます（手元では Access の JWT が手に入らないため） |
 
 起動時に、開発専用のものを除く各変数が読めたかどうかを `変数名:Loaded` / `変数名:NotSet` で
@@ -515,7 +579,11 @@ EF Core の Migration は使わず、テーブル定義は手動で管理して�
 `alter_jcab_import_session_add_gmail_message_id.sql`（Gmail 取込の `gmail_message_id` 列）も
 **デプロイ前**に実行してください。列が無いと `/JcabImport` が開けません。
 
+`create_livery_news.sql`（特別塗装ニュースの `livery_news` / `livery_news_candidate`）も
+**デプロイ前**に実行してください。テーブルが無いと `/LiveryNews` が開けず、
+`CheckSpecialLiveryNewsJob` も動きません。
+
 主なテーブル・ビューは `JAFleet.Commons` の `JAFleetContext` を参照してください
 （`aircraft`、`aircraft_view`、`aircraft_history`、`aircraft_photo`、`working_status`、
 `airline`、`type`、`type_detail`、`code`、`search_condition`、`access_log`、`log`、
-`scheduler_def`、`jcab_import_session` など）。
+`scheduler_def`、`jcab_import_session`、`livery_news`、`livery_news_candidate` など）。

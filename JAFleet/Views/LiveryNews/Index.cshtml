@@ -1,0 +1,523 @@
+@using JAFleet.Commons.Constants
+@model JAFleet.Models.LiveryNewsModel
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "特別塗装ニュース";
+
+    string fromAdmin = Model.FromAdmin.ToString().ToLowerInvariant();
+
+    string StatusClass(string status) => status switch
+    {
+        LiveryNewsStatus.APPROVED => "ok",
+        LiveryNewsStatus.REJECTED => "ng",
+        _ => "",
+    };
+
+    //手動で作った候補の記事URLはhttpで始まらないのでリンクにしない
+    void NewsLink(string? url, string? title, bool hasLink)
+    {
+        if (hasLink)
+        {
+            <a href="@url" target="_blank" rel="noopener">@(title ?? url)</a>
+        }
+        else
+        {
+            <span>@(title ?? "（記事なし）")</span>
+        }
+    }
+}
+
+@section CssPartial {
+<style>
+/* ===== 特別塗装ニュース =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため
+   このページでは 1rem = 10px になる。remは使わずpxで指定すること。 */
+.lvn-page { padding: 16px 0 60px; max-width: 1180px; }
+.lvn-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
+.lvn-lead { font-size: 13px; color: #94a3b8; margin-bottom: 18px; line-height: 1.7; }
+
+.lvn-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.lvn-card-title { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px; }
+
+.lvn-state { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; font-size: 13px; color: #475569; }
+.lvn-state b { color: #1e293b; }
+.lvn-state .spacer { margin-left: auto; }
+
+.lvn-input {
+    height: 32px; padding: 3px 8px; min-width: 0; width: 100%;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+    font-size: 13px; color: #1e293b;
+}
+.lvn-input.reg { font-family: Consolas, monospace; font-weight: 700; text-transform: uppercase; }
+
+.lvn-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 32px; padding: 0 12px;
+    border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.lvn-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.lvn-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.lvn-btn.primary:hover { background: #1e293b; color: #fff; }
+.lvn-btn.danger { color: #b91c1c; }
+.lvn-btn.danger:hover { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.lvn-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.lvn-btn[disabled]:hover { background: #fff; color: #334155; }
+
+/* 候補の一覧。trの中にformは置けないので、行ごとにformをグリッドにする */
+.lvn-table { overflow-x: auto; }
+.lvn-row {
+    display: grid; align-items: start; gap: 8px; min-width: 980px;
+    grid-template-columns: 150px minmax(170px, 1fr) minmax(150px, 1fr) minmax(220px, 1.4fr) 164px;
+    padding: 10px 8px; border-bottom: 1px solid #f1f5f9; margin: 0;
+}
+.lvn-row.head {
+    font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .03em;
+    border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; align-items: center;
+}
+.lvn-row:hover { background: #f8fafc; }
+.lvn-row.ng { background: #fef2f2; }
+.lvn-reg { font-family: Consolas, monospace; font-size: 14px; font-weight: 700; color: #1e293b; }
+.lvn-sub { font-size: 11px; color: #94a3b8; margin-top: 3px; line-height: 1.5; }
+.lvn-now { font-size: 13px; color: #334155; word-break: break-all; }
+.lvn-now .none { color: #cbd5e1; }
+.lvn-news { font-size: 12px; line-height: 1.6; }
+.lvn-news a { color: #1d4ed8; }
+.lvn-reason { font-size: 11px; color: #94a3b8; margin-top: 4px; line-height: 1.6; }
+.lvn-ops { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.lvn-warn { font-size: 11px; font-weight: 700; color: #b91c1c; margin-top: 4px; }
+
+.lvn-error {
+    border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #b91c1c;
+    font-weight: 600; line-height: 1.7;
+}
+.lvn-ok {
+    border: 1px solid #a7f3d0; background: #ecfdf5; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 14px; color: #065f46;
+    font-weight: 700; line-height: 1.7;
+}
+.lvn-empty { padding: 24px 8px; font-size: 13px; color: #94a3b8; }
+
+/* 処理済み・判定した記事 */
+.lvn-list { width: 100%; border-collapse: collapse; font-size: 12px; }
+.lvn-list th {
+    text-align: left; font-size: 11px; font-weight: 700; color: #94a3b8;
+    border-bottom: 1px solid #e2e8f0; padding: 6px 8px; white-space: nowrap;
+}
+.lvn-list td { border-bottom: 1px solid #f1f5f9; padding: 7px 8px; color: #334155; vertical-align: top; }
+.lvn-list td.reg { font-family: Consolas, monospace; font-weight: 700; white-space: nowrap; }
+.lvn-list td.at { color: #94a3b8; white-space: nowrap; }
+.lvn-list a { color: #1d4ed8; }
+.lvn-badge {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; border: 1px solid #e2e8f0; color: #64748b; background: #f8fafc;
+}
+.lvn-badge.ok { border-color: #a7f3d0; background: #ecfdf5; color: #065f46; }
+.lvn-badge.ng { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+
+/* お試し（テスト用）。普段は畳んでおく */
+.lvn-trial { border-style: dashed; border-color: #cbd5e1; background: #fbfdff; }
+.lvn-trial > summary {
+    cursor: pointer; font-size: 13px; font-weight: 700; color: #334155; list-style: none;
+}
+.lvn-trial > summary::-webkit-details-marker { display: none; }
+.lvn-trial > summary::before { content: "▸ "; color: #94a3b8; }
+.lvn-trial[open] > summary::before { content: "▾ "; }
+.lvn-trial-note { font-size: 12px; color: #64748b; margin: 12px 0 10px; line-height: 1.8; }
+.lvn-trial-form { display: grid; gap: 8px; max-width: 760px; }
+.lvn-trial-form label { font-size: 12px; font-weight: 700; color: #475569; margin: 0; }
+.lvn-trial-form textarea {
+    width: 100%; min-height: 72px; padding: 6px 8px; box-sizing: border-box;
+    border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; color: #1e293b; resize: vertical;
+}
+.lvn-trial-ops { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.lvn-trial-sep { border: none; border-top: 1px solid #e2e8f0; margin: 18px 0 14px; }
+.lvn-trial-inline { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.lvn-trial-inline .field { display: grid; gap: 4px; }
+.lvn-trial-inline .field .lvn-input { width: 170px; }
+
+/* お試し判定の結果 */
+.lvn-judge { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; padding: 12px 16px; margin-top: 14px; }
+.lvn-judge-head { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px; }
+.lvn-judge pre {
+    background: #0f172a; color: #e2e8f0; border: none; border-radius: 8px;
+    padding: 10px 12px; font-size: 11px; line-height: 1.6; max-height: 260px; overflow: auto;
+}
+
+.lvn-help {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc;
+    padding: 14px 18px; margin-top: 20px; font-size: 13px; color: #475569; line-height: 1.8;
+}
+.lvn-help b { color: #334155; }
+.lvn-help code {
+    font-family: Consolas, monospace; font-size: 12px;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 4px;
+    padding: 1px 6px; color: #0f172a;
+}
+</style>
+}
+
+<div class="lvn-page">
+    <h2>🎨 特別塗装ニュース</h2>
+    <div class="lvn-lead">
+        Aviation Wire の RSS を日次ジョブで取得し、特別塗装機が登場した記事かどうかを Gemini に判定させています。<br />
+        承認した候補だけが <code>aircraft.special_livery</code> へ反映されます（更新前の内容は更新履歴に残ります）。
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="lvn-error">⚠ @Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="lvn-ok">✔ @Model.Message</div>
+    }
+
+    @if (!Model.GeminiConfigured)
+    {
+        <div class="lvn-error">⚠ GEMINI_API_KEY が設定されていないため、記事の判定ができません。</div>
+    }
+
+    @* ---- 状況 ---- *@
+    <div class="lvn-card">
+        <div class="lvn-state">
+            <span>最終チェック <b>@(Model.LastCheckedAt?.ToString("yyyy/MM/dd HH:mm") ?? "まだありません")</b></span>
+            <span>判定済みの記事 <b>@Model.CheckedNewsCount 件</b></span>
+            <span>未処理の候補 <b>@Model.Pending.Count 件</b></span>
+            @if (Model.Processing)
+            {
+                <span class="lvn-badge">確認中</span>
+            }
+            <form class="spacer" method="post" asp-controller="LiveryNews" asp-action="Check">
+                <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+                <button type="submit" class="lvn-btn" data-busy="確認を始めています…"
+                        @(Model.GeminiConfigured && !Model.Processing ? "" : "disabled")>
+                    🔄 いま確認する
+                </button>
+            </form>
+        </div>
+    </div>
+
+
+    @* ---- 未処理の候補 ---- *@
+    <div class="lvn-card">
+        <div class="lvn-card-title">未処理の候補</div>
+        @if (Model.Pending.Count == 0)
+        {
+            <div class="lvn-empty">未処理の候補はありません。</div>
+        }
+        else
+        {
+            <div class="lvn-table">
+                <div class="lvn-row head">
+                    <div>レジ</div>
+                    <div>塗装名（編集可）</div>
+                    <div>いまの特別塗装</div>
+                    <div>記事</div>
+                    <div></div>
+                </div>
+                @foreach (var row in Model.Pending)
+                {
+                    <form class="lvn-row @(Model.ErrorCandidateId == row.CandidateId ? "ng" : "")"
+                          method="post" asp-controller="LiveryNews" asp-action="Approve">
+                        <input type="hidden" name="candidateId" value="@row.CandidateId" />
+                        <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+                        <div>
+                            <input type="text" name="registration" class="lvn-input reg" value="@row.RegistrationNumber" placeholder="JA01XX" />
+                            @if (row.RegistrationNumber == null)
+                            {
+                                <div class="lvn-warn">記事からレジを読めませんでした</div>
+                            }
+                            else if (!row.AircraftFound)
+                            {
+                                <div class="lvn-warn">JA-Fleetに未登録</div>
+                            }
+                            else
+                            {
+                                <div class="lvn-sub">
+                                    @row.AirlineName @row.TypeName<br />
+                                    <a href="/AD/@row.RegistrationNumber?fromAdmin=@fromAdmin" target="_blank" rel="noopener">詳細</a>
+                                    ／
+                                    <a href="/E/@row.RegistrationNumber?fromAdmin=@fromAdmin" target="_blank" rel="noopener">編集</a>
+                                </div>
+                            }
+                        </div>
+                        <div>
+                            <input type="text" name="liveryName" class="lvn-input" value="@row.LiveryName" placeholder="塗装名" />
+                        </div>
+                        <div class="lvn-now">
+                            @if (string.IsNullOrEmpty(row.NowLivery))
+                            {
+                                <span class="none">（なし）</span>
+                            }
+                            else
+                            {
+                                @row.NowLivery
+                            }
+                            @if (!string.IsNullOrEmpty(row.CurrentLivery) && row.CurrentLivery != row.NowLivery)
+                            {
+                                <div class="lvn-sub">候補を作った時点: @row.CurrentLivery</div>
+                            }
+                        </div>
+                        <div>
+                            <div class="lvn-news">
+                                @{ NewsLink(row.NewsUrl, row.NewsTitle, row.NewsHasLink); }
+                                <div class="lvn-sub">@(row.PublishedAt?.ToString("yyyy/MM/dd HH:mm") ?? "")</div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(row.Reason))
+                            {
+                                <div class="lvn-reason">💬 @row.Reason</div>
+                            }
+                        </div>
+                        <div class="lvn-ops">
+                            <button type="submit" class="lvn-btn primary">承認</button>
+                            <button type="submit" class="lvn-btn danger" asp-action="Reject"
+                                    data-confirm="この候補を却下します。機体情報は変わりません。よろしいですか？">却下</button>
+                        </div>
+                    </form>
+                }
+            </div>
+        }
+    </div>
+
+    @* ---- 処理済みの候補 ---- *@
+    <div class="lvn-card">
+        <div class="lvn-card-title">処理済みの候補（直近@(Model.Resolved.Count)件）</div>
+        @if (Model.Resolved.Count == 0)
+        {
+            <div class="lvn-empty">処理済みの候補はありません。</div>
+        }
+        else
+        {
+            <table class="lvn-list">
+                <thead>
+                    <tr>
+                        <th>状況</th>
+                        <th>レジ</th>
+                        <th>塗装名</th>
+                        <th>記事</th>
+                        <th>処理日時</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Resolved)
+                    {
+                        <tr>
+                            <td><span class="lvn-badge @StatusClass(row.Status)">@LiveryNewsStatus.GetName(row.Status)</span></td>
+                            <td class="reg">
+                                @if (row.RegistrationNumber == null)
+                                {
+                                    <span>-</span>
+                                }
+                                else
+                                {
+                                    <a href="/AD/@row.RegistrationNumber?fromAdmin=@fromAdmin" target="_blank" rel="noopener">@row.RegistrationNumber</a>
+                                }
+                            </td>
+                            <td>@(row.LiveryName ?? "-")</td>
+                            <td>@{ NewsLink(row.NewsUrl, row.NewsTitle, row.NewsHasLink); }</td>
+                            <td class="at">@(row.ResolvedAt?.ToString("yyyy/MM/dd HH:mm") ?? "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    @* ---- 判定した記事 ---- *@
+    <div class="lvn-card">
+        <div class="lvn-card-title">判定した記事（直近@(Model.RecentNews.Count)件）</div>
+        @if (Model.RecentNews.Count == 0)
+        {
+            <div class="lvn-empty">まだ記事を判定していません。</div>
+        }
+        else
+        {
+            <table class="lvn-list">
+                <thead>
+                    <tr>
+                        <th>判定</th>
+                        <th>記事</th>
+                        <th>公開</th>
+                        <th>判定日時</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var news in Model.RecentNews)
+                    {
+                        <tr>
+                            <td>
+                                @if (news.SpecialLivery)
+                                {
+                                    <span class="lvn-badge ok">特別塗装 @(news.CandidateCount)機</span>
+                                }
+                                else
+                                {
+                                    <span class="lvn-badge">対象外</span>
+                                }
+                            </td>
+                            <td>
+                                @{ NewsLink(news.NewsUrl, news.Title, news.HasLink); }
+                                @if (!string.IsNullOrEmpty(news.Reason))
+                                {
+                                    <div class="lvn-reason">💬 @news.Reason</div>
+                                }
+                            </td>
+                            <td class="at">@(news.PublishedAt?.ToString("yyyy/MM/dd HH:mm") ?? "")</td>
+                            <td class="at">@news.CheckedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                            <td>
+                                @if (news.CanDelete)
+                                {
+                                    <form method="post" asp-controller="LiveryNews" asp-action="DeleteNews">
+                                        <input type="hidden" name="newsId" value="@news.NewsId" />
+                                        <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+                                        <button type="submit" class="lvn-btn danger"
+                                                data-confirm="この記事とその未処理の候補を消します。もう一度判定できるようになります。よろしいですか？">削除</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <span class="lvn-sub">処理済みの候補あり</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <div class="lvn-help">
+        <b>判定の流れ</b><br />
+        日次ジョブ <code>CheckSpecialLiveryNewsJob</code> が RSS を取得し、まだ見ていない記事だけを Gemini に投げます。
+        判定した記事は特別塗装でなかったものも記録するので、同じ記事を二度判定することはありません。<br />
+        特別塗装と判定されると、記事に出てきた機体ごとに候補ができて Slack に通知が飛びます。
+        すでに同じ塗装が登録されている機体は「差分なし」として処理済みにするため、ここには出ません。<br />
+        記事からレジを読めなかった場合も候補は作られます。レジを自分で入れてから承認してください。<br />
+        ニュースを待たずに試したいときは、この下の「🧪 お試し（テスト用）」から。試したものは「判定した記事」の削除で片付けられます
+        （消せば同じ記事をもう一度判定できるので、プロンプトを直したあとの再判定にも使えます）。
+    </div>
+
+    @* ---- お試し（テスト用） ---- *@
+    <details class="lvn-card lvn-trial" id="trial" @(Model.Trial != null || Model.TrialRegistration != null ? "open" : "")>
+        <summary>🧪 お試し（テスト用）</summary>
+        <div class="lvn-trial-note">
+            特別塗装のニュースが出るのを待たずに試せます。通る処理は日次ジョブとまったく同じものです。<br />
+            <b>記事を1本判定する</b>…過去の記事 URL を入れて判定を試します。「判定だけ」なら DB には何も書きません。
+            「候補を作る」まで押すと本番と同じく候補ができて Slack にも通知が飛びます。<br />
+            <b>候補を手で作る</b>…Gemini を通さずに候補を 1 件作ります。承認したときの反映
+            （機体情報・更新履歴・写真の取り直し）だけを何度でも試せます。<br />
+            試したあとは「判定した記事」の削除で片付けられます。消せばもう一度同じ記事を判定できます。
+        </div>
+
+        <form class="lvn-trial-form" method="post" asp-controller="LiveryNews" asp-action="Trial">
+            <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+            <label for="trialUrl">記事URL（判定して候補を作る場合は必須）</label>
+            <input type="text" id="trialUrl" name="url" class="lvn-input" value="@Model.TrialUrl"
+                   placeholder="https://www.aviationwire.jp/archives/000000" />
+            <label for="trialTitle">タイトル（任意）</label>
+            <input type="text" id="trialTitle" name="title" class="lvn-input" value="@Model.TrialTitle" />
+            <label for="trialSummary">本文・概要（任意。URL が読めないときや、架空のニュースで試したいときに貼る）</label>
+            <textarea id="trialSummary" name="summary" placeholder="全日本空輸は、ボーイング787-9型機（JA926A）に特別塗装を施した…">@Model.TrialSummary</textarea>
+            <div class="lvn-trial-ops">
+                <button type="submit" name="save" value="false" class="lvn-btn"
+                        data-busy="判定しています…">判定だけする（保存しない）</button>
+                <button type="submit" name="save" value="true" class="lvn-btn primary"
+                        data-busy="判定して候補を作っています…"
+                        data-confirm="本番と同じ処理を通します。候補ができて Slack にも通知が飛びます。よろしいですか？">判定して候補を作る</button>
+            </div>
+        </form>
+
+        <hr class="lvn-trial-sep" />
+
+        <form class="lvn-trial-inline" method="post" asp-controller="LiveryNews" asp-action="Manual">
+            <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+            <div class="field">
+                <label for="trialReg">レジ</label>
+                <input type="text" id="trialReg" name="registration" class="lvn-input reg" value="@Model.TrialRegistration" placeholder="JA01XX" />
+            </div>
+            <div class="field">
+                <label for="trialLivery">塗装名</label>
+                <input type="text" id="trialLivery" name="liveryName" class="lvn-input" value="@Model.TrialLiveryName" placeholder="テスト塗装" />
+            </div>
+            <button type="submit" class="lvn-btn">候補を手で作る（Geminiを使わない）</button>
+        </form>
+
+        @if (Model.Trial?.Response != null)
+        {
+            <div class="lvn-judge">
+                <div class="lvn-judge-head">
+                    判定結果：
+                    @if (Model.Trial.Response.SpecialLivery)
+                    {
+                        <span class="lvn-badge ok">特別塗装</span>
+                    }
+                    else
+                    {
+                        <span class="lvn-badge">対象外</span>
+                    }
+                    <span class="lvn-sub">（保存していません）</span>
+                </div>
+                @if (!string.IsNullOrEmpty(Model.Trial.Response.Reason))
+                {
+                    <div class="lvn-reason">💬 @Model.Trial.Response.Reason</div>
+                }
+                @if (Model.Trial.Response.Targets is { Count: > 0 })
+                {
+                    <table class="lvn-list" style="margin-top:8px;">
+                        <thead>
+                            <tr>
+                                <th>レジ（記事のまま）</th>
+                                <th>候補に入る形</th>
+                                <th>塗装名</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var target in Model.Trial.Response.Targets)
+                            {
+                                var normalized = JAFleet.Services.Livery.LiveryNewsChecker.NormalizeRegistration(target.Registration);
+                                <tr>
+                                    <td class="reg">@(target.Registration ?? "-")</td>
+                                    <td class="reg">@(normalized ?? "（読み取れないので空になります）")</td>
+                                    <td>@(target.LiveryName ?? "-")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                <div class="lvn-judge-head" style="margin:12px 0 6px;">Geminiの応答</div>
+                <pre>@Model.Trial.Raw</pre>
+            </div>
+        }
+    </details>
+</div>
+
+<partial name="_BusyOverlay" />
+
+@section ScriptsPartial {
+<partial name="_BusyOverlayScript" />
+<script>
+    $(function () {
+        //却下や削除は押し間違いで戻せないので確認する。
+        //取り消したらぐるぐる（data-busy）まで届かないよう伝播も止める
+        $('[data-confirm]').on('click', function (e) {
+            if (!confirm($(this).data('confirm'))) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
+        //お試し欄は一番下にあるので、送ったあと（開いた状態で返ってきたとき）はそこまで送る
+        const trial = document.getElementById('trial');
+        if (trial && trial.open) {
+            trial.scrollIntoView({ block: 'start' });
+        }
+    });
+</script>
+}
