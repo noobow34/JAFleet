@@ -23,6 +23,15 @@ namespace JAFleet.Services.JcabImport
         /// <summary>Gmailから一度に取ってくる件数。1通ずつAPIを叩くので欲張らない。</summary>
         public const int GMAIL_SEARCH_MAX = 10;
 
+        /// <summary>
+        /// プレビューの「取込を実行」「一時保存」で受け取るフォーム項目数の上限。
+        /// プレビューはチェックの有無に関係なく全レジ（隠している「対象外」も含む）の入力欄を送り、
+        /// 1レジあたり9〜11項目になる。ASP.NET Coreの既定（1024）だと約113レジで読めなくなり、
+        /// 引数のmodelがnullのままアクションが呼ばれて落ちていた（2026年10月分は123レジで発生）。
+        /// 10000なら900レジ程度まで受けられる。
+        /// </summary>
+        public const int FORM_VALUE_COUNT_LIMIT = 10000;
+
         /// <summary>送信年月日を何日前まで遡ってパスワードを試すか</summary>
         public const int PASSWORD_RETRY_DAYS = 7;
 

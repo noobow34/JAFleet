@@ -338,11 +338,16 @@ namespace JAFleet.Controllers
 
         /// <summary>編集内容だけを保存して、プレビューに戻る</summary>
         [HttpPost]
-        public IActionResult Save(JcabImportModel model)
+        [RequestFormLimits(ValueCountLimit = JcabImportConstant.FORM_VALUE_COUNT_LIMIT)]
+        public IActionResult Save(JcabImportModel? model)
         {
             if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
+            }
+            if (model == null)
+            {
+                return FormNotRead();
             }
 
             model.Title = "Excel取込";
@@ -384,11 +389,16 @@ namespace JAFleet.Controllers
         /// プレビューの中身はPOSTで往復させず、一時保存のファイルから解析し直して突き合わせる。
         /// </summary>
         [HttpPost]
-        public IActionResult Execute(JcabImportModel model)
+        [RequestFormLimits(ValueCountLimit = JcabImportConstant.FORM_VALUE_COUNT_LIMIT)]
+        public IActionResult Execute(JcabImportModel? model)
         {
             if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
+            }
+            if (model == null)
+            {
+                return FormNotRead();
             }
 
             model.Title = "Excel取込";
@@ -596,6 +606,29 @@ namespace JAFleet.Controllers
             session.OverridesJson = JcabRowOverrideSerializer.Serialize(overrides);
             session.UpdatedAt = DateTime.Now;
             _context.SaveChanges();
+        }
+
+        /// <summary>
+        /// 送られてきたフォームを読めず、引数がnullのまま呼ばれたとき。項目数の上限を超えた場合などにここへ来る。
+        /// MVCはフォームの読み込みに失敗すると引数のバインドを丸ごと飛ばし、理由はModelStateにだけ残す。
+        /// どの一時保存の操作だったかも分からないので、取込画面に戻して理由を出す。
+        /// </summary>
+        private IActionResult FormNotRead()
+        {
+            string reason = string.Join(" ", ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.Exception?.Message ?? e.ErrorMessage)
+                .Where(m => !string.IsNullOrEmpty(m)));
+
+            JcabImportModel model = new()
+            {
+                Title = "Excel取込",
+                ErrorMessage = "画面から送られてきた内容を読み取れなかったため、何も登録・保存していません。"
+                             + "「作業中のファイル」から再開してやり直してください。"
+                             + (reason.Length > 0 ? $"（{reason}）" : string.Empty),
+            };
+            LoadIndexLists(model);
+            return View("Index", model);
         }
 
         /// <summary>

@@ -113,7 +113,8 @@
     @if (!string.IsNullOrEmpty(Model.ErrorMessage))
     {
         <div class="imp-error">
-            <div class="imp-error-title">解除できませんでした</div>
+            @*解除の失敗だけでなく、Gmailの取得失敗や送信内容を読めなかった場合もここに出る*@
+            <div class="imp-error-title">処理できませんでした</div>
             <div class="imp-error-body">@Model.ErrorMessage</div>
         </div>
     }
