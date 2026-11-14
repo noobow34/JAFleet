@@ -427,26 +427,60 @@ namespace JAFleet.Services.JcabImport
         }
 
         /// <summary>
-        /// 所有者名から航空会社を推定する。
-        /// 「ANAホールディングス株式会社」のようにマスタの名称を含む形で入ってくるので部分一致で拾い、
-        /// 一致した名称が最も長いものを採用する。Phase3でエイリアスマスタに置き換える。
+        /// 所有者名から航空会社を推定する。Phase3でエイリアスマスタに置き換える。
+        ///
+        /// 所有者名は「日本航空株式会社」「ANAホールディングス株式会社」「株式会社AIRDO」のように、
+        /// マスタの名称の前後に会社の種類が付いた形で来る。以前は名称を含んでいれば一致としていたが、
+        /// 「中日本航空株式会社」が「日本航空」に当たってJALと推定されていた（2026年10月分のJA848N）。
+        /// マスタには ANA・JAL・RAC のような3文字の名称もあり、英語名の所有者（CANADA…）でも誤爆しうる。
+        /// そこで会社の種類を前後から外したうえで、名称が**先頭から**一致するものだけを拾う。
+        /// 複数当たれば最も長い名称を採用する（リストは長い順に並んでいる）。
         /// </summary>
-        private static (string? Code, string? Name) MatchAirline(string? owner, List<(string Code, string Name, string Normalized)> airlineNames)
+        public static (string? Code, string? Name) MatchAirline(string? owner, IEnumerable<(string Code, string Name, string Normalized)> airlineNames)
         {
-            if (string.IsNullOrEmpty(owner))
+            string core = OwnerCore(owner);
+            if (core.Length == 0)
             {
                 return (null, null);
             }
 
-            string normalizedOwner = TextUtil.Normalize(owner);
             foreach ((string code, string name, string normalized) in airlineNames)
             {
-                if (normalizedOwner.Contains(normalized, StringComparison.Ordinal))
+                if (core.StartsWith(normalized, StringComparison.Ordinal))
                 {
                     return (code, name);
                 }
             }
             return (null, null);
+        }
+
+        /// <summary>前後に付く会社の種類。長いものを先に外す必要は無い（どれも他の語を含まない）</summary>
+        private static readonly string[] CORPORATE_FORMS =
+        [
+            "株式会社", "有限会社", "合同会社", "合資会社", "合名会社",
+            "一般社団法人", "一般財団法人", "公益社団法人", "公益財団法人",
+            "学校法人", "独立行政法人",
+        ];
+
+        /// <summary>
+        /// 名称の本体。正規化したうえで、前後に付いた会社の種類（株式会社など）を外す。
+        /// 所有者名とマスタの名称の両方に通して、同じ土俵で比べる。
+        /// </summary>
+        public static string OwnerCore(string? name)
+        {
+            string core = TextUtil.Normalize(name);
+            foreach (string form in CORPORATE_FORMS)
+            {
+                if (core.StartsWith(form, StringComparison.Ordinal))
+                {
+                    core = core[form.Length..];
+                }
+                if (core.EndsWith(form, StringComparison.Ordinal))
+                {
+                    core = core[..^form.Length];
+                }
+            }
+            return core;
         }
 
         private static TypeDetail? MatchTypeDetail(string? typeName, List<TypeDetail> typeDetails)
@@ -463,12 +497,13 @@ namespace JAFleet.Services.JcabImport
                        TextUtil.Normalize(t.TypeDetailName) == normalized);
         }
 
-        /// <summary>航空会社マスタの各名称を、長いものから順に並べた突き合わせ用リストにする</summary>
         private List<(string Code, string Name, string Normalized)> BuildAirlineNames()
-        {
-            IEnumerable<Airline> airlines = MasterManager.AllAirline
-                ?? _context.Airlines.AsNoTracking().Where(a => !a.Deleted).ToArray();
+            => BuildAirlineNames(MasterManager.AllAirline
+                ?? _context.Airlines.AsNoTracking().Where(a => !a.Deleted).ToArray());
 
+        /// <summary>航空会社マスタの各名称を、長いものから順に並べた突き合わせ用リストにする</summary>
+        public static List<(string Code, string Name, string Normalized)> BuildAirlineNames(IEnumerable<Airline> airlines)
+        {
             List<(string, string, string)> names = [];
             foreach (Airline airline in airlines)
             {
@@ -478,7 +513,8 @@ namespace JAFleet.Services.JcabImport
                              airline.AirlineNameEn, airline.AirlineNameEnShort,
                          })
                 {
-                    string normalized = TextUtil.Normalize(candidate);
+                    //所有者名と同じく会社の種類を外しておく（マスタに「株式会社」付きで入っていても比べられる）
+                    string normalized = OwnerCore(candidate);
                     //1文字の名称は誤爆するので使わない
                     if (normalized.Length >= 2)
                     {
