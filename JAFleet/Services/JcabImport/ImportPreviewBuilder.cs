@@ -1,4 +1,4 @@
-using JAFleet.Commons.Constants;
+﻿using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -220,6 +220,31 @@ namespace JAFleet.Services.JcabImport
         }
 
         /// <summary>
+        /// 登録年月日の初期値。
+        ///   新規登録 … その登録年月日
+        ///   予約登録 … F列2行目の納入予定年月日。1行目の予約年月日は予約を受け付けた日で、
+        ///              機体の登録年月日ではない。予定は月までのことが多く、そのときは yyyy/MM のまま入れる
+        ///   移転・変更・抹消 … JAFleetの現在値を残す。JAFleetに無ければ最新のイベントの日付
+        /// 予定年月日が読めなかった予約登録が、最後の逃げ道で予約年月日を拾ってしまわないよう、
+        /// 「最新のイベントの日付」の候補から予約登録は外している（空のまま要確認に回す）。
+        /// </summary>
+        public static string? SuggestRegisterDate(ImportPreviewItem item, Aircraft? aircraft)
+        {
+            string? fromRegistration = item.Events
+                .Where(e => e.RecordType is JcabRecordType.New or JcabRecordType.Reservation)
+                .Select(e => e.RecordType == JcabRecordType.Reservation ? e.ScheduledDate : e.RegisterDate)
+                .LastOrDefault(d => d != null);
+
+            return fromRegistration
+                ?? aircraft?.RegisterDate
+                ?? item.Events
+                    .Where(e => e.RecordType != JcabRecordType.Reservation)
+                    .Select(e => e.RegisterDate)
+                    .Where(d => d != null)
+                    .Max();
+        }
+
+        /// <summary>
         /// 画面に出す編集フォームの初期値を決める。
         /// 既存機は現在値を残し、Excelから読めたものだけ上書き候補にする。
         /// 初期値をそのまま実行しても現状維持になるので、意図しない書き換えが起きない。
@@ -234,12 +259,7 @@ namespace JAFleet.Services.JcabImport
 
             item.EditOperationCode = SuggestOperationCode(item, aircraft);
 
-            //新規登録・予約登録はその日付が登録年月日そのもの。移転や変更では現在値を残す。
-            JcabRecord? registerEvent = item.Events.LastOrDefault(e =>
-                e.RecordType is JcabRecordType.New or JcabRecordType.Reservation && e.RegisterDate != null);
-            item.EditRegisterDate = registerEvent?.RegisterDate
-                ?? aircraft?.RegisterDate
-                ?? item.LatestDate;
+            item.EditRegisterDate = SuggestRegisterDate(item, aircraft);
 
             //製造番号は「未定」で来ることがあるので採用しない
             string? serial = item.Events
@@ -324,7 +344,16 @@ namespace JAFleet.Services.JcabImport
             }
             if (latest.RegisterDate == null && latest.RegisterDateRaw != null)
             {
-                item.Reasons.Add($"登録年月日「{latest.RegisterDateRaw}」を日付として読めません");
+                //予約登録の1行目は予約を受け付けた日で、登録年月日ではない
+                string label = latest.RecordType == JcabRecordType.Reservation ? "予約年月日" : "登録年月日";
+                item.Reasons.Add($"{label}「{latest.RegisterDateRaw}」を日付として読めません");
+            }
+            //予約登録は2行目の納入予定年月日が登録年月日になる。読めなければ初期値が空になるので確認に回す
+            if (latest.RecordType == JcabRecordType.Reservation && latest.ScheduledDate == null)
+            {
+                item.Reasons.Add(latest.ScheduledDateRaw == null
+                    ? "納入予定年月日が空です"
+                    : $"納入予定年月日「{latest.ScheduledDateRaw}」を日付として読めません");
             }
 
             if (item.Reasons.Count > 0)

@@ -133,8 +133,12 @@ namespace JAFleet.Services.JcabImport
                         ReadTypeCells(sheet, start, end, record);
                         record.SerialNumber = Cell(sheet, start, COL_D, end);
                         ReadOwnerCells(sheet, start, end, COL_E, record);
+                        //F列は2段。1行目が予約年月日（予約を受け付けた日）、2行目が納入予定年月日。
+                        //機体の登録年月日にするのは2行目の方（ImportPreviewBuilder.SuggestRegisterDate）
                         ReadRegisterDate(sheet, start, COL_F, record);
-                        record.ScheduledDate = JcabDateUtil.ToLooseDateString(CellValue(sheet, start + 1, COL_F, end));
+                        object? scheduled = CellValue(sheet, start + 1, COL_F, end);
+                        record.ScheduledDate = JcabDateUtil.ToLooseDateString(scheduled);
+                        record.ScheduledDateRaw = TextUtil.Clean(scheduled);
                         record.Note = Cell(sheet, start, COL_G, end);
                         break;
                 }

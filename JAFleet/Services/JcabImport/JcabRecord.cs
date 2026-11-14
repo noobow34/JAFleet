@@ -83,8 +83,14 @@ namespace JAFleet.Services.JcabImport
 
         public string? ChangeOld { get; set; }
 
-        /// <summary>納入予定年月日（予約登録）</summary>
+        /// <summary>
+        /// 納入予定年月日（予約登録のF列2行目）。月までのことが多く、そのときは yyyy/MM。
+        /// 予約登録ではこちらが機体の登録年月日になる（RegisterDateは予約を受け付けた日）。
+        /// </summary>
         public string? ScheduledDate { get; set; }
+
+        /// <summary>Excelに入っていた納入予定年月日の生の値（日付が読めなかったときの表示用）</summary>
+        public string? ScheduledDateRaw { get; set; }
 
         /// <summary>摘要</summary>
         public string? Note { get; set; }
