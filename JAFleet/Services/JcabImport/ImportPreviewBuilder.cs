@@ -73,6 +73,19 @@ namespace JAFleet.Services.JcabImport
 
         public string? LatestDate => Events.Select(e => e.RegisterDate).Where(d => d != null).Max();
 
+        /// <summary>
+        /// 同じグループと見なした行の目印（ImportPreviewBuilder.AssignGroups）。
+        /// レジの形・Excelの型式・所有者がすべて同じ行が2つ以上あるときだけ入る。
+        /// 画面で、詳細型式とチェックをグループ内の後ろの行へ反映するのに使う。
+        /// </summary>
+        public string? GroupKey { get; set; }
+
+        /// <summary>画面に出すグループ名。レジの形（JA##EA）。</summary>
+        public string? GroupLabel { get; set; }
+
+        /// <summary>グループの機数</summary>
+        public int GroupSize { get; set; }
+
         //ここから下は取込フォームの初期値。既存機は現在値を、新規はExcelとマスタ推定を入れる。
         public string? EditAirline { get; set; }
 
@@ -190,6 +203,8 @@ namespace JAFleet.Services.JcabImport
                 preview.Items.Add(item);
             }
 
+            AssignGroups(preview.Items);
+
             preview.Items = preview.Items
                 .OrderBy(i => (int)i.Category)
                 .ThenBy(i => i.RegistrationNumber, StringComparer.Ordinal)
@@ -218,6 +233,49 @@ namespace JAFleet.Services.JcabImport
                 item.Category = saved.Category.Value;
             }
         }
+
+        /// <summary>
+        /// 同じグループと見なす行に印を付ける。
+        ///
+        /// 航空会社は同じ機種をまとめて発注して連番のレジ（JA01EA〜JA29EA など）を付けるので、
+        /// 1か月分のExcelの中では、レジの形が同じ行はたいてい同じ機材のまとまりになる。
+        /// ただしレジの形だけでは粗い。既存機を見ると JA###A は6社18型式、JA###J は4社12型式に
+        /// またがっていて、2026年10月分でも JA##XJ に、JALのA350-900の予約20機と、
+        /// リース会社へのA350-941の移転（JA14XJ）が混ざっていた。
+        /// そこで、Excelに必ず載っている型式と所有者も一致することを条件に加える。
+        /// 表記ゆれ（半角カナ・中黒など）はTextUtil.Normalizeで吸収する。
+        /// 型式が読めていない行（変更登録だけの行など）は束ねない。
+        /// </summary>
+        public static void AssignGroups(IEnumerable<ImportPreviewItem> items)
+        {
+            foreach (IGrouping<string, ImportPreviewItem> group in items
+                .Where(i => !string.IsNullOrEmpty(i.TypeDisplay))
+                .GroupBy(GroupKeyOf))
+            {
+                List<ImportPreviewItem> members = group.ToList();
+                if (members.Count < 2)
+                {
+                    continue;
+                }
+
+                foreach (ImportPreviewItem member in members)
+                {
+                    member.GroupKey = group.Key;
+                    member.GroupLabel = RegistrationShape(member.RegistrationNumber);
+                    member.GroupSize = members.Count;
+                }
+            }
+        }
+
+        public static string GroupKeyOf(ImportPreviewItem item)
+            => $"{RegistrationShape(item.RegistrationNumber)}|{TextUtil.Normalize(item.TypeDisplay)}|{TextUtil.Normalize(item.Owner)}";
+
+        /// <summary>
+        /// レジの形。数字だけを#にする（JA01EA → JA##EA、JA892J → JA###J）。
+        /// 形が同じなら桁数も同じなので、グループ内の前後はレジの文字列比較で決められる。
+        /// </summary>
+        public static string RegistrationShape(string registration)
+            => new(registration.Select(c => char.IsAsciiDigit(c) ? '#' : c).ToArray());
 
         /// <summary>
         /// 登録年月日の初期値。

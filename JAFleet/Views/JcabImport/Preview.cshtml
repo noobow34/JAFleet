@@ -125,6 +125,9 @@
 .imp-state.new   { background: #dcfce7; color: #166534; }
 .imp-state.done  { background: #dcfce7; color: #166534; }
 .imp-state.moved { background: #ede9fe; color: #5b21b6; }
+.imp-state.group { background: #fef3c7; color: #92400e; cursor: help; }
+/* グループの後ろへ反映したときだけ出す一言。数秒で消える */
+.imp-group-msg { font-size: 12px; color: #b45309; font-weight: 600; }
 .imp-date { margin-left: auto; font-size: 13px; color: #94a3b8; white-space: nowrap; }
 
 .imp-event { font-size: 13px; color: #475569; line-height: 1.7; padding-left: 2px; }
@@ -345,8 +348,9 @@
                         bool serialChanged = item.ExistsInJAFleet && item.CurrentSerialNumber != item.EditSerialNumber;
                         bool remarksChanged = item.ExistsInJAFleet && item.CurrentRemarks != item.EditRemarks;
 
+                        @* data-groupはグループに入っている行だけに付く（nullなら属性ごと出ない） *@
                         <div class="imp-item @(item.Category == ImportCategory.NeedsReview ? "review" : "") @(item.Category == ImportCategory.OutOfScope ? "outofscope" : "")"
-                             data-reg="@key">
+                             data-reg="@key" data-group="@item.GroupKey">
                             @* レジをキーにしているので、行を移動しても番号を振り直さなくてよい *@
                             <input type="hidden" name="Rows.Index" value="@key" />
                             <input type="hidden" name="Rows[@key].RegistrationNumber" value="@key" />
@@ -371,6 +375,12 @@
                                 @if (item.MovedByUser)
                                 {
                                     <span class="imp-state moved">手動移動</span>
+                                }
+                                @if (item.GroupKey != null)
+                                {
+                                    <span class="imp-state group"
+                                          title="レジの形・Excelの型式・所有者が同じ @item.GroupSize 機。詳細型式とチェックは、このグループの後ろのレジにも反映されます">🔗 @item.GroupLabel ×@item.GroupSize</span>
+                                    <span class="imp-group-msg"></span>
                                 }
                                 @foreach (JcabRecord ev in item.Events)
                                 {
@@ -642,7 +652,68 @@
             $('.imp-nohistory').prop('checked', $(this).prop('checked'));
         });
 
-        $(document).on('change', '.imp-select', refreshCount);
+        // ---- グループの後ろの行へ反映 ----
+        // レジの形・Excelの型式・所有者が同じ行（サーバ側でdata-groupを付けてある）は同じ機材のまとまりと
+        // 見なし、ある行で詳細型式やチェックを変えたら、同じグループでレジが後ろの行にも同じ値を入れる。
+        // 前の行には入れないので、途中から仕様が変わるまとまり（例: 61機目から別の詳細型式）は、
+        // 変わり目の行で選び直せばそこから後ろだけが変わる（Excelのフィルダウンと同じ考え方）。
+        // 「対象外」へ外した行は、外した意図を優先して触らない（元の行も対象外なら反映する）。
+        // レジの形が同じなら桁数も同じなので、前後は文字列の比較で決まる。
+        const followersOf = function (row) {
+            const group = row.attr('data-group');
+            if (!group) { return $(); }
+            const reg = row.attr('data-reg');
+            const sourceOut = row.find('.imp-category').val() === 'OutOfScope';
+            return $('.imp-item').filter(function () {
+                const other = $(this);
+                return other.attr('data-group') === group
+                    && other.attr('data-reg') > reg
+                    && (sourceOut || other.find('.imp-category').val() !== 'OutOfScope');
+            });
+        };
+
+        const showGroupMessage = function (row, text) {
+            const message = row.find('.imp-group-msg');
+            clearTimeout(message.data('timer'));
+            message.stop(true, true).text(text).show();
+            message.data('timer', setTimeout(function () { message.fadeOut(400); }, 4000));
+        };
+
+        // 値の書き込みはchangeを発火させないので、ここから先へ連鎖することはない
+        const propagateTypeDetail = function (row) {
+            const value = row.find('select[name$=".TypeDetailId"]').val();
+            const followers = followersOf(row);
+            followers.each(function () {
+                const other = $(this);
+                other.find('select[name$=".TypeDetailId"]').val(value);
+                // 型式が決まった行には、もう新規登録の案内は要らない
+                if (value) { other.find('.imp-addtype').remove(); }
+            });
+            return followers.length;
+        };
+
+        const propagateSelected = function (row) {
+            const followers = followersOf(row);
+            followers.find('.imp-select').prop('checked', row.find('.imp-select').prop('checked'));
+            return followers.length;
+        };
+
+        $(document).on('change', 'select[name$=".TypeDetailId"]', function () {
+            const row = $(this).closest('.imp-item');
+            const count = propagateTypeDetail(row);
+            if (count > 0) {
+                showGroupMessage(row, '→ 後ろの ' + count + ' 機にも詳細型式を反映しました');
+            }
+        });
+
+        $(document).on('change', '.imp-select', function () {
+            const row = $(this).closest('.imp-item');
+            const count = propagateSelected(row);
+            if (count > 0) {
+                showGroupMessage(row, '→ 後ろの ' + count + ' 機の選択も' + ($(this).prop('checked') ? '入れました' : '外しました'));
+            }
+            refreshCount();
+        });
 
         // ---- セクション間の移動 ----
         const sectionIdOf = { 'Ready': 'group-ready', 'Transfer': 'group-transfer', 'NeedsReview': 'group-review', 'OutOfScope': 'group-outofscope' };
@@ -770,6 +841,13 @@
                 const row = target.closest('.imp-item');
                 row.find('.imp-select').prop('checked', true);
                 row.find('.imp-addtype').remove();
+
+                // ここはchangeを経由しないので、グループの後ろへの反映もここで行う
+                const count = propagateTypeDetail(row);
+                propagateSelected(row);
+                if (count > 0) {
+                    showGroupMessage(row, '→ 後ろの ' + count + ' 機にも詳細型式と選択を反映しました');
+                }
                 refreshCount();
 
                 $('#typeDetailModal').modal('hide');
