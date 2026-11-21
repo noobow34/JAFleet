@@ -59,6 +59,7 @@ namespace JAFleet.Batch
             AngleSharp.IConfiguration? _config = Configuration.Default.WithDefaultLoader().WithDefaultCookies().WithXPath();
             IBrowsingContext _context = BrowsingContext.New(_config);
             var r = new Random();
+            bool accessChecked = false;
 
             foreach (AircraftView a in _targetRegistrationNumber)
             {
@@ -75,6 +76,22 @@ namespace JAFleet.Batch
                     {
                         string url = $"{FlightradarConstant.FR24_DATA_URL}{a.RegistrationNumber}";
                         var doc = await _context.OpenAsync(url);
+
+                        //最初の1機で403ならFR24に弾かれている。全機を非稼働で上書きしないよう、
+                        //何も保存せずに中止する（SaveChangesは最後にしか呼ばないので、ここで抜ければDBは変わらない）
+                        if (!accessChecked)
+                        {
+                            accessChecked = true;
+                            if (Fr24AccessCheck.IsForbidden(doc))
+                            {
+                                this.JournalWriteLine($"{a.RegistrationNumber}:Flightradar24から403のため中止");
+                                await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(),
+                                    Fr24AccessCheck.BuildMessage("RefreshWorkingStatus", a.RegistrationNumber, DateTime.Now));
+                                Processing = false;
+                                return;
+                            }
+                        }
+
                         var row = doc?.Body?.GetElementsByClassName("data-row");
                         var ap = AircraftDataExtractor.ExtractPhotoDataFromJetphotos(doc);
 

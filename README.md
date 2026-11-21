@@ -505,6 +505,12 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | --- | --- |
 | `RefreshWorkingStatusAndPhotoJob` | 退役以外の全機体について Flightradar24 を巡回し、稼働状況と写真を更新。変化を稼働チェックログと Slack 通知用テキストとして記録 |
 | `RefreshRetiredAircraftPhotoJob` | 退役・抹消済み機体の写真のみ更新 |
+
+Flightradar24 を巡回する処理（上の2つと、管理コンソールからの手動実行）は、**最初の1機で 403 が返ったら
+何も保存せずに中止し、Slack へ通知します**。FR24 は Cloudflare のボット対策でサーバーからのリクエストに
+403 を返すことがあり、そのまま続けると全機体を「運航なし」「写真なし」で上書きしてしまうためです
+（DB への保存は最後にまとめて行うので、途中で抜ければ何も変わりません）。中止した日は稼働チェックログが
+作られないので、`NotifyWorkingStatusJob` は「未実行」の警告を出します。
 | `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する |
 | `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
 
