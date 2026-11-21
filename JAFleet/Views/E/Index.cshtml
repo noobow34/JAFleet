@@ -1,21 +1,10 @@
 ﻿@model EditModel
 @{
-    if (Model.NoHead)
-    {
-        Layout = "_LayoutNoHead";
-    }
-    else
-    {
-        Layout = "_Layout";
-    }
-    if (Model.IsNew)
-    {
-        Model.Title = "新規";
-    }
-    else
-    {
-        Model.Title = Model.Aircraft?.RegistrationNumber;
-    }
+    Layout = Model.NoHead ? "_LayoutNoHead" : "_Layout";
+    Model.Title = Model.IsNew ? "新規" : Model.Aircraft?.RegistrationNumber;
+
+    string fromAdmin = Model.FromAdmin.ToString().ToLowerInvariant();
+    string? reg = Model.Aircraft?.RegistrationNumber;
 
     @* name・idは DropDownListFor が作っていたものと同じにして、既存のJSとモデルバインドをそのまま使う *@
     var typeDetailPicker = new TypeDetailPickerModel
@@ -36,265 +25,419 @@
         TypeList = Model.TypeList,
         TypeDetailList = Model.TypeDetailList,
     };
-}
-@if (Model.IsNew)
-{
-    <h1>新規</h1>
-}
-else
-{
-    <h1 style="display:inline;">@Model.Aircraft?.RegistrationNumber</h1>
-    <input type="button" value="c" id="copy" class="btn btn-primary btn-xs" data-clipboard-target="#LinkPage">
-    <input type="button" value="t" id="tweet"  class="btn btn-primary btn-xs" onClick="location.href = 'https://twitter.com/intent/tweet?text=@(Model.Aircraft!.RegistrationNumber)%0a@(Model.LinkPage)';">
-}
-@Html.HiddenFor(model => model.LinkPage, new { @class = "form-control" })
 
-@if (Model.ex != null)
-{
-    @Model.ex.ToString()
+    //見出しに出す、いまの値の名前
+    string? airlineName = Model.AirlineList?.FirstOrDefault(a => a.AirlineCode == Model.Aircraft?.Airline)?.AirlineNameJpShort;
+    string? typeDetailName = Model.TypeDetailList?.FirstOrDefault(t => t.TypeDetailId == Model.Aircraft?.TypeDetailId)?.TypeDetailName;
+    string? operationName = Model.OperationList?.FirstOrDefault(c => c.Key == Model.Aircraft?.OperationCode)?.Value;
+    bool? maintenance = Model.Aircraft?.MaintenanceNotify;
 }
-@if (!string.IsNullOrEmpty(Model.ErrorMessage))
-{
-    <div class="e-rsv-error">⚠ @Model.ErrorMessage</div>
-}
-@if (!string.IsNullOrEmpty(Model.Message))
-{
-    <div class="e-rsv-ok">✔ @Model.Message</div>
-}
-@if (Model.Reservations.Count > 0)
-{
-    @* 予約中の更新。反映日が来たら日次ジョブが入れる。ここで直した内容とぶつからないか見られるように出す *@
-    <div class="e-rsv">
-        <div class="e-rsv-title">📅 予約中の更新（@Model.Reservations.Count 件）
-            <a href="/AircraftReservation?reg=@Model.Aircraft!.RegistrationNumber&fromAdmin=@Model.FromAdmin.ToString().ToLowerInvariant()">一覧</a>
-        </div>
-        @foreach (var r in Model.Reservations)
-        {
-            <div class="e-rsv-row">
-                <span class="e-rsv-date">@r.ApplyDate.ToString("yyyy/MM/dd")</span>
-                <span class="e-rsv-body">
-                    @foreach (var c in r.Changes)
-                    {
-                        <span class="e-rsv-change"><b>@c.FieldName</b> @c.Before → <b>@c.After</b></span>
-                    }
-                    <span class="e-rsv-src">@r.Source@(r.WriteHistory ? "" : "・履歴を作成しない")</span>
-                </span>
-                <form method="post" asp-controller="AircraftReservation" asp-action="Cancel" class="e-rsv-cancel">
-                    <input type="hidden" name="reservationId" value="@r.ReservationId" />
-                    <input type="hidden" name="reg" value="@Model.Aircraft!.RegistrationNumber" />
-                    <input type="hidden" name="fromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
-                    <input type="hidden" name="returnTo" value="E" />
-                    <button type="submit" class="btn btn-default btn-xs"
-                            onclick="return confirm('この予約を取り消します。機体情報は変わりません。よろしいですか？');">取消</button>
-                </form>
-            </div>
-        }
-    </div>
-}
-<form asp-action="Store" method="post" class="form-inline">
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.RegistrationNumber, new { @class = "control-label" })
 
-            @Html.TextBoxFor(model => model.Aircraft!.RegistrationNumber, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.AirlineList, new { @class = "control-label" })
-            @Html.DropDownListFor(model => model.Aircraft!.Airline,
-                                                                                       new SelectList(Model.AirlineList, "AirlineCode", "AirlineNameJpShort"),
-                                                                                       "　",
-                                                                                       new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.TypeDetailList, new { @class = "control-label" })
-            @* 詳細型式が増えて1つのセレクトでは探しづらいので、型式で絞ってから選ぶ *@
-            <div style="display:inline-block;width:260px;max-width:100%;vertical-align:middle">
-                @await Html.PartialAsync("_TypeDetailPicker", typeDetailPicker)
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.SerialNumber, new { @class = "control-label" })
-            @Html.TextBoxFor(model => model.Aircraft!.SerialNumber, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.RegisterDate, new { @class = "control-label" })
-            @Html.TextBoxFor(model => model.Aircraft!.RegisterDate, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.OperationList, new { @class = "control-label" })
-            @Html.DropDownListFor(model => model.Aircraft!.OperationCode,
-                                                                                          new SelectList(Model.OperationList, "Key", "Value"),
-                                                                                          "　",
-                                                                                          new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.WiFiList, new { @class = "control-label" })
-            @Html.DropDownListFor(model => model.Aircraft!.WifiCode,
-                                                                                                           new SelectList(Model.WiFiList, "Key", "Value"),
-                                                                                                           "　",
-                                                                                                           new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.SpecialLivery, new { @class = "control-label" })
-            @Html.TextBoxFor(model => model.Aircraft!.SpecialLivery, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.Remarks, new { @class = "control-label" })
-            @Html.TextBoxFor(model => model.Aircraft!.Remarks, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.LinkUrl, new { @class = "control-label" })
-            @Html.TextAreaFor(model => model.Aircraft!.LinkUrl, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.SeatConfig, new { @class = "control-label" })
-            @Html.DropDownListFor(model => model.Aircraft!.SeatConfig,
-                                                                                                           new SelectList(Model.SeatConfigurationList, "ConfigId", "SeatConfigLong"),
-                                                                                                           "　",
-                                                                                                           new { @class = "form-control" })
-            @* マスタに無いコンフィグに出くわしたとき、この画面を離れずに足せるようにする *@
-            <partial name="_SeatConfigQuickAdd" model="seatConfigQuickAdd" />
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.TestRegistration, new { @class = "control-label" })
-            @Html.TextBoxFor(model => model.Aircraft!.TestRegistration, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.MaintenanceNotify, new { @class = "control-label" })
-            @Html.EditorFor(model => model.Aircraft!.MaintenanceNotify, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.CreationTime, new { @class = "control-label" })
-            @Html.TextBoxFor(model => model.Aircraft!.CreationTime, new { @class = "form-control", @readonly = "readonly" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.UpdateTime, new { @class = "control-label" })
-            @Html.TextBoxFor(model => model.Aircraft!.UpdateTime, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.NotUpdateDate, new { @class = "control-label" })
-            @Html.CheckBoxFor(model => model.NotUpdateDate, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="row">
-        <div class="form-group">
-            @Html.LabelFor(model => model.Aircraft!.ActualUpdateTime, new { @class = "control-label" })
-            @Html.TextBoxFor(model => model.Aircraft!.ActualUpdateTime, new { @class = "form-control", @readonly = "readonly" })
-        </div>
-    </div>
-    @if (!Model.IsNew)
-    {
-        <div class="row">
-            <div class="form-group">
-                @Html.LabelFor(model => model.ReserveDate, new { @class = "control-label" })
-                <input type="date" name="ReserveDate" id="ReserveDate" class="form-control"
-                       min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")" value="" />
-                <span class="e-rsv-hint">入れるといまは更新せず、この日に変えた項目だけを反映します（特別塗装・運航の開始日が決まっているとき用）</span>
-            </div>
-        </div>
-    }
-    <div class="row">
-        <div class="form-group">
-            <input type="button" value="戻る" class="btn btn-default" onclick="history.back();" />
-            @* 押した時点の「履歴を作成しない」の状態を読んで確認する。クリップボードへのコピーは登録するときだけ *@
-            <input type="submit" value="登録" class="btn btn-primary" id="store" />
-            @if (!Model.IsNew)
-            {
-                @* 間違った内容で積まれた履歴を直しに行くための入口 *@
-                <a class="btn btn-default"
-                   href="/AircraftHistory?reg=@Model.Aircraft!.RegistrationNumber&fromAdmin=@Model.FromAdmin.ToString().ToLowerInvariant()">更新履歴</a>
-            }
-        </div>
-    </div>
-
-    @Html.HiddenFor(model => model.IsNew)
-    @Html.HiddenFor(model => model.NoHead)
-    @Html.HiddenFor(model => model.FromAdmin)
-</form>
-
-@*
-    登録の確認。履歴を残すか残さないかは後から気づきにくいので、どちらでも必ず出す。
-    中身は押した時点の「履歴を作成しない」の状態でJSから差し替える。
-    入力欄が無いのでフォームの中に置いても害は無いが、送信の邪魔をしないよう外に出してある。
-*@
+@section CssPartial {
 <style>
-/* ===== 登録の確認 =====
-   注意: Bootstrap3 が html{font-size:10px} を設定しているため remは使わずpxで指定すること。 */
+/* ===== 単票編集 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため remは使わずpxで指定すること。
+   幅は スマホ（〜599px）= 1列、タブレット（600〜991px）= 項目2列、PC（992px〜）= カード2列。 */
+.ed-page { max-width: 1120px; margin: 0 auto; padding: 8px 0 96px; color: #1e293b; }
+
+/* ---- 見出し ---- */
+.ed-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin: 4px 0 14px; }
+.ed-title { flex: 1; min-width: 0; }
+.ed-reg { margin: 0; font-family: Consolas, monospace; font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: .02em; }
+.ed-reg.new { font-family: inherit; font-size: 24px; }
+.ed-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.ed-chip {
+    display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px;
+    border: 1px solid #e2e8f0; background: #f8fafc; font-size: 12px; font-weight: 600; color: #475569;
+}
+.ed-chip.livery { border-color: #fbcfe8; background: #fdf2f8; color: #9d174d; }
+.ed-links { display: flex; gap: 6px; flex-wrap: wrap; }
+.ed-link {
+    display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 12px;
+    border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155;
+    font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.ed-link:hover, .ed-link:focus { background: #f1f5f9; color: #0f172a; text-decoration: none; }
+
+/* ---- お知らせ ---- */
+.ed-alert { border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; font-weight: 600; line-height: 1.7; word-break: break-all; }
+.ed-alert.ok { border: 1px solid #a7f3d0; background: #ecfdf5; color: #065f46; }
+.ed-alert.ng { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; }
+.ed-alert pre { margin: 6px 0 0; max-height: 200px; overflow: auto; font-size: 11px; white-space: pre-wrap; background: transparent; border: 0; padding: 0; color: inherit; }
+
+/* ---- 予約中の更新 ---- */
+.ed-rsv { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
+.ed-rsv-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #1d4ed8; }
+.ed-rsv-title a { margin-left: auto; font-size: 12px; font-weight: 600; }
+.ed-rsv-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0 0; margin-top: 8px; border-top: 1px dashed #bfdbfe; font-size: 13px; }
+.ed-rsv-date { font-weight: 700; white-space: nowrap; }
+.ed-rsv-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; word-break: break-all; }
+.ed-rsv-src { font-size: 11px; color: #64748b; }
+.ed-rsv-row form { margin: 0; }
+
+/* ---- カードと項目 ---- */
+.ed-cards { display: grid; gap: 14px; grid-template-columns: 1fr; }
+.ed-card {
+    border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;
+    padding: 14px 16px 16px; box-shadow: 0 1px 3px rgba(15,23,42,.05); min-width: 0;
+}
+.ed-card-title { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #0f172a; }
+.ed-card-title .sub { font-size: 11px; font-weight: 600; color: #94a3b8; }
+.ed-fields { display: grid; gap: 12px 14px; grid-template-columns: 1fr; }
+.ed-field { min-width: 0; }
+.ed-field.wide { grid-column: 1 / -1; }
+.ed-field > label, .ed-label {
+    display: flex; align-items: center; gap: 6px; margin: 0 0 4px;
+    font-size: 12px; font-weight: 700; color: #64748b;
+}
+.ed-field.dirty > label::after, .ed-field.dirty > .ed-label::after {
+    content: "変更"; padding: 0 6px; border-radius: 4px; background: #fef3c7; color: #92400e; font-size: 10px;
+}
+.ed-input {
+    display: block; width: 100%; height: 40px; padding: 6px 10px;
+    border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a;
+    font-size: 15px; box-shadow: none; transition: border-color .15s, box-shadow .15s;
+}
+textarea.ed-input { height: auto; min-height: 76px; resize: vertical; line-height: 1.5; }
+.ed-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+.ed-input[readonly] { background: #f8fafc; color: #64748b; }
+.ed-input.mono { font-family: Consolas, monospace; }
+.ed-field.dirty .ed-input, .ed-field.dirty .tdp-button { border-color: #f59e0b; background: #fffbeb; }
+.ed-hint { margin-top: 4px; font-size: 11px; color: #94a3b8; line-height: 1.6; }
+.ed-with-add { display: flex; gap: 6px; align-items: center; }
+.ed-with-add > select { flex: 1; min-width: 0; }
+.ed-with-add .scq-open { margin-left: 0; width: 40px; height: 40px; flex: 0 0 auto; }
+.ed-field .tdp-button { height: 40px; border-radius: 8px; font-size: 15px; }
+
+/* チェックボックスは押しやすいよう行ごと押せるようにする */
+.ed-check {
+    display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 10px 12px;
+    border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; cursor: pointer;
+    font-size: 14px; font-weight: 600; color: #334155; line-height: 1.5;
+}
+.ed-check input { width: 18px; height: 18px; margin: 1px 0 0; flex: 0 0 auto; }
+.ed-check .ed-hint { font-weight: 400; margin-top: 2px; }
+.ed-check.on { border-color: #fde68a; background: #fffbeb; }
+
+/* 日時は読むだけのものが多いので小さく並べる */
+.ed-times {
+    display: grid; gap: 10px 14px; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+    margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e2e8f0;
+}
+.ed-times .ed-input { height: 36px; padding: 4px 8px; font-size: 13px; }
+
+/* ---- 下の操作バー（常に見える） ---- */
+.ed-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1030;
+    background: rgba(255,255,255,.96); border-top: 1px solid #e2e8f0;
+    box-shadow: 0 -4px 16px rgba(15,23,42,.08);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+}
+.ed-bar-in { max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 8px; }
+.ed-bar-state { flex: 1; min-width: 0; font-size: 12px; color: #64748b; line-height: 1.4; }
+.ed-bar-state b { color: #b45309; }
+.ed-bar-state .rsv { color: #1d4ed8; font-weight: 700; }
+.ed-btn {
+    display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 18px;
+    border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; color: #334155;
+    font-size: 15px; font-weight: 700; cursor: pointer; white-space: nowrap; text-decoration: none;
+}
+.ed-btn:hover { background: #f1f5f9; color: #0f172a; text-decoration: none; }
+.ed-btn.primary { min-width: 130px; background: #0f172a; border-color: #0f172a; color: #fff; }
+.ed-btn.primary:hover { background: #1e293b; color: #fff; }
+.ed-btn.primary.reserve { background: #1d4ed8; border-color: #1d4ed8; }
+
+/* ---- 登録の確認 ---- */
 .ecf-modal .modal-dialog { width: 460px; max-width: 94%; }
-.ecf-modal .modal-content { border-radius: 10px; }
+.ecf-modal .modal-content { border-radius: 12px; }
 .ecf-modal .modal-title { font-size: 16px; font-weight: 700; color: #1e293b; }
-.ecf-reg {
-    font-family: Consolas, monospace; font-size: 20px; font-weight: 700;
-    color: #0f172a; margin-bottom: 10px;
-}
-.ecf-state {
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;
-    border: 1px solid #e2e8f0; background: #f8fafc;
-}
+.ecf-reg { font-family: Consolas, monospace; font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 10px; }
+.ecf-state { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0; background: #f8fafc; }
 .ecf-state.keep { border-color: #a7f3d0; background: #ecfdf5; }
 .ecf-state.drop { border-color: #fde68a; background: #fffbeb; }
+.ecf-state.reserve { border-color: #bfdbfe; background: #eff6ff; }
 .ecf-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 4px; white-space: nowrap; }
 .ecf-state.keep .ecf-badge { background: #dcfce7; color: #166534; }
 .ecf-state.drop .ecf-badge { background: #fef3c7; color: #92400e; }
-.ecf-state.new .ecf-badge { background: #dbeafe; color: #1d4ed8; }
-.ecf-state .ecf-msg { font-size: 13px; font-weight: 600; color: #334155; line-height: 1.6; }
+.ecf-state.new .ecf-badge, .ecf-state.reserve .ecf-badge { background: #dbeafe; color: #1d4ed8; }
+.ecf-msg { font-size: 13px; font-weight: 600; color: #334155; line-height: 1.6; }
 .ecf-note { font-size: 12px; color: #94a3b8; line-height: 1.7; }
-.ecf-btn {
-    display: inline-flex; align-items: center; padding: 7px 18px; border-radius: 6px;
-    border: 1px solid #cbd5e1; background: #fff; color: #334155;
-    font-size: 14px; font-weight: 600; cursor: pointer;
-}
+.ecf-changes { margin: 0 0 10px; padding: 0; list-style: none; font-size: 12px; color: #475569; }
+.ecf-changes li { padding: 2px 0; }
+.ecf-changes li::before { content: "● "; color: #f59e0b; }
+.ecf-btn { display: inline-flex; align-items: center; padding: 8px 18px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #334155; font-size: 14px; font-weight: 600; cursor: pointer; }
 .ecf-btn:hover { background: #f1f5f9; }
 .ecf-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
 .ecf-btn.primary:hover { background: #1e293b; }
-.ecf-state.reserve { border-color: #bfdbfe; background: #eff6ff; }
-.ecf-state.reserve .ecf-badge { background: #dbeafe; color: #1d4ed8; }
 
-/* ===== 予約中の更新 ===== */
-.e-rsv { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 8px; padding: 10px 14px; margin: 10px 0; max-width: 760px; }
-.e-rsv-title { font-size: 13px; font-weight: 700; color: #1d4ed8; margin-bottom: 6px; }
-.e-rsv-title a { font-weight: 600; margin-left: 8px; font-size: 12px; }
-.e-rsv-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-top: 1px dashed #bfdbfe; font-size: 13px; }
-.e-rsv-date { font-weight: 700; white-space: nowrap; color: #0f172a; }
-.e-rsv-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.e-rsv-src { font-size: 11px; color: #64748b; }
-.e-rsv-cancel { margin: 0; }
-.e-rsv-hint { font-size: 11px; color: #64748b; margin-left: 6px; }
-.e-rsv-error { border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px; padding: 10px 14px; margin: 10px 0; color: #b91c1c; font-weight: 600; max-width: 760px; }
-.e-rsv-ok { border: 1px solid #a7f3d0; background: #ecfdf5; border-radius: 8px; padding: 10px 14px; margin: 10px 0; color: #065f46; font-weight: 700; max-width: 760px; }
+/* タブレット: 項目を2列にする */
+@@media (min-width: 600px) {
+    .ed-fields { grid-template-columns: 1fr 1fr; }
+}
+/* PC: カードを2列にする。左に機体そのもの、右に運用と保存の設定 */
+@@media (min-width: 992px) {
+    .ed-cards { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+    .ed-col { display: grid; gap: 14px; min-width: 0; }
+}
+/* スマホ: 見出しの操作は横に流し、入力はiOSが拡大しない16pxにする */
+@@media (max-width: 599px) {
+    .ed-reg { font-size: 26px; }
+    .ed-links { width: 100%; }
+    .ed-link { flex: 1 1 auto; justify-content: center; }
+    .ed-input { font-size: 16px; }
+    .ed-btn { padding: 0 14px; }
+    .ed-btn.primary { min-width: 0; flex: 0 0 auto; }
+}
 </style>
+}
 
+<div class="ed-page">
+    @* ---- 見出し ---- *@
+    <div class="ed-head">
+        <div class="ed-title">
+            @if (Model.IsNew)
+            {
+                <h1 class="ed-reg new">✈ 新規登録@(string.IsNullOrEmpty(reg) ? "" : $"（{reg}）")</h1>
+            }
+            else
+            {
+                <h1 class="ed-reg">@reg</h1>
+                <div class="ed-chips">
+                    @if (airlineName != null) { <span class="ed-chip">@airlineName</span> }
+                    @if (typeDetailName != null) { <span class="ed-chip">@typeDetailName</span> }
+                    @if (operationName != null) { <span class="ed-chip">@operationName</span> }
+                    @if (!string.IsNullOrEmpty(Model.Aircraft?.SpecialLivery)) { <span class="ed-chip livery">🎨 @Model.Aircraft.SpecialLivery</span> }
+                </div>
+            }
+        </div>
+        @if (!Model.IsNew)
+        {
+            <div class="ed-links">
+                <a class="ed-link" href="/AD/@reg?fromAdmin=@fromAdmin" target="_blank" rel="noopener">🔍 詳細</a>
+                @* 間違った内容で積まれた履歴を直しに行くための入口 *@
+                <a class="ed-link" href="/AircraftHistory?reg=@reg&fromAdmin=@fromAdmin">🕘 更新履歴</a>
+                <button type="button" class="ed-link" id="copy" data-clipboard-text="@Model.LinkPage" title="詳細ページのURLをコピー">📋 リンク</button>
+                <a class="ed-link" href="https://twitter.com/intent/tweet?text=@(reg)%0a@(Model.LinkPage)" target="_blank" rel="noopener">𝕏 投稿</a>
+            </div>
+        }
+    </div>
+    @Html.HiddenFor(model => model.LinkPage)
+
+    @* ---- お知らせ ---- *@
+    @if (Model.ex != null)
+    {
+        <div class="ed-alert ng">⚠ 保存できませんでした。<pre>@Model.ex.ToString()</pre></div>
+    }
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="ed-alert ng">⚠ @Model.ErrorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="ed-alert ok">✔ @Model.Message</div>
+    }
+
+    @* ---- 予約中の更新。反映日が来たら日次ジョブが入れる。ここで直す内容とぶつからないか見られるように出す ---- *@
+    @if (Model.Reservations.Count > 0)
+    {
+        <div class="ed-rsv">
+            <div class="ed-rsv-title">
+                📅 予約中の更新（@Model.Reservations.Count 件）
+                <a href="/AircraftReservation?reg=@reg&fromAdmin=@fromAdmin">予約の一覧</a>
+            </div>
+            @foreach (var r in Model.Reservations)
+            {
+                <div class="ed-rsv-row">
+                    <span class="ed-rsv-date">@r.ApplyDate.ToString("yyyy/MM/dd")</span>
+                    <span class="ed-rsv-body">
+                        @foreach (var c in r.Changes)
+                        {
+                            <span><b>@c.FieldName</b> @c.Before → <b>@c.After</b></span>
+                        }
+                        <span class="ed-rsv-src">@r.Source@(r.WriteHistory ? "" : "・履歴を作成しない")</span>
+                    </span>
+                    <form method="post" asp-controller="AircraftReservation" asp-action="Cancel">
+                        <input type="hidden" name="reservationId" value="@r.ReservationId" />
+                        <input type="hidden" name="reg" value="@reg" />
+                        <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+                        <input type="hidden" name="returnTo" value="E" />
+                        <button type="submit" class="ed-link"
+                                onclick="return confirm('この予約を取り消します。機体情報は変わりません。よろしいですか？');">取消</button>
+                    </form>
+                </div>
+            }
+        </div>
+    }
+
+    <form asp-action="Store" method="post" id="editForm" autocomplete="off">
+        <div class="ed-cards">
+            <div class="ed-col">
+                @* ---- 機体 ---- *@
+                <section class="ed-card">
+                    <h2 class="ed-card-title">✈ 機体</h2>
+                    <div class="ed-fields">
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.Aircraft!.RegistrationNumber)
+                            @if (Model.IsNew)
+                            {
+                                @Html.TextBoxFor(model => model.Aircraft!.RegistrationNumber, new { @class = "ed-input mono", placeholder = "JA01XX", style = "text-transform:uppercase" })
+                            }
+                            else
+                            {
+                                @* レジは主キーなので既存の機体では変えられない（変えると別の機体の更新になって失敗する） *@
+                                @Html.TextBoxFor(model => model.Aircraft!.RegistrationNumber, new { @class = "ed-input mono", @readonly = "readonly" })
+                            }
+                        </div>
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.AirlineList, new { @for = "Aircraft_Airline" })
+                            @Html.DropDownListFor(model => model.Aircraft!.Airline,
+                                new SelectList(Model.AirlineList, "AirlineCode", "AirlineNameJpShort"), "　", new { @class = "ed-input" })
+                        </div>
+                        <div class="ed-field wide" data-track="Aircraft_TypeDetailId">
+                            <span class="ed-label">@Html.DisplayNameFor(model => model.TypeDetailList)</span>
+                            @* 詳細型式が増えて1つのセレクトでは探しづらいので、型式で絞ってから選ぶ *@
+                            @await Html.PartialAsync("_TypeDetailPicker", typeDetailPicker)
+                        </div>
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.Aircraft!.SerialNumber)
+                            @Html.TextBoxFor(model => model.Aircraft!.SerialNumber, new { @class = "ed-input mono" })
+                        </div>
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.Aircraft!.RegisterDate)
+                            @Html.TextBoxFor(model => model.Aircraft!.RegisterDate, new { @class = "ed-input mono", placeholder = "yyyy/MM/dd" })
+                        </div>
+                    </div>
+                </section>
+
+                @* ---- 運用 ---- *@
+                <section class="ed-card">
+                    <h2 class="ed-card-title">🛫 運用</h2>
+                    <div class="ed-fields">
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.OperationList, new { @for = "Aircraft_OperationCode" })
+                            @Html.DropDownListFor(model => model.Aircraft!.OperationCode,
+                                new SelectList(Model.OperationList, "Key", "Value"), "　", new { @class = "ed-input" })
+                        </div>
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.WiFiList, new { @for = "Aircraft_WifiCode" })
+                            @Html.DropDownListFor(model => model.Aircraft!.WifiCode,
+                                new SelectList(Model.WiFiList, "Key", "Value"), "　", new { @class = "ed-input" })
+                        </div>
+                        <div class="ed-field wide">
+                            @Html.LabelFor(model => model.Aircraft!.SeatConfig)
+                            <div class="ed-with-add">
+                                @Html.DropDownListFor(model => model.Aircraft!.SeatConfig,
+                                    new SelectList(Model.SeatConfigurationList, "ConfigId", "SeatConfigLong"), "　", new { @class = "ed-input" })
+                                @* マスタに無いコンフィグに出くわしたとき、この画面を離れずに足せるようにする *@
+                                <partial name="_SeatConfigQuickAdd" model="seatConfigQuickAdd" />
+                            </div>
+                            <div class="ed-hint">航空会社と詳細型式に合うものだけが出ます。</div>
+                        </div>
+                        <div class="ed-field wide">
+                            @Html.LabelFor(model => model.Aircraft!.SpecialLivery)
+                            @Html.TextBoxFor(model => model.Aircraft!.SpecialLivery, new { @class = "ed-input", placeholder = "通常塗装なら空欄" })
+                        </div>
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.Aircraft!.TestRegistration)
+                            @Html.TextBoxFor(model => model.Aircraft!.TestRegistration, new { @class = "ed-input mono" })
+                            <div class="ed-hint">デリバリー後（受領前以外の運用状況）に保存すると消えます。</div>
+                        </div>
+                        <div class="ed-field">
+                            <label for="Aircraft_MaintenanceNotify">@Html.DisplayNameFor(model => model.Aircraft!.MaintenanceNotify)</label>
+                            <select class="ed-input" id="Aircraft_MaintenanceNotify" name="Aircraft.MaintenanceNotify">
+                                <option value="" selected="@(maintenance == null)">未設定</option>
+                                <option value="true" selected="@(maintenance == true)">あり</option>
+                                <option value="false" selected="@(maintenance == false)">なし</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="ed-col">
+                @* ---- メモ ---- *@
+                <section class="ed-card">
+                    <h2 class="ed-card-title">📝 備考・リンク</h2>
+                    <div class="ed-fields">
+                        <div class="ed-field wide">
+                            @Html.LabelFor(model => model.Aircraft!.Remarks)
+                            @Html.TextBoxFor(model => model.Aircraft!.Remarks, new { @class = "ed-input" })
+                        </div>
+                        <div class="ed-field wide">
+                            @Html.LabelFor(model => model.Aircraft!.LinkUrl)
+                            @Html.TextAreaFor(model => model.Aircraft!.LinkUrl, new { @class = "ed-input mono", rows = 3 })
+                        </div>
+                    </div>
+                </section>
+
+                @* ---- 保存のしかた ---- *@
+                <section class="ed-card">
+                    <h2 class="ed-card-title">💾 保存のしかた</h2>
+                    <div class="ed-fields">
+                        @if (!Model.IsNew)
+                        {
+                            <div class="ed-field wide" data-notrack="true">
+                                <label class="ed-check" id="notUpdateBox">
+                                    @Html.CheckBoxFor(model => model.NotUpdateDate)
+                                    <span>
+                                        @Html.DisplayNameFor(model => model.NotUpdateDate)
+                                        <span class="ed-hint" style="display:block">入れると更新前の内容を更新履歴に残さず、更新日時も進めません（誤記の修正など）。</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="ed-field wide">
+                                <label for="ReserveDate">@Html.DisplayNameFor(model => model.ReserveDate)（任意）</label>
+                                <input type="date" name="ReserveDate" id="ReserveDate" class="ed-input"
+                                       min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")" value="" />
+                                <div class="ed-hint">入れるといまは更新せず、この日に変えた項目だけを反映します（特別塗装・運航の開始日が決まっているとき用）。</div>
+                            </div>
+                        }
+                        else
+                        {
+                            @* 新規登録では履歴は積まれない。値だけ持ち回る *@
+                            @Html.HiddenFor(model => model.NotUpdateDate)
+                            <div class="ed-field wide ed-hint">新規登録では更新履歴は積まれません。予約は登録したあとから使えます。</div>
+                        }
+                    </div>
+
+                    @* 作成日時・実更新日時は送らないと保存で消えてしまうので、読み取り専用で持つ *@
+                    <div class="ed-times">
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.Aircraft!.UpdateTime)
+                            @Html.TextBoxFor(model => model.Aircraft!.UpdateTime, new { @class = "ed-input mono" })
+                        </div>
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.Aircraft!.CreationTime)
+                            @Html.TextBoxFor(model => model.Aircraft!.CreationTime, new { @class = "ed-input mono", @readonly = "readonly" })
+                        </div>
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.Aircraft!.ActualUpdateTime)
+                            @Html.TextBoxFor(model => model.Aircraft!.ActualUpdateTime, new { @class = "ed-input mono", @readonly = "readonly" })
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        @Html.HiddenFor(model => model.IsNew)
+        @Html.HiddenFor(model => model.NoHead)
+        @Html.HiddenFor(model => model.FromAdmin)
+
+        @* ---- 下の操作バー。長い画面でもスクロールせずに登録できるよう常に出す ---- *@
+        <div class="ed-bar">
+            <div class="ed-bar-in">
+                <button type="button" class="ed-btn" onclick="history.back();">戻る</button>
+                <div class="ed-bar-state" id="barState">変更はありません</div>
+                <button type="submit" class="ed-btn primary" id="store">登録</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+@*
+    登録の確認。履歴を残すか残さないかは後から気づきにくいので、どちらでも必ず出す。
+    中身は押した時点の「履歴を作成しない」「予約日」の状態でJSから差し替える。
+*@
 <div class="modal fade ecf-modal" id="storeConfirm" tabindex="-1" role="dialog" aria-labelledby="storeConfirmTitle">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -303,7 +446,8 @@ else
                 <h4 class="modal-title" id="storeConfirmTitle">登録の確認</h4>
             </div>
             <div class="modal-body">
-                <div class="ecf-reg">@(Model.IsNew ? "新規登録" : Model.Aircraft?.RegistrationNumber)</div>
+                <div class="ecf-reg">@(Model.IsNew ? "新規登録" : reg)</div>
+                <ul class="ecf-changes"></ul>
                 <div class="ecf-state">
                     <span class="ecf-badge"></span>
                     <span class="ecf-msg"></span>
@@ -323,81 +467,148 @@ else
     <partial name="_SeatConfigQuickAddScript" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.4/clipboard.min.js" integrity="sha256-FiZwavyI2V6+EXO1U+xzLG3IKldpiTFf3153ea9zikQ=" crossorigin="anonymous"></script>
     <script>
-        new ClipboardJS('.btn', {
-            text: function () {
-                return document.querySelector('input[type=hidden]').value;
-            }
-        });
-
-        // 登録の前に確認する。履歴を残すか残さないかは後から気づきにくいので、どちらでも必ず出す。
-        const storeConfirm = $('#storeConfirm');
-        const storeForm = $('#store').closest('form');
-
-        $('#store').on('click', function (e) {
-            e.preventDefault();
+        $(function () {
+            // ---- 共通レイアウトのナビバーは固定表示で、タブレット幅だと折り返して2〜3段になり見出しを隠す。
+            //      bodyの余白（site.cssの80px）より高くなったときだけ、余白をナビバーの高さに合わせる ----
+            const nav = $('.navbar-fixed-top');
+            const basePadding = parseFloat($('body').css('padding-top')) || 0;
+            const fitTop = function () {
+                if (nav.length === 0 || nav.find('.navbar-collapse').hasClass('in')) { return; }
+                $('body').css('padding-top', Math.max(basePadding, nav.outerHeight() + 8) + 'px');
+            };
+            fitTop();
+            $(window).on('resize', fitTop);
 
             const isNew = @(Model.IsNew.ToString().ToLowerInvariant());
-            const notUpdate = $('#NotUpdateDate').prop('checked');
-            const reserveDate = $('#ReserveDate').val();
-            const state = storeConfirm.find('.ecf-state');
+            const form = $('#editForm');
+            const storeConfirm = $('#storeConfirm');
 
-            state.removeClass('new keep drop reserve');
-            $('#storeConfirmOk').text(reserveDate && !isNew ? '予約する' : '登録する');
-            if (reserveDate && !isNew) {
-                state.addClass('reserve');
-                storeConfirm.find('.ecf-badge').text('予約');
-                storeConfirm.find('.ecf-msg').text(reserveDate.replace(/-/g, '/') + ' に反映するよう予約します。いまの機体情報は変わりません。');
-                storeConfirm.find('.ecf-note').text('いまの内容から変えた項目だけを予約します。反映するときに'
-                    + (notUpdate ? '更新履歴は残しません（「履歴を作成しない」にチェックあり）。' : '更新前の内容を更新履歴に残します。'));
-            } else if (isNew) {
-                state.addClass('new');
-                storeConfirm.find('.ecf-badge').text('新規登録');
-                storeConfirm.find('.ecf-msg').text('このレジを新しく登録します。');
-                storeConfirm.find('.ecf-note').text('新規登録では更新履歴は積まれません。');
-            } else if (notUpdate) {
-                state.addClass('drop');
-                storeConfirm.find('.ecf-badge').text('履歴を残さない');
-                storeConfirm.find('.ecf-msg').text('更新履歴を残さずに、いまの内容を上書きします。');
-                storeConfirm.find('.ecf-note').text('「履歴を作成しない」にチェックが入っています。上書き前の内容は残りません。');
-            } else {
-                state.addClass('keep');
-                storeConfirm.find('.ecf-badge').text('履歴を残す');
-                storeConfirm.find('.ecf-msg').text('いまの内容を更新履歴に残してから登録します。');
-                storeConfirm.find('.ecf-note').text('「履歴を作成しない」のチェックが外れています。機体詳細の履歴に1件増えます。');
+            // ---- リンクのコピー ----
+            if (window.ClipboardJS && $('#copy').length) {
+                new ClipboardJS('#copy').on('success', function () {
+                    const button = $('#copy');
+                    const label = button.text();
+                    button.text('✔ コピーしました');
+                    setTimeout(function () { button.text(label); }, 1500);
+                });
             }
 
-            storeConfirm.modal('show');
-        });
-
-        storeConfirm.on('shown.bs.modal', function () { $('#storeConfirmOk').trigger('focus'); });
-
-        $('#storeConfirmOk').on('click', function () {
-            storeConfirm.modal('hide');
-            //登録するときだけリンクURLをクリップボードへ入れる
-            $('#copy').click();
-            storeForm[0].submit();
-        });
-
-        $('#Aircraft_TypeDetailId').change(function () {
-            recreateSeatConfigList();
-        });
-
-        $('#Aircraft_Airline').change(function () {
-            recreateSeatConfigList();
-        });
-
-        const recreateSeatConfigList = function () {
-            $.ajax({
-            type: 'GET',
-                url: '/Master/SeatConfiguration/?airline=' + $('#Aircraft_Airline').val() + "&typeDetailId=" + $('#Aircraft_TypeDetailId').val(),
-                cache: false
-            }).done(function (data) {
-                $('select#Aircraft_SeatConfig option').remove();
-                $('select#Aircraft_SeatConfig').append($('<option>').text("").attr('value', ""));
-                $.each(data, function (index, seatconfigList) {
-                    $('select#Aircraft_SeatConfig').append($('<option>').text(seatconfigList.seatConfigLong).attr('value', seatconfigList.configId));
-                });
+            // ---- 変えた項目に印を付ける ----
+            // 開いたときの値と比べる。保存前にどこを触ったかを見失わないようにするため。
+            const valueOf = function (el) {
+                return el.type === 'checkbox' ? String(el.checked) : ($(el).val() || '');
+            };
+            const tracked = [];
+            form.find('.ed-field').each(function () {
+                const field = $(this);
+                if (field.attr('data-notrack')) { return; }
+                const trackId = field.attr('data-track');
+                const input = trackId
+                    ? $('#' + trackId)
+                    : field.find('input:not([type=hidden]):not([readonly]), select, textarea').not('[id=ReserveDate]').first();
+                if (input.length === 0) { return; }
+                const label = (field.children('label, .ed-label').first().text() || '').trim();
+                tracked.push({ field: field, input: input, label: label, initial: valueOf(input[0]) });
             });
-        };
+
+            const changedLabels = function () {
+                return tracked.filter(function (t) { return valueOf(t.input[0]) !== t.initial; }).map(function (t) { return t.label; });
+            };
+
+            const refresh = function () {
+                let count = 0;
+                tracked.forEach(function (t) {
+                    const dirty = valueOf(t.input[0]) !== t.initial;
+                    t.field.toggleClass('dirty', dirty);
+                    if (dirty) { count++; }
+                });
+
+                const reserveDate = $('#ReserveDate').val();
+                const notUpdate = $('#NotUpdateDate').prop('checked');
+                $('#notUpdateBox').toggleClass('on', !!notUpdate);
+
+                const state = $('#barState');
+                const parts = [];
+                if (count > 0) { parts.push('<b>' + count + '項目</b>を変更'); } else { parts.push('変更はありません'); }
+                if (reserveDate && !isNew) { parts.push('<span class="rsv">📅 ' + reserveDate.replace(/-/g, '/') + ' に予約</span>'); }
+                else if (notUpdate && !isNew) { parts.push('履歴を作成しない'); }
+                state.html(parts.join('<br>'));
+
+                $('#store').text(reserveDate && !isNew ? '予約する' : '登録').toggleClass('reserve', !!reserveDate && !isNew);
+            };
+            form.on('input change', 'input, select, textarea', refresh);
+            refresh();
+
+            // ---- 登録の前に確認する。履歴を残すか残さないかは後から気づきにくいので、どちらでも必ず出す ----
+            $('#store').on('click', function (e) {
+                e.preventDefault();
+
+                const notUpdate = $('#NotUpdateDate').prop('checked');
+                const reserveDate = $('#ReserveDate').val();
+                const box = storeConfirm.find('.ecf-state');
+                const labels = changedLabels();
+
+                const list = storeConfirm.find('.ecf-changes').empty();
+                labels.forEach(function (l) { list.append($('<li>').text(l)); });
+                if (!isNew && labels.length === 0) { list.append($('<li>').text('変えた項目はありません')); }
+
+                box.removeClass('new keep drop reserve');
+                $('#storeConfirmOk').text(reserveDate && !isNew ? '予約する' : '登録する');
+                if (reserveDate && !isNew) {
+                    box.addClass('reserve');
+                    storeConfirm.find('.ecf-badge').text('予約');
+                    storeConfirm.find('.ecf-msg').text(reserveDate.replace(/-/g, '/') + ' に反映するよう予約します。いまの機体情報は変わりません。');
+                    storeConfirm.find('.ecf-note').text('いまの内容から変えた項目だけを予約します。反映するときに'
+                        + (notUpdate ? '更新履歴は残しません（「履歴を作成しない」にチェックあり）。' : '更新前の内容を更新履歴に残します。'));
+                } else if (isNew) {
+                    box.addClass('new');
+                    storeConfirm.find('.ecf-badge').text('新規登録');
+                    storeConfirm.find('.ecf-msg').text('このレジを新しく登録します。');
+                    storeConfirm.find('.ecf-note').text('新規登録では更新履歴は積まれません。');
+                } else if (notUpdate) {
+                    box.addClass('drop');
+                    storeConfirm.find('.ecf-badge').text('履歴を残さない');
+                    storeConfirm.find('.ecf-msg').text('更新履歴を残さずに、いまの内容を上書きします。');
+                    storeConfirm.find('.ecf-note').text('「履歴を作成しない」にチェックが入っています。上書き前の内容は残りません。');
+                } else {
+                    box.addClass('keep');
+                    storeConfirm.find('.ecf-badge').text('履歴を残す');
+                    storeConfirm.find('.ecf-msg').text('いまの内容を更新履歴に残してから登録します。');
+                    storeConfirm.find('.ecf-note').text('「履歴を作成しない」のチェックが外れています。機体詳細の履歴に1件増えます。');
+                }
+
+                storeConfirm.modal('show');
+            });
+
+            storeConfirm.on('shown.bs.modal', function () { $('#storeConfirmOk').trigger('focus'); });
+
+            $('#storeConfirmOk').on('click', function () {
+                storeConfirm.modal('hide');
+                //登録するときだけ詳細ページのURLをクリップボードへ入れる（以前と同じ）
+                $('#copy').trigger('click');
+                form[0].submit();
+            });
+
+            // ---- コンフィグの選択肢は航空会社と詳細型式で絞る ----
+            const recreateSeatConfigList = function () {
+                $.ajax({
+                    type: 'GET',
+                    url: '/Master/SeatConfiguration/?airline=' + $('#Aircraft_Airline').val() + '&typeDetailId=' + $('#Aircraft_TypeDetailId').val(),
+                    cache: false
+                }).done(function (data) {
+                    const select = $('select#Aircraft_SeatConfig');
+                    const current = select.val();
+                    select.find('option').remove();
+                    select.append($('<option>').text('').attr('value', ''));
+                    $.each(data, function (index, seatconfig) {
+                        select.append($('<option>').text(seatconfig.seatConfigLong).attr('value', seatconfig.configId));
+                    });
+                    //絞り込み後も残っていれば選んだままにする
+                    if (current && select.find('option[value="' + current + '"]').length) { select.val(current); }
+                    refresh();
+                });
+            };
+            $('#Aircraft_TypeDetailId, #Aircraft_Airline').on('change', recreateSeatConfigList);
+        });
     </script>
 }
