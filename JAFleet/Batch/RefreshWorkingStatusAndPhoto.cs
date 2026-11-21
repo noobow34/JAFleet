@@ -10,6 +10,7 @@ using Noobow.Commons.Constants;
 using Noobow.Commons.Extensions;
 using Noobow.Commons.Utils;
 using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
 
 namespace JAFleet.Batch
@@ -20,6 +21,8 @@ namespace JAFleet.Batch
         private int _interval;
         private readonly static TimeSpan CompareTargetTimeSpan = new(2, 0, 0, 0);
         private static readonly string[] MAINTE_PLACE = ["TPE", "MNL", "XSP", "QPG", "XMN", "SIN", "TNA", "HKG", "OKA", "TNN"];
+        /// <summary>この機体数だけ連続でページを取得できなかったら中断する</summary>
+        private const int UNREADABLE_LIMIT = 5;
         public static DbContextOptionsBuilder<JAFleetContext>? Options { get; set; }
         public static bool Processing { get; set; } = false;
 
@@ -59,6 +62,7 @@ namespace JAFleet.Batch
             AngleSharp.IConfiguration? _config = Configuration.Default.WithDefaultLoader().WithDefaultCookies().WithXPath();
             IBrowsingContext _context = BrowsingContext.New(_config);
             var r = new Random();
+            int unreadableCount = 0;
 
             foreach (AircraftView a in _targetRegistrationNumber)
             {
@@ -75,10 +79,40 @@ namespace JAFleet.Batch
                     {
                         string url = $"{FlightradarConstant.FR24_DATA_URL}{a.RegistrationNumber}";
                         var doc = await _context.OpenAsync(url);
-                        var row = doc?.Body?.GetElementsByClassName("data-row");
-                        var ap = AircraftDataExtractor.ExtractPhotoDataFromJetphotos(doc);
 
-                        existPage = doc?.BaseUri.Contains(a.RegistrationNumber, StringComparison.CurrentCultureIgnoreCase) ?? false;
+                        //ページを取得できなかった場合（Cloudflareのチャレンジ、レート制限、障害など）は
+                        //稼働状況を書き換えない。全機体が一斉に非稼働扱いになるのを防ぐため
+                        if (doc == null || doc.StatusCode != HttpStatusCode.OK)
+                        {
+                            unreadableCount++;
+                            int skipInterval = Convert.ToInt32(r.NextDouble() * _interval * 1000);
+                            intervalSum += skipInterval;
+                            this.JournalWriteLine(
+                                $"{a.RegistrationNumber}({a.TypeDetailName})" +
+                                $":ページ取得失敗({doc?.StatusCode.ToString() ?? "応答なし"})、稼働状況は更新しない" +
+                                $":{skipInterval}ミリ秒待機");
+
+                            if (unreadableCount >= UNREADABLE_LIMIT)
+                            {
+                                await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(),
+                                    $"RefreshWorkingStatus中断:{DateTime.Now}\n" +
+                                    $"Flightradar24のページを{UNREADABLE_LIMIT}機体連続で取得できませんでした（直近: {doc?.StatusCode.ToString() ?? "応答なし"}）。\n" +
+                                    "Cloudflareのチャレンジかサイト側の変更の可能性があります。稼働状況は更新していません。");
+                                Processing = false;
+                                return;
+                            }
+
+                            Thread.Sleep(skipInterval);
+                            success = true;
+                            continue;
+                        }
+                        unreadableCount = 0;
+
+                        var fr24 = AircraftDataExtractor.ExtractAircraftDataFromFlightradar(doc);
+                        var flights = fr24.Flights;
+                        var ap = fr24.Photo;
+
+                        existPage = fr24.IsAircraftPage;
 
                         string notifyMark = string.Empty;
                         if (!string.IsNullOrEmpty(a.SpecialLivery))
@@ -118,18 +152,18 @@ namespace JAFleet.Batch
                             .Where(s => s.RegistrationNumber == a.RegistrationNumber)
                             .FirstOrDefault();
 
-                        if (row!.Length != 0)
+                        if (flights.Count != 0)
                         {
                             existOperation = true;
 
-                            string? timestamp = row[0].GetAttribute("data-timestamp");
-                            DateTime latestDate = DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestamp!)).LocalDateTime;
+                            //フライト履歴は新しい順
+                            var latestFlight = flights[0];
+                            DateTime latestDate = latestFlight.DepartureDate;
 
-                            var td = row[0].GetElementsByTagName("td");
-                            string fromAp      = td!.Length != 0 ? td[3].TextContent!.Trim() : string.Empty;
-                            string toAp        = td!.Length != 0 ? td[4].TextContent!.Trim() : string.Empty;
-                            string flightNum   = td!.Length != 0 ? td[5].TextContent!.Trim() : string.Empty;
-                            string flightStatus = td!.Length != 0 ? td[11].TextContent!.Trim() : string.Empty;
+                            string fromAp       = latestFlight.FromAp ?? string.Empty;
+                            string toAp         = latestFlight.ToAp ?? string.Empty;
+                            string flightNum    = latestFlight.FlightNumber ?? string.Empty;
+                            string flightStatus = latestFlight.Status ?? string.Empty;
 
                             // 現在フライト情報のエントリを構築
                             var currentEntry = new WorkingCheckLogEntryJson
@@ -267,11 +301,10 @@ namespace JAFleet.Batch
                         {
                             var testRegurl = FlightradarConstant.FR24_DATA_URL + a.TestRegistration;
                             var testDoc = await _context.OpenAsync(testRegurl);
-                            var rowTest = doc?.Body?.GetElementsByClassName("data-row");
-                            if (rowTest!.Length != 0)
+                            var testFlights = AircraftDataExtractor.ExtractAircraftDataFromFlightradar(testDoc).Flights;
+                            if (testFlights.Count != 0)
                             {
-                                string? timestamp = rowTest[0].GetAttribute("data-timestamp");
-                                DateTime latestDate = DateTimeOffset.FromUnixTimeSeconds(long.Parse(timestamp!)).LocalDateTime;
+                                DateTime latestDate = testFlights[0].DepartureDate;
                                 if (!status!.TestFlightDate.HasValue || status.TestFlightDate.Value < latestDate)
                                 {
                                     var testEntry = new WorkingCheckLogEntryJson

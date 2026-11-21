@@ -423,7 +423,7 @@ IP は携帯回線などで共有されるため、訪問者数は Cookie で数
 - PostgreSQL + Entity Framework Core（Npgsql）
 - Cloudflare Access による管理者認証（`Microsoft.AspNetCore.Authentication.JwtBearer` で JWT を検証）
 - Quartz.NET によるジョブスケジューリング
-- AngleSharp によるスクレイピング（Flightradar24 / JetPhotos）
+- AngleSharp によるスクレイピング（Flightradar24 / airliners.net。[Flightradar24 からの取得](#flightradar24-からの取得)）
 - EPPlus（航空局 Excel の解析。非商用ライセンス）
 - Gemini API（特別塗装ニュースの判定。`generateContent` を 1 つ叩くだけなので SDK は入れず `HttpClient` で直接叩く）
 - Gmail API（航空局 Excel の取込元。使うのは 3 つのエンドポイントだけなので SDK は入れず `HttpClient` で直接叩く）
@@ -506,6 +506,33 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | `RefreshRetiredAircraftPhotoJob` | 退役・抹消済み機体の写真のみ更新 |
 | `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する |
 | `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
+
+## Flightradar24 からの取得
+
+稼働状況と写真は Flightradar24 の機体ページ（`/data/aircraft/{レジ}`）から取ります
+（`RefreshWorkingStatusAndPhoto` / `RefreshPhoto`、取り出しは `JAFleet.Commons` の `AircraftDataExtractor`）。
+
+このページは Inertia.js の SPA で、**表示に使う値はすべて `<div id="app" data-page="{...}">` の JSON に入っています**。
+HTML の見た目は予告なく変わる（かつて使っていた `data-row` のテーブルは無くなった）ので、
+DOM ではなくこの JSON を読みます。使うのは次の項目です。
+
+| 用途 | JSON の項目 |
+| --- | --- |
+| 機体ページかどうか（未知のレジは機種一覧へリダイレクトされる） | `props.aircraft.registration` |
+| 写真 | `props.photos[0]` の `url`（640px）と `link`（JetPhotos のページ）。`url` の最初のサイズ部分を `full` に替えたものを大きい写真として持つ |
+| フライト履歴（新しい順） | `props.flights[]` の `flightNumber`、`actualDeparture`／`estimatedDeparture`／`scheduledDeparture`（UNIX 秒）、`status.name`、`origin`／`destination` の `city` と `iata` |
+
+稼働判定は最新フライトの出発日時が 2 日以内かどうかで決めます。
+出発日時は 実出発 → 出発見込み → 出発予定 の順に使います。
+出発地・到着地は `都市名 (IATA)` 形式で保存します（整備入りの判定が IATA を含むかで見ているため）。
+
+**ページを取得できなかったときは稼働状況を書き換えません。**
+Cloudflare のチャレンジやレート制限で 403 が返ると、そのままでは全機体が一斉に非稼働と判定されてしまうためです。
+5 機体連続で取得できなかった場合はバッチを中断し、Slack へ通知します。
+
+なお 2026-11 現在、このページは .NET（AngleSharp）からのリクエストに
+Cloudflare のチャレンジ（`Just a moment...` の 403）を返します。
+ブラウザや curl では 200 が返るため、取得経路の見直し（公式 API への移行など）が必要です。
 
 ## 環境変数
 
