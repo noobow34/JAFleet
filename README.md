@@ -17,7 +17,7 @@
 | 機体一覧 | `/Aircraft/AirlineGroup/{id}`<br>`/Aircraft/Airline/{id}`<br>`/Aircraft/Type/{id}` | グループ・航空会社・型式ごとの一覧 |
 | 機体詳細 | `/AD/{レジ}`（`/AircraftDetail/{レジ}`） | 1 機の詳細と更新履歴。`/ADN`（ヘッダ無し）、`/ADNB`（ヘッダ無し＋戻る）、`/ADE`（写真の埋め込み）の派生あり |
 | 検索 | `/Search` | 航空会社・型式・運用状況・Wi-Fi などの条件検索。条件は名前を付けて保存でき、`?sc={キー}` で共有できる |
-| 非稼働情報 | `/NotWorkingInfo` | 一定期間飛んでいない機体の一覧 |
+| 非稼働情報 | `/NotWorkingInfo` | 一定期間飛んでいない機体の一覧。公開メニューへの表示はサイト設定で切り替えられる（隠してもページ自体は開ける） |
 | 稼働チェックログ | `/WorkingCheckLog` | 稼働状況が変化した機体の記録 |
 | 問い合わせ | 各ページのモーダル（`wwwroot/message.html`）→ `POST /Message/Send` | 送信内容を Slack へ通知し、`message` テーブルへ記録 |
 | LINE | `/Line` | 公式アカウントへリダイレクト（アクセスをログに記録） |
@@ -50,8 +50,9 @@
 | 航空局 Excel 取込 | `/JcabImport` | 国土交通省航空局から届くパスワード付き Excel を、Gmail から直接またはアップロードで取り込む |
 | コンフィグマスタ | `/SeatConfig` | 航空会社・型式ごとの座席仕様（コンフィグ）を登録・更新・削除する |
 | 特別塗装ニュース | `/LiveryNews` | Aviation Wire の RSS から Gemini が作った特別塗装の更新候補を承認・却下する |
-| マスタ再読込 | `/ReloadMaster` | 航空会社・型式などのマスタをメモリへ読み直す |
+| マスタ再読込 | `/ReloadMaster` | 航空会社・型式などのマスタとサイト設定をメモリへ読み直す |
 | 定期実行ジョブ | `/Scheduler` | Quartz のジョブの有効・無効と cron 式を変更する |
+| サイト設定 | `/SiteSetting` | 公開メニューの「非稼働情報」の表示・非表示を切り替える（`site_setting` テーブル）。保存するとその場で反映される |
 | バッチ手動実行 | `/Batch/RefreshWorkingStatusAndPhoto`<br>`/Batch/RefreshPhoto` | 定期ジョブと同じ処理を手動で起動 |
 | アクセスログ | `/log`（本日）、`/logy`（昨日） | 閲覧・検索の記録 |
 | アクセス集計 | `/AccessStats` | `access_log` を集計して PV・訪問者・人気ページなどを表示 |
@@ -489,7 +490,7 @@ JAFleet.Test/         MSTest のテスト
 ジョブは `scheduler_def` テーブルに **クラス名と cron 式** を登録し、起動時に `RootScheduler` が読み込んで
 Quartz に登録します（`Enabled` が true の行のみ）。
 
-有効・無効の切り替えと cron 式の変更は `/Scheduler` から行います。保存すると DB を書き換えたうえで
+有効・無効の切り替えと cron 式の変更は `/Scheduler`（管理コンソールの「設定」→「定期実行ジョブ」）から行います。保存すると DB を書き換えたうえで
 動いているスケジューラへその場で反映するため、再起動は要りません。画面には `scheduler_def` の行だけでなく
 アプリが持つ `IJob` の実装がすべて並ぶので、定義が無いジョブもここから有効にできます
 （`JobCatalog` がクラスを集め、`[Description]` の文言を説明として出します）。
@@ -652,7 +653,12 @@ EF Core の Migration は使わず、テーブル定義は手動で管理して�
 **デプロイ前**に実行してください。テーブルが無いと `/LiveryNews` が開けず、
 `CheckSpecialLiveryNewsJob` も動きません。
 
+`create_site_setting.sql`（サイト設定の `site_setting`）は、デプロイの前後どちらでも構いません。
+テーブルが無いあいだは既定値（非稼働情報のメニューは表示）で動き、`/SiteSetting` で保存しようと
+したときだけエラーになります。全ページのレイアウトが読む値なので、起動時とマスタ再読込でメモリへ
+読み込み、毎リクエストでは DB に行きません。
+
 主なテーブル・ビューは `JAFleet.Commons` の `JAFleetContext` を参照してください
 （`aircraft`、`aircraft_view`、`aircraft_history`、`aircraft_photo`、`working_status`、
 `airline`、`type`、`type_detail`、`code`、`search_condition`、`access_log`、`log`、
-`scheduler_def`、`jcab_import_session`、`livery_news`、`livery_news_candidate` など）。
+`scheduler_def`、`jcab_import_session`、`livery_news`、`livery_news_candidate`、`site_setting` など）。

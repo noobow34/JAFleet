@@ -140,6 +140,7 @@ var options = new DbContextOptionsBuilder<JAFleetContext>();
 options.UseNpgsql(connectionString);
 using JAFleetContext context = new(options.Options);
 MasterManager.ReadAll(context);
+SiteSettings.Load(context);
 
 await RootScheduler.CreateOrReloadRootScheduler();
 

@@ -21,6 +21,7 @@ namespace JAFleet.Controllers
             try
             {
                 MasterManager.ReadAll(_context);
+                SiteSettings.Load(_context);
                 return Content("Success");
             }
             catch (Exception ex)

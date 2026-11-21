@@ -43,6 +43,7 @@ namespace JAFleet.Services
             ["JcabImport"]      = "航空局Excel取込",
             ["BulkRegister"]    = "一括登録",
             ["Scheduler"]       = "定期実行ジョブ",
+            ["SiteSetting"]     = "サイト設定",
             ["Account"]         = "ログイン",
         };
 
