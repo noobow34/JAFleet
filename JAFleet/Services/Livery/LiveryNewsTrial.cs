@@ -202,7 +202,7 @@ namespace JAFleet.Services.Livery
                 .Where(c => c.NewsId == newsId)
                 .ToListAsync();
 
-            if (candidates.Any(c => c.Status is LiveryNewsStatus.APPROVED or LiveryNewsStatus.REJECTED))
+            if (candidates.Any(c => c.Status is LiveryNewsStatus.APPROVED or LiveryNewsStatus.REJECTED or LiveryNewsStatus.RESERVED))
             {
                 return new Result { Error = "承認・却下した候補が付いている記事は消せません。" };
             }

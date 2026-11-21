@@ -71,6 +71,9 @@ namespace JAFleet.Models
 
         public string Status { get; set; } = string.Empty;
 
+        /// <summary>記事から読んだ運航開始日。未処理なら画面で直せ、明日以降なら承認が予約になる</summary>
+        public DateTime? StartDate { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public DateTime? ResolvedAt { get; set; }

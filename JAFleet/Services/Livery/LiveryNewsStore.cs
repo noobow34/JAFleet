@@ -19,14 +19,18 @@ namespace JAFleet.Services.Livery
 
             /// <summary>エラーのときに、どの行で失敗したのかを画面で示すため</summary>
             public int? ErrorCandidateId { get; set; }
+
+            /// <summary>すぐには反映せず予約にしたか（写真の取り直しは要らない）</summary>
+            public bool Reserved { get; set; }
         }
 
         /// <summary>
         /// 候補を承認してaircraft.special_liveryへ入れる。
         /// レジと塗装名は画面で直せるので、Geminiが出した値ではなく渡された値を使う。
+        /// 運航開始日が明日以降なら、いまは変えずにその日に反映するよう予約する（aircraft_reservation）。
         /// </summary>
         public static async Task<Result> ApproveAsync(
-            JAFleetContext context, int candidateId, string? registration, string? liveryName)
+            JAFleetContext context, int candidateId, string? registration, string? liveryName, DateTime? startDate = null)
         {
             LiveryNewsCandidate? candidate = await context.LiveryNewsCandidates
                 .FirstOrDefaultAsync(c => c.CandidateId == candidateId);
@@ -70,6 +74,32 @@ namespace JAFleet.Services.Livery
             }
 
             DateTime now = DateTime.Now;
+
+            //運航開始日が先なら予約にする。ニュースは就航の数日〜数週間前に出ることが多いため
+            if (startDate is DateTime start && start.Date > now.Date)
+            {
+                LiveryNews? news = await context.LiveryNewsList.AsNoTracking()
+                    .FirstOrDefaultAsync(n => n.NewsId == candidate.NewsId);
+                AircraftReservationStore.Add(context, reg, start,
+                    [AircraftReservationStore.Change(nameof(Aircraft.SpecialLivery), aircraft.SpecialLivery, livery)],
+                    writeHistory: true,
+                    $"特別塗装ニュース: {news?.Title ?? "記事"}",
+                    now);
+
+                candidate.RegistrationNumber = reg;
+                candidate.AppliedLivery = livery;
+                candidate.StartDate = start.Date;
+                candidate.Status = LiveryNewsStatus.RESERVED;
+                candidate.ResolvedAt = now;
+
+                await context.SaveChangesAsync();
+                return new Result
+                {
+                    Message = $"{reg}の特別塗装を{start:yyyy/MM/dd}に「{livery}」へ変えるよう予約しました。いまの機体情報は変えていません。",
+                    Reserved = true,
+                };
+            }
+
             aircraft.SpecialLivery = livery;
             //更新前の内容をaircraft_historyへ退避する（機体詳細の更新履歴に出る）
             AircraftStore.Store(context, aircraft, isNew: false, writeHistory: true, now);
@@ -77,6 +107,7 @@ namespace JAFleet.Services.Livery
             //Geminiが出した値はlivery_news.gemini_resultに残るので、ここは実際に反映した値で上書きする
             candidate.RegistrationNumber = reg;
             candidate.AppliedLivery = livery;
+            candidate.StartDate = startDate?.Date ?? candidate.StartDate;
             candidate.Status = LiveryNewsStatus.APPROVED;
             candidate.ResolvedAt = now;
 

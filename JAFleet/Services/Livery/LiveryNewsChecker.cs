@@ -199,6 +199,7 @@ namespace JAFleet.Services.Livery
                     RegistrationNumber = reg,
                     LiveryName = livery,
                     CurrentLivery = current,
+                    StartDate = target.ParseStartDate(),
                     Status = noDiff ? LiveryNewsStatus.NO_DIFF : LiveryNewsStatus.PENDING,
                     CreatedAt = now,
                     ResolvedAt = noDiff ? now : null,
@@ -268,7 +269,11 @@ namespace JAFleet.Services.Livery
                     string reg = p.Candidate.RegistrationNumber ?? "レジ不明";
                     string livery = p.Candidate.LiveryName ?? "塗装名不明";
                     string title = p.News.Title ?? "記事";
-                    return $"• {reg}　{livery}（<{p.News.NewsUrl}|{title}>）";
+                    //運航開始日が先なら、承認すると予約になることを添える
+                    string start = p.Candidate.StartDate is DateTime d
+                        ? (d.Date > DateTime.Today ? $"　:calendar: {d:yyyy/MM/dd}〜（承認で予約）" : $"　{d:yyyy/MM/dd}〜")
+                        : "";
+                    return $"• {reg}　{livery}{start}（<{p.News.NewsUrl}|{title}>）";
                 });
 
                 string text = $":art: *特別塗装機のニュースを見つけました（{pending.Count}件）*\n"

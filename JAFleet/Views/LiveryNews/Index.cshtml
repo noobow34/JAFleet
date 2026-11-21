@@ -9,6 +9,7 @@
     string StatusClass(string status) => status switch
     {
         LiveryNewsStatus.APPROVED => "ok",
+        LiveryNewsStatus.RESERVED => "ok",
         LiveryNewsStatus.REJECTED => "ng",
         _ => "",
     };
@@ -89,6 +90,9 @@
 .lvn-reason { font-size: 11px; color: #94a3b8; margin-top: 4px; line-height: 1.6; }
 .lvn-ops { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 .lvn-warn { font-size: 11px; font-weight: 700; color: #b91c1c; margin-top: 4px; }
+.lvn-start { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: 11px; font-weight: 700; color: #64748b; }
+.lvn-start .lvn-input { flex: 1; min-width: 0; }
+.lvn-start-note { color: #1d4ed8; font-weight: 700; }
 
 .lvn-error {
     border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
@@ -249,6 +253,13 @@
                         </div>
                         <div>
                             <input type="text" name="liveryName" class="lvn-input" value="@row.LiveryName" placeholder="塗装名" />
+                            @* 運航開始日。明日以降なら承認するといまは変えずに予約する *@
+                            <label class="lvn-start">
+                                運航開始日
+                                <input type="date" name="startDate" class="lvn-input date lvn-start-date"
+                                       value="@(row.StartDate?.ToString("yyyy-MM-dd") ?? "")" />
+                            </label>
+                            <div class="lvn-sub lvn-start-note"></div>
                         </div>
                         <div class="lvn-now">
                             @if (string.IsNullOrEmpty(row.NowLivery))
@@ -275,7 +286,7 @@
                             }
                         </div>
                         <div class="lvn-ops">
-                            <button type="submit" class="lvn-btn primary">承認</button>
+                            <button type="submit" class="lvn-btn primary lvn-approve">承認</button>
                             <button type="submit" class="lvn-btn danger" asp-action="Reject"
                                     data-confirm="この候補を却下します。機体情報は変わりません。よろしいですか？">却下</button>
                         </div>
@@ -319,7 +330,13 @@
                                     <a href="/AD/@row.RegistrationNumber?fromAdmin=@fromAdmin" target="_blank" rel="noopener">@row.RegistrationNumber</a>
                                 }
                             </td>
-                            <td>@(row.LiveryName ?? "-")</td>
+                            <td>
+                                @(row.LiveryName ?? "-")
+                                @if (row.Status == LiveryNewsStatus.RESERVED && row.StartDate != null)
+                                {
+                                    <div class="lvn-sub">📅 @row.StartDate.Value.ToString("yyyy/MM/dd") に反映（<a href="/AircraftReservation?reg=@row.RegistrationNumber&fromAdmin=@fromAdmin">予約</a>）</div>
+                                }
+                            </td>
                             <td>@{ NewsLink(row.NewsUrl, row.NewsTitle, row.NewsHasLink); }</td>
                             <td class="at">@(row.ResolvedAt?.ToString("yyyy/MM/dd HH:mm") ?? "")</td>
                         </tr>
@@ -506,6 +523,20 @@
     $(function () {
         //却下や削除は押し間違いで戻せないので確認する。
         //取り消したらぐるぐる（data-busy）まで届かないよう伝播も止める
+        //運航開始日が明日以降なら、承認ボタンを「予約」にして押したら何が起きるかを分かるようにする
+        const tomorrow = (function () {
+            const d = new Date(); d.setDate(d.getDate() + 1);
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        })();
+        const refreshStart = function (input) {
+            const row = $(input).closest('.lvn-row');
+            const value = $(input).val();
+            const reserve = value && value >= tomorrow;
+            row.find('.lvn-approve').text(reserve ? '承認（予約）' : '承認');
+            row.find('.lvn-start-note').text(reserve ? value.replace(/-/g, '/') + ' に反映するよう予約します' : '');
+        };
+        $('.lvn-start-date').each(function () { refreshStart(this); }).on('change input', function () { refreshStart(this); });
+
         $('[data-confirm]').on('click', function (e) {
             if (!confirm($(this).data('confirm'))) {
                 e.preventDefault();

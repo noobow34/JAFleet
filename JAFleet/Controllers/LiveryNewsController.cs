@@ -45,7 +45,7 @@ namespace JAFleet.Controllers
 
         /// <summary>候補を承認してaircraftへ反映する。レジと塗装名は画面で直した値を使う</summary>
         [HttpPost]
-        public async Task<IActionResult> ApproveAsync(int candidateId, string? registration, string? liveryName, bool fromAdmin)
+        public async Task<IActionResult> ApproveAsync(int candidateId, string? registration, string? liveryName, DateTime? startDate, bool fromAdmin)
         {
             if (!AdminAuth.IsAdmin(HttpContext))
             {
@@ -55,7 +55,7 @@ namespace JAFleet.Controllers
             LiveryNewsStore.Result result;
             try
             {
-                result = await LiveryNewsStore.ApproveAsync(_context, candidateId, registration, liveryName);
+                result = await LiveryNewsStore.ApproveAsync(_context, candidateId, registration, liveryName, startDate);
             }
             catch (Exception ex)
             {
@@ -68,7 +68,7 @@ namespace JAFleet.Controllers
             model.ErrorCandidateId = result.ErrorCandidateId;
 
             //反映した機体の写真も取り直す（単票編集と同じ）
-            if (result.Error == null && !string.IsNullOrEmpty(registration))
+            if (result.Error == null && !result.Reserved && !string.IsNullOrEmpty(registration))
             {
                 string? reg = LiveryNewsChecker.NormalizeRegistration(registration);
                 if (reg != null)
@@ -249,7 +249,7 @@ namespace JAFleet.Controllers
             //承認・却下した候補が付いている記事は消させない（何を承認したのか分からなくなるため）
             HashSet<int> locked = [.. await _context.LiveryNewsCandidates.AsNoTracking()
                 .Where(c => recentIds.Contains(c.NewsId)
-                    && (c.Status == LiveryNewsStatus.APPROVED || c.Status == LiveryNewsStatus.REJECTED))
+                    && (c.Status == LiveryNewsStatus.APPROVED || c.Status == LiveryNewsStatus.REJECTED || c.Status == LiveryNewsStatus.RESERVED))
                 .Select(c => c.NewsId)
                 .Distinct()
                 .ToListAsync()];
@@ -299,7 +299,7 @@ namespace JAFleet.Controllers
             {
                 CandidateId = candidate.CandidateId,
                 RegistrationNumber = candidate.RegistrationNumber,
-                LiveryName = candidate.Status == LiveryNewsStatus.APPROVED
+                LiveryName = candidate.Status is LiveryNewsStatus.APPROVED or LiveryNewsStatus.RESERVED
                     ? candidate.AppliedLivery
                     : candidate.LiveryName,
                 CurrentLivery = candidate.CurrentLivery,
@@ -308,6 +308,7 @@ namespace JAFleet.Controllers
                 AirlineName = aircraft?.AirlineNameJpShort,
                 TypeName = aircraft?.TypeDetailName ?? aircraft?.TypeName,
                 Status = candidate.Status,
+                StartDate = candidate.StartDate,
                 CreatedAt = candidate.CreatedAt,
                 ResolvedAt = candidate.ResolvedAt,
                 NewsTitle = n?.Title,

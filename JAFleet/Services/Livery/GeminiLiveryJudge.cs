@@ -93,6 +93,7 @@ namespace JAFleet.Services.Livery
 
                 {{urlLine}}
                 タイトル: {{(string.IsNullOrWhiteSpace(item.Title) ? "（なし）" : item.Title)}}
+                記事の公開日: {{(item.PublishedAt?.ToString("yyyy-MM-dd") ?? "（不明）")}}
                 本文・概要: {{item.Summary ?? "（なし）"}}
 
                 【判定ルール】
@@ -107,6 +108,10 @@ namespace JAFleet.Services.Livery
                 - registrationは記事に書かれたレジ（例: JA01XX）をそのまま入れ、書かれていなければnullにしてください。
                 - livery_nameは特別塗装の名称だけを短く入れてください（例:「ピカチュウジェット」「〇〇塗装」）。
                   記事の文章をそのまま入れないでください。
+                - start_dateには、その特別塗装機が運航を始める日（就航日・初便の日・お披露目後の営業運航の開始日）が
+                  記事に書かれていれば「yyyy-MM-dd」の形で入れてください。年が書かれていなければ記事の公開日から判断してください。
+                  「12月上旬」「来春」のように日まで決まっていない場合と、書かれていない場合はnullにしてください。
+                  すでに運航を始めている場合は、運航を始めた日を入れてください。
                 - falseの場合はtargetsを空配列にしてください。
                 - reasonには判定の理由を1文で書いてください。
                 - JSON形式のみで返答し、他のテキストは一切含めないでください。
@@ -115,7 +120,7 @@ namespace JAFleet.Services.Livery
                   "special_livery": true または false,
                   "reason": "判定理由を1文で",
                   "targets": [
-                    { "registration": "JA01XX", "livery_name": "塗装名" }
+                    { "registration": "JA01XX", "livery_name": "塗装名", "start_date": "2026-12-01 または null" }
                   ]
                 }
                 """;
@@ -201,5 +206,22 @@ namespace JAFleet.Services.Livery
     {
         public string? Registration { get; set; }
         public string? LiveryName { get; set; }
+
+        /// <summary>運航開始日（yyyy-MM-dd）。書かれていなければnull</summary>
+        public string? StartDate { get; set; }
+
+        /// <summary>運航開始日を日付にする。読めなければnull（人が画面で入れる）</summary>
+        public DateTime? ParseStartDate()
+        {
+            if (string.IsNullOrWhiteSpace(StartDate))
+            {
+                return null;
+            }
+            string text = StartDate.Trim().Normalize(System.Text.NormalizationForm.FormKC);
+            return DateTime.TryParseExact(text, ["yyyy-MM-dd", "yyyy-M-d", "yyyy/MM/dd", "yyyy/M/d"],
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out DateTime date)
+                ? date.Date
+                : null;
+        }
     }
 }

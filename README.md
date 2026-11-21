@@ -44,7 +44,8 @@
 | 機能 | パス | 説明 |
 | --- | --- | --- |
 | 管理コンソール | `/Admin` | 以下の各機能への入口。レジ検索、編集・詳細への直行 |
-| 単票編集 | `/E/{レジ}` | 機体情報の新規登録・更新。更新時は `aircraft_history` へ退避。登録ボタンでは履歴を残すかどうかを確認する |
+| 単票編集 | `/E/{レジ}` | 機体情報の新規登録・更新。更新時は `aircraft_history` へ退避。登録ボタンでは履歴を残すかどうかを確認する。「予約日」を入れると、その日に反映する予約になる |
+| 機体更新の予約 | `/AircraftReservation` | 特別塗装・運航の開始日に合わせて反映する予約の一覧と取消（[機体更新の予約](#機体更新の予約)） |
 | 更新履歴の編集 | `/AircraftHistory?reg={レジ}` | 機体詳細に出る更新履歴（`aircraft_history`）の修正・削除 |
 | 同一型式の一括登録 | `/BulkRegister` | 「レジ / 登録年月日 / 製造番号」をタブ・カンマ・空白区切りで貼り付けてまとめて登録 |
 | 航空局 Excel 取込 | `/JcabImport` | 国土交通省航空局から届くパスワード付き Excel を、Gmail から直接またはアップロードで取り込む |
@@ -244,6 +245,33 @@ export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_toke
 
 覚えていない場合は DB のバックアップから引くしかない。
 
+#### 機体更新の予約
+
+特別塗装や運航の開始日が先に決まっているとき、**その日に機体情報を変えるよう予約**できます
+（`aircraft_reservation`、`AircraftReservationStore`）。反映日が来ると日次ジョブ
+`ApplyAircraftReservationJob` が反映し、結果を Slack へ知らせます。
+
+- 予約の入口は 2 つ
+  - **単票編集の「予約日」**。入れて登録すると、いまの機体は変えずに予約だけ積む。確認ダイアログも「予約」になる。
+    新規登録では使えない（予約日の欄が出ない）
+  - **特別塗装ニュースの承認**。運航開始日が明日以降なら、承認しても `aircraft` は変えずに予約する
+    （[特別塗装ニュースの承認](#特別塗装ニュースの承認)）
+- 予約日は**明日以降**だけ。当日分はもう日次ジョブが走ったあとかもしれないので、今日の分はそのまま登録する
+- **持つのは変えた項目だけの差分**（`changes` に `[{"field":"SpecialLivery","before":…,"after":…}]` の JSON）。
+  機体まるごとを持つと、予約から反映までに別の項目（運用状況など）を直したとき、反映した日に古い値へ巻き戻るため。
+  差分は単票編集の画面の値といまの `aircraft` を比べて取る（空欄と NULL は同じとみなす）。
+  レジ・作成日時・更新日時・実更新日時は予約の対象外（日時は反映時に `AircraftStore` が決める）
+- 反映は単票編集と同じ `AircraftStore.Store` を通す。「履歴を作成しない」は予約にも持たせ、反映するときに効く。
+  特別塗装ニュースからの予約は必ず履歴を残す
+- 反映日の時点ですでに予約した値になっている項目は触らない。全部そうなら「差分なし」で終わり、機体は変えない
+- ジョブは**反映日が今日以前の予約中のもの**を反映日・予約順に重ねていく。ジョブが止まっていた日の分も次の実行で拾う。
+  1 件ずつ保存するので、1 件が失敗（機体が消えたなど）しても残りは反映され、失敗した予約は「失敗」として理由が残る
+- `/AircraftReservation` では予約の確認・取消と、ジョブを待たずに**今日の分をいま反映**ができる。
+  ジョブと画面の反映が重ならないよう `AircraftReservationStore.Processing` で見張る。
+  反映ジョブがスケジューラに載っていなければ画面に警告が出る
+- 単票編集の画面には、その機体の予約中の更新が上に並び、そこからも取り消せる
+- 反映した機体は写真も取り直す（単票編集と同じ）
+
 #### 型式・詳細型式のその場登録
 
 型式（`type`）と詳細型式（`type_detail`）は、これまで行を足すには DB を直接触る必要がありました。
@@ -298,7 +326,8 @@ export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_toke
    本文は RSS に載らない（冒頭の抜粋だけ）ため、`url_context` で記事そのものを読ませる
 3. 特別塗装と判定されたら、記事に出てきた機体ごとに更新候補（`livery_news_candidate`）を作り、Slack へ通知する
 4. `/LiveryNews` で候補を確認し、承認すると `AircraftStore` 経由で `aircraft.special_livery` を更新する
-   （単票編集と同じ処理を通るので、更新前の内容は `aircraft_history` に残る）
+   （単票編集と同じ処理を通るので、更新前の内容は `aircraft_history` に残る）。
+   **運航開始日が明日以降なら、いまは変えずに[その日に反映する予約](#機体更新の予約)を作る**
 
 - **RSS の取得には User-Agent が要る**。Aviation Wire は User-Agent が空のリクエストを 403 で返す
   （ヘッダの中身は見ておらず、何か入っていれば通る）。.NET の `HttpClient` は既定で User-Agent を
@@ -313,6 +342,11 @@ export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_toke
 - 塗装名とレジは**画面で直せる**。承認すると直した値が `aircraft` に入り、`livery_news_candidate` にも
   その値が残る。Gemini が出した元の値は `livery_news.gemini_result` に JSON のまま残る
 - 却下すると機体情報は変えずに処理済みにする。押し間違いを戻せないので確認ダイアログを出す
+- **運航開始日**（`livery_news_candidate.start_date`）も Gemini に記事から読ませる（就航日・初便の日。
+  年が無ければ記事の公開日から補わせ、「12月上旬」のように日が決まっていなければ null）。
+  画面で直せ、明日以降の日付が入っていると承認ボタンが「承認（予約）」になる。承認すると候補は「予約」になり、
+  その日に日次ジョブが反映する。予約は `/AircraftReservation` で取り消せる。Slack 通知にも開始日を添える。
+  **予約になるのは承認したときだけ**で、ニュースを取得しただけでは予約しない（人が承認したときだけ DB が変わる、のまま）
 - 「いま確認する」はジョブを待たずに RSS を確認する。記事ごとに数秒待つため 1 回が数分かかることがあり、
   **バッチ手動実行と同じく裏で動かしてすぐ画面を返す**。終わると Slack に通知が飛ぶので、画面を読み直す。
   日次ジョブと重なって同じ記事を二重に投げないよう、実行中かどうかは `LiveryNewsChecker.Processing` で見張る
@@ -474,6 +508,7 @@ JAFleet/
 │   ├── TypeDetailStore.cs      詳細型式のその場登録
 │   ├── SeatConfigStore.cs      コンフィグ（座席仕様）の登録・更新・削除
 │   ├── AircraftHistoryStore.cs 更新履歴の修正・削除
+│   ├── AircraftReservationStore.cs 機体更新の予約（差分の保存・反映・取消）
 │   └── MasterManager.cs        マスタのメモリキャッシュ
 ├── Batch/            スクレイピングを伴う長時間処理と Slack 通知の組み立て
 ├── Jobs/             Quartz のジョブと RootScheduler
@@ -513,6 +548,7 @@ Flightradar24 を巡回する処理（上の2つと、管理コンソールか�
 作られないので、`NotifyWorkingStatusJob` は「未実行」の警告を出します。
 | `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する |
 | `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
+| `ApplyAircraftReservationJob` | 反映日が今日以前の機体更新の予約を反映し、Slack へ知らせる（[機体更新の予約](#機体更新の予約)）。DDL で毎日 0:05 に登録される |
 
 ## 環境変数
 
@@ -659,6 +695,11 @@ EF Core の Migration は使わず、テーブル定義は手動で管理して�
 **デプロイ前**に実行してください。テーブルが無いと `/LiveryNews` が開けず、
 `CheckSpecialLiveryNewsJob` も動きません。
 
+`create_aircraft_reservation.sql`（機体更新の予約の `aircraft_reservation`、
+`livery_news_candidate.start_date` 列、反映ジョブの `scheduler_def` 行）も**デプロイ前**に実行してください。
+列が無いと `/LiveryNews` が開けず、テーブルが無いと単票編集が開けません。
+`scheduler_def` の行は起動時に読まれるので、デプロイ（再起動）で反映ジョブが載ります。
+
 `create_site_setting.sql`（サイト設定の `site_setting`）は、デプロイの前後どちらでも構いません。
 テーブルが無いあいだは既定値（非稼働情報のメニューは表示）で動き、`/SiteSetting` で保存しようと
 したときだけエラーになります。全ページのレイアウトが読む値なので、起動時とマスタ再読込でメモリへ
@@ -667,4 +708,4 @@ EF Core の Migration は使わず、テーブル定義は手動で管理して�
 主なテーブル・ビューは `JAFleet.Commons` の `JAFleetContext` を参照してください
 （`aircraft`、`aircraft_view`、`aircraft_history`、`aircraft_photo`、`working_status`、
 `airline`、`type`、`type_detail`、`code`、`search_condition`、`access_log`、`log`、
-`scheduler_def`、`jcab_import_session`、`livery_news`、`livery_news_candidate`、`site_setting` など）。
+`scheduler_def`、`jcab_import_session`、`livery_news`、`livery_news_candidate`、`site_setting`、`aircraft_reservation` など）。

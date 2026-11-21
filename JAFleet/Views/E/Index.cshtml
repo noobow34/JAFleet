@@ -53,6 +53,44 @@ else
 {
     @Model.ex.ToString()
 }
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="e-rsv-error">⚠ @Model.ErrorMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="e-rsv-ok">✔ @Model.Message</div>
+}
+@if (Model.Reservations.Count > 0)
+{
+    @* 予約中の更新。反映日が来たら日次ジョブが入れる。ここで直した内容とぶつからないか見られるように出す *@
+    <div class="e-rsv">
+        <div class="e-rsv-title">📅 予約中の更新（@Model.Reservations.Count 件）
+            <a href="/AircraftReservation?reg=@Model.Aircraft!.RegistrationNumber&fromAdmin=@Model.FromAdmin.ToString().ToLowerInvariant()">一覧</a>
+        </div>
+        @foreach (var r in Model.Reservations)
+        {
+            <div class="e-rsv-row">
+                <span class="e-rsv-date">@r.ApplyDate.ToString("yyyy/MM/dd")</span>
+                <span class="e-rsv-body">
+                    @foreach (var c in r.Changes)
+                    {
+                        <span class="e-rsv-change"><b>@c.FieldName</b> @c.Before → <b>@c.After</b></span>
+                    }
+                    <span class="e-rsv-src">@r.Source@(r.WriteHistory ? "" : "・履歴を作成しない")</span>
+                </span>
+                <form method="post" asp-controller="AircraftReservation" asp-action="Cancel" class="e-rsv-cancel">
+                    <input type="hidden" name="reservationId" value="@r.ReservationId" />
+                    <input type="hidden" name="reg" value="@Model.Aircraft!.RegistrationNumber" />
+                    <input type="hidden" name="fromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
+                    <input type="hidden" name="returnTo" value="E" />
+                    <button type="submit" class="btn btn-default btn-xs"
+                            onclick="return confirm('この予約を取り消します。機体情報は変わりません。よろしいですか？');">取消</button>
+                </form>
+            </div>
+        }
+    </div>
+}
 <form asp-action="Store" method="post" class="form-inline">
     <div class="row">
         <div class="form-group">
@@ -174,6 +212,17 @@ else
             @Html.TextBoxFor(model => model.Aircraft!.ActualUpdateTime, new { @class = "form-control", @readonly = "readonly" })
         </div>
     </div>
+    @if (!Model.IsNew)
+    {
+        <div class="row">
+            <div class="form-group">
+                @Html.LabelFor(model => model.ReserveDate, new { @class = "control-label" })
+                <input type="date" name="ReserveDate" id="ReserveDate" class="form-control"
+                       min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")" value="" />
+                <span class="e-rsv-hint">入れるといまは更新せず、この日に変えた項目だけを反映します（特別塗装・運航の開始日が決まっているとき用）</span>
+            </div>
+        </div>
+    }
     <div class="row">
         <div class="form-group">
             <input type="button" value="戻る" class="btn btn-default" onclick="history.back();" />
@@ -229,6 +278,21 @@ else
 .ecf-btn:hover { background: #f1f5f9; }
 .ecf-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
 .ecf-btn.primary:hover { background: #1e293b; }
+.ecf-state.reserve { border-color: #bfdbfe; background: #eff6ff; }
+.ecf-state.reserve .ecf-badge { background: #dbeafe; color: #1d4ed8; }
+
+/* ===== 予約中の更新 ===== */
+.e-rsv { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 8px; padding: 10px 14px; margin: 10px 0; max-width: 760px; }
+.e-rsv-title { font-size: 13px; font-weight: 700; color: #1d4ed8; margin-bottom: 6px; }
+.e-rsv-title a { font-weight: 600; margin-left: 8px; font-size: 12px; }
+.e-rsv-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-top: 1px dashed #bfdbfe; font-size: 13px; }
+.e-rsv-date { font-weight: 700; white-space: nowrap; color: #0f172a; }
+.e-rsv-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.e-rsv-src { font-size: 11px; color: #64748b; }
+.e-rsv-cancel { margin: 0; }
+.e-rsv-hint { font-size: 11px; color: #64748b; margin-left: 6px; }
+.e-rsv-error { border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px; padding: 10px 14px; margin: 10px 0; color: #b91c1c; font-weight: 600; max-width: 760px; }
+.e-rsv-ok { border: 1px solid #a7f3d0; background: #ecfdf5; border-radius: 8px; padding: 10px 14px; margin: 10px 0; color: #065f46; font-weight: 700; max-width: 760px; }
 </style>
 
 <div class="modal fade ecf-modal" id="storeConfirm" tabindex="-1" role="dialog" aria-labelledby="storeConfirmTitle">
@@ -274,10 +338,18 @@ else
 
             const isNew = @(Model.IsNew.ToString().ToLowerInvariant());
             const notUpdate = $('#NotUpdateDate').prop('checked');
+            const reserveDate = $('#ReserveDate').val();
             const state = storeConfirm.find('.ecf-state');
 
-            state.removeClass('new keep drop');
-            if (isNew) {
+            state.removeClass('new keep drop reserve');
+            $('#storeConfirmOk').text(reserveDate && !isNew ? '予約する' : '登録する');
+            if (reserveDate && !isNew) {
+                state.addClass('reserve');
+                storeConfirm.find('.ecf-badge').text('予約');
+                storeConfirm.find('.ecf-msg').text(reserveDate.replace(/-/g, '/') + ' に反映するよう予約します。いまの機体情報は変わりません。');
+                storeConfirm.find('.ecf-note').text('いまの内容から変えた項目だけを予約します。反映するときに'
+                    + (notUpdate ? '更新履歴は残しません（「履歴を作成しない」にチェックあり）。' : '更新前の内容を更新履歴に残します。'));
+            } else if (isNew) {
                 state.addClass('new');
                 storeConfirm.find('.ecf-badge').text('新規登録');
                 storeConfirm.find('.ecf-msg').text('このレジを新しく登録します。');

@@ -4,6 +4,7 @@ using JAFleet.Models;
 using JAFleet.Commons.Data;
 using JAFleet.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using JAFleet.Commons.Constants;
 
 namespace JAFleet.Controllers
 {
@@ -67,12 +68,42 @@ namespace JAFleet.Controllers
             }
             model.SeatConfigurationList = q?.ToArray();
 
+            if (!model.IsNew)
+            {
+                string reg = model.Aircraft.RegistrationNumber!;
+                model.Reservations = [.. _context.AircraftReservations.AsNoTracking()
+                    .Where(r => r.RegistrationNumber == reg && r.Status == AircraftReservationStatus.PENDING)
+                    .OrderBy(r => r.ApplyDate).ThenBy(r => r.ReservationId)
+                    .ToList()
+                    .Select(AircraftReservationController.ToRow)];
+            }
+            model.Message = TempData["EMessage"] as string;
+            model.ErrorMessage = TempData["EError"] as string;
+
             return View(model);
         }
 
         [HttpPost]
-        public IActionResult Store(EditModel model)
+        public async Task<IActionResult> Store(EditModel model)
         {
+            //予約日が入っていれば、いまは更新せずに予約だけする
+            if (model.ReserveDate != null && !model.IsNew)
+            {
+                AircraftReservationStore.Result reserved;
+                try
+                {
+                    reserved = await AircraftReservationStore.ReserveFromEditAsync(
+                        _context, model.Aircraft!, model.ReserveDate, !model.NotUpdateDate, DateTime.Now);
+                }
+                catch (Exception ex)
+                {
+                    reserved = new AircraftReservationStore.Result { Error = $"予約できませんでした。({ex.GetBaseException().Message})" };
+                }
+                TempData["EMessage"] = reserved.Message;
+                TempData["EError"] = reserved.Error;
+                return Redirect("/E/" + model.Aircraft!.RegistrationNumber + QueryString(model));
+            }
+
             try
             {
                 AircraftStore.Store(_context, model.Aircraft!, model.IsNew, !model.NotUpdateDate, DateTime.Now);
@@ -87,6 +118,16 @@ namespace JAFleet.Controllers
             model.TypeList = MasterManager.Type!;
             model.OperationList = MasterManager.Operation!;
             model.WiFiList = MasterManager.Wifi!;
+            string noheadString = QueryString(model);
+
+            //写真を更新
+            _ = HttpClientManager.GetInstance().GetStringAsync($"http://localhost:5000/Aircraft/Photo/{model.Aircraft!.RegistrationNumber}?force=true");
+
+            return Redirect("/E/" + model.Aircraft.RegistrationNumber + noheadString);
+        }
+
+        private static string QueryString(EditModel model)
+        {
             List<string> query = [];
             if (model.NoHead)
             {
@@ -96,12 +137,7 @@ namespace JAFleet.Controllers
             {
                 query.Add("fromAdmin=true");
             }
-            string noheadString = query.Count == 0 ? string.Empty : "?" + string.Join("&", query);
-
-            //写真を更新
-            _ = HttpClientManager.GetInstance().GetStringAsync($"http://localhost:5000/Aircraft/Photo/{model.Aircraft!.RegistrationNumber}?force=true");
-
-            return Redirect("/E/" + model.Aircraft.RegistrationNumber + noheadString);
+            return query.Count == 0 ? string.Empty : "?" + string.Join("&", query);
         }
     }
 }

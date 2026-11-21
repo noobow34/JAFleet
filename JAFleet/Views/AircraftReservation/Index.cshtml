@@ -1,0 +1,232 @@
+@model JAFleet.Models.AircraftReservationModel
+@using JAFleet.Commons.Constants
+@{
+    Layout = "_LayoutNoHead";
+    Model.Title = "機体更新の予約";
+    string fromAdmin = Model.FromAdmin.ToString().ToLowerInvariant();
+
+    string StatusClass(string status) => status switch
+    {
+        AircraftReservationStatus.APPLIED => "ok",
+        AircraftReservationStatus.FAILED => "ng",
+        _ => "",
+    };
+}
+
+@section CssPartial {
+<style>
+/* ===== 機体更新の予約 =====
+   注意: Bootstrap3 が html{font-size:10px} を設定しているため remは使わずpxで指定すること。 */
+.rsv-page { padding: 16px 0 60px; max-width: 1100px; }
+.rsv-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
+.rsv-lead { font-size: 13px; color: #94a3b8; margin-bottom: 18px; line-height: 1.7; }
+.rsv-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
+    padding: 16px 18px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.rsv-card-title { font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 10px; }
+.rsv-state { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #64748b; }
+.rsv-state b { color: #1e293b; }
+.rsv-state .spacer { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.rsv-btn {
+    display: inline-flex; align-items: center; height: 32px; padding: 0 14px;
+    border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.rsv-btn:hover { background: #f1f5f9; text-decoration: none; color: #1e293b; }
+.rsv-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.rsv-btn.primary:hover { background: #1e293b; color: #fff; }
+.rsv-btn.danger { color: #b91c1c; }
+.rsv-btn.danger:hover { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.rsv-input { height: 32px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 140px; text-transform: uppercase; }
+
+.rsv-list { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rsv-list th {
+    text-align: left; font-size: 11px; font-weight: 700; color: #94a3b8;
+    border-bottom: 1px solid #e2e8f0; padding: 6px 8px; white-space: nowrap;
+}
+.rsv-list td { border-bottom: 1px solid #f1f5f9; padding: 8px; color: #334155; vertical-align: top; }
+.rsv-list td.reg { font-family: Consolas, monospace; font-weight: 700; white-space: nowrap; }
+.rsv-list td.date { font-weight: 700; white-space: nowrap; }
+.rsv-list td.at { color: #94a3b8; white-space: nowrap; font-size: 12px; }
+.rsv-list a { color: #1d4ed8; }
+.rsv-change { line-height: 1.7; }
+.rsv-change .f { font-size: 11px; font-weight: 700; color: #64748b; margin-right: 4px; }
+.rsv-change .b { color: #94a3b8; text-decoration: line-through; }
+.rsv-change .a { color: #0f172a; font-weight: 700; }
+.rsv-sub { font-size: 11px; color: #94a3b8; margin-top: 3px; line-height: 1.5; }
+.rsv-badge {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; border: 1px solid #e2e8f0; color: #64748b; background: #f8fafc; white-space: nowrap;
+}
+.rsv-badge.ok { border-color: #a7f3d0; background: #ecfdf5; color: #065f46; }
+.rsv-badge.ng { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.rsv-error {
+    border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #b91c1c; font-weight: 600; line-height: 1.7;
+}
+.rsv-ok {
+    border: 1px solid #a7f3d0; background: #ecfdf5; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; font-size: 14px; color: #065f46; font-weight: 700; line-height: 1.7;
+}
+.rsv-empty { padding: 18px 8px; font-size: 13px; color: #94a3b8; }
+.rsv-scroll { overflow-x: auto; }
+</style>
+}
+
+<div class="rsv-page">
+    <h2>📅 機体更新の予約</h2>
+    <div class="rsv-lead">
+        特別塗装や運航の開始日が先に決まっているときに、その日に機体情報を更新するための予約です。<br />
+        予約は単票編集の「予約日」か、特別塗装ニュースの承認（運航開始日が先のとき）から作ります。
+        反映日が来ると日次ジョブ <code>ApplyAircraftReservationJob</code> が反映し、Slackへ知らせます。
+    </div>
+
+    @if (!Model.JobScheduled)
+    {
+        <div class="rsv-error">
+            ⚠ 反映ジョブ（ApplyAircraftReservationJob）がスケジューラに載っていません。このままでは予約日が来ても反映されません。
+            <a href="/Scheduler?fromAdmin=@fromAdmin">定期実行ジョブ</a>で有効にしてください。
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="rsv-error">⚠ @Model.ErrorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.Message))
+    {
+        <div class="rsv-ok">✔ @Model.Message</div>
+    }
+
+    <div class="rsv-card">
+        <div class="rsv-state">
+            <span>予約中 <b>@Model.Pending.Count 件</b></span>
+            <span>次回の反映 <b>@(Model.NextFireTime?.ToString("yyyy/MM/dd HH:mm") ?? "-")</b></span>
+            <div class="spacer">
+                <form method="get" action="/AircraftReservation" style="display:flex;gap:6px;margin:0;">
+                    <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+                    <input type="text" name="reg" class="rsv-input" value="@Model.Reg" placeholder="レジで絞る" />
+                    <button type="submit" class="rsv-btn">絞り込む</button>
+                    @if (Model.Reg != null)
+                    {
+                        <a class="rsv-btn" href="/AircraftReservation?fromAdmin=@fromAdmin">全部</a>
+                    }
+                </form>
+                <form method="post" asp-controller="AircraftReservation" asp-action="ApplyNow" style="margin:0;">
+                    <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+                    <input type="hidden" name="reg" value="@Model.Reg" />
+                    <button type="submit" class="rsv-btn" data-busy="反映しています…"
+                            data-confirm="反映日が今日以前の予約を、いま反映します。よろしいですか？">▶ 今日の分をいま反映</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="rsv-card">
+        <div class="rsv-card-title">予約中</div>
+        @if (Model.Pending.Count == 0)
+        {
+            <div class="rsv-empty">予約中のものはありません。</div>
+        }
+        else
+        {
+            <div class="rsv-scroll">
+                <table class="rsv-list">
+                    <thead>
+                        <tr><th>反映日</th><th>レジ</th><th>変える内容</th><th>予約元</th><th>予約日時</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.Pending)
+                        {
+                            <tr>
+                                <td class="date">@row.ApplyDate.ToString("yyyy/MM/dd")</td>
+                                <td class="reg">
+                                    <a href="/AD/@row.RegistrationNumber?fromAdmin=@fromAdmin" target="_blank" rel="noopener">@row.RegistrationNumber</a>
+                                    <div class="rsv-sub"><a href="/E/@row.RegistrationNumber?fromAdmin=@fromAdmin">編集</a></div>
+                                </td>
+                                <td>@{ Changes(row); }</td>
+                                <td>@row.Source</td>
+                                <td class="at">@row.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                                <td>
+                                    <form method="post" asp-controller="AircraftReservation" asp-action="Cancel" style="margin:0;">
+                                        <input type="hidden" name="reservationId" value="@row.ReservationId" />
+                                        <input type="hidden" name="reg" value="@Model.Reg" />
+                                        <input type="hidden" name="fromAdmin" value="@fromAdmin" />
+                                        <button type="submit" class="rsv-btn danger"
+                                                data-confirm="この予約を取り消します。機体情報は変わりません。よろしいですか？">取消</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="rsv-card">
+        <div class="rsv-card-title">処理済み（直近@(Model.Resolved.Count)件）</div>
+        @if (Model.Resolved.Count == 0)
+        {
+            <div class="rsv-empty">処理済みのものはありません。</div>
+        }
+        else
+        {
+            <div class="rsv-scroll">
+                <table class="rsv-list">
+                    <thead>
+                        <tr><th>状況</th><th>反映日</th><th>レジ</th><th>変える内容</th><th>予約元</th><th>処理日時</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.Resolved)
+                        {
+                            <tr>
+                                <td><span class="rsv-badge @StatusClass(row.Status)">@AircraftReservationStatus.GetName(row.Status)</span></td>
+                                <td class="date">@row.ApplyDate.ToString("yyyy/MM/dd")</td>
+                                <td class="reg"><a href="/AD/@row.RegistrationNumber?fromAdmin=@fromAdmin" target="_blank" rel="noopener">@row.RegistrationNumber</a></td>
+                                <td>
+                                    @{ Changes(row); }
+                                    @if (!string.IsNullOrEmpty(row.ResultMessage))
+                                    {
+                                        <div class="rsv-sub">💬 @row.ResultMessage</div>
+                                    }
+                                </td>
+                                <td>@row.Source</td>
+                                <td class="at">@(row.ResolvedAt?.ToString("yyyy/MM/dd HH:mm") ?? "")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+<partial name="_BusyOverlay" />
+
+@functions {
+    private void Changes(JAFleet.Models.AircraftReservationRow row)
+    {
+        foreach (var c in row.Changes)
+        {
+            <div class="rsv-change"><span class="f">@c.FieldName</span><span class="b">@c.Before</span> → <span class="a">@c.After</span></div>
+        }
+        if (!row.WriteHistory)
+        {
+            <div class="rsv-sub">履歴を作成しない</div>
+        }
+    }
+}
+
+@section ScriptsPartial {
+    <partial name="_BusyOverlayScript" />
+    <script>
+        //取消などの押し間違いを防ぐ
+        $(document).on('click', '[data-confirm]', function (e) {
+            if (!window.confirm($(this).data('confirm'))) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+            }
+        });
+    </script>
+}
