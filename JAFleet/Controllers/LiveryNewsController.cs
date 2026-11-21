@@ -198,7 +198,16 @@ namespace JAFleet.Controllers
                 return NotFound();
             }
 
-            LiveryNewsTrial.Result result = await LiveryNewsTrial.DeleteNewsAsync(_context, newsId);
+            LiveryNewsTrial.Result result;
+            try
+            {
+                result = await LiveryNewsTrial.DeleteNewsAsync(_context, newsId);
+            }
+            catch (Exception ex)
+            {
+                //落ちたらエラーページではなく画面に理由を出す（トランザクションなので何も消えていない）
+                result = new LiveryNewsTrial.Result { Error = $"消せませんでした。({ex.Message})" };
+            }
 
             LiveryNewsModel model = await BuildModelAsync(fromAdmin);
             model.Message = result.Message;

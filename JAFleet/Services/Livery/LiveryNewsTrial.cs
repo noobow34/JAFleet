@@ -1,6 +1,7 @@
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace JAFleet.Services.Livery
 {
@@ -192,30 +193,49 @@ namespace JAFleet.Services.Livery
         /// </summary>
         public static async Task<Result> DeleteNewsAsync(JAFleetContext context, int newsId)
         {
-            LiveryNews? news = await context.LiveryNewsList.FirstOrDefaultAsync(n => n.NewsId == newsId);
-            if (news == null)
+            //確かめてから消すまでの間に候補が承認されないよう、まとめて1トランザクションにする。
+            //呼び出し側がすでにトランザクションを張っていればそれに乗る（入れ子にはできないため）
+            await using IDbContextTransaction? transaction = context.Database.CurrentTransaction == null
+                ? await context.Database.BeginTransactionAsync()
+                : null;
+
+            if (!await context.LiveryNewsList.AnyAsync(n => n.NewsId == newsId))
             {
                 return new Result { Error = "記事が見つかりません。" };
             }
 
-            List<LiveryNewsCandidate> candidates = await context.LiveryNewsCandidates
+            List<string> statuses = await context.LiveryNewsCandidates.AsNoTracking()
                 .Where(c => c.NewsId == newsId)
+                .Select(c => c.Status)
                 .ToListAsync();
 
-            if (candidates.Any(c => c.Status is LiveryNewsStatus.APPROVED or LiveryNewsStatus.REJECTED or LiveryNewsStatus.RESERVED))
+            if (statuses.Any(s => s is LiveryNewsStatus.APPROVED or LiveryNewsStatus.REJECTED or LiveryNewsStatus.RESERVED))
             {
                 return new Result { Error = "承認・却下した候補が付いている記事は消せません。" };
             }
 
-            context.LiveryNewsCandidates.RemoveRange(candidates);
-            context.LiveryNewsList.Remove(news);
-            await context.SaveChangesAsync();
+            //消す順番はEFに任せず「候補 → 記事」と自分で決める。
+            //EFのモデルには2つのテーブルの関係を定義していないため、Removeで積むと
+            //EFは記事を先に消してしまう。するとDBのON DELETE CASCADEが候補を道連れにし、
+            //続く候補のDELETEが0行になってDbUpdateConcurrencyExceptionで落ちていた
+            //（候補の付いた記事だけが消せなかった）。
+            int deletedCandidates = await context.LiveryNewsCandidates
+                .Where(c => c.NewsId == newsId)
+                .ExecuteDeleteAsync();
+            await context.LiveryNewsList
+                .Where(n => n.NewsId == newsId)
+                .ExecuteDeleteAsync();
+
+            if (transaction != null)
+            {
+                await transaction.CommitAsync();
+            }
 
             return new Result
             {
-                Message = candidates.Count == 0
+                Message = deletedCandidates == 0
                     ? "記事を消しました。もう一度判定できます。"
-                    : $"記事と候補{candidates.Count}件を消しました。もう一度判定できます。",
+                    : $"記事と候補{deletedCandidates}件を消しました。もう一度判定できます。",
             };
         }
     }
