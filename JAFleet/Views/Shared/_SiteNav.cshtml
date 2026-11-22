@@ -1,0 +1,146 @@
+@using JAFleet.Services
+@using JAFleet.Commons.Data
+@*
+    サイト共通のナビバー（_Layout から読む）。見た目は wwwroot/css/site.css の「ナビバー」。
+    PC（992px〜）は 1 段のバーにメニューを並べ、航空会社と型式はドロップダウンで開く。
+    スマホ・タブレット（〜991px）はロゴ・検索・☰ だけを出し、☰ でバーの下にメニューを開く。
+    開閉は Bootstrap 3 の collapse / dropdown をそのまま使う。
+    幅を測って余白を合わせるスクリプト（fleet-list.js など）は .navbar-fixed-top の高さを見るので、
+    開いたメニューはバーの外（position: absolute）に出してバーの高さを変えない。
+*@
+@{
+    string ctrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    string act = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+    string rid = (ViewContext.RouteData.Values["id"]?.ToString() ?? "").ToUpperInvariant();
+    // いま見ているページに当たるメニューを青くする
+    string activeGroup = "";
+    if (ctrl == "Aircraft" && act == "AirlineGroup") { activeGroup = rid.Split(',')[0]; }
+    else if (ctrl == "Aircraft" && act == "Airline") { activeGroup = MasterManager.AllAirline?.FirstOrDefault(a => a.AirlineCode == rid)?.AirlineGroupCode ?? ""; }
+    bool typeActive = ctrl == "Aircraft" && act == "Type";
+    bool searchActive = ctrl == "Search";
+    bool nwActive = ctrl == "NotWorkingInfo";
+
+    var groups = new[]
+    {
+        (Code: "A", Name: "ANAグループ", Short: "ANA", Airlines: MasterManager.ANA ?? []),
+        (Code: "J", Name: "JALグループ", Short: "JAL", Airlines: MasterManager.JAL ?? []),
+        (Code: "L", Name: "LCC", Short: "LCC", Airlines: MasterManager.LCC ?? []),
+        (Code: "O", Name: "その他の航空会社", Short: "その他", Airlines: MasterManager.Other ?? []),
+    };
+    var makers = (MasterManager.Maker ?? []).ToDictionary(m => m.MakerCode, m => m.MakerNameJp ?? m.MakerNameEn ?? m.MakerCode);
+    var typeGroups = (MasterManager.Type ?? [])
+        .GroupBy(t => t.MakerCode != null && makers.TryGetValue(t.MakerCode, out var n) ? n : "その他") // マスタに無いメーカーは「その他」にまとめる
+        .Select(g => (Name: g.Key, Types: g.ToList()))
+        .OrderBy(g => g.Name == "その他" ? 1 : 0) // 「その他」は最後に
+        .ToList();
+    bool isAuthenticated = Context.User.Identity?.IsAuthenticated ?? false;
+}
+<header class="jf-nav navbar-fixed-top">
+    <div class="jf-bar">
+        <a class="jf-logo" asp-area="" asp-controller="Home" asp-action="Index" title="トップへ">
+            <img src="~/images/JA-Fleet_2.png" alt="JA-Fleet" width="587" height="163" />
+        </a>
+
+        @* スマホ・タブレットだけ: 検索への近道と ☰ *@
+        <a class="jf-icon-btn jf-only-narrow @(searchActive ? "is-active" : "")" asp-area="" asp-controller="Search" asp-action="Index" aria-label="検索">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+        </a>
+        <button type="button" class="jf-icon-btn jf-toggle jf-only-narrow collapsed" data-toggle="collapse" data-target="#jfMenu" aria-controls="jfMenu" aria-expanded="false" aria-label="メニュー">
+            <svg class="i-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+            <svg class="i-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+
+        <nav class="jf-menu collapse" id="jfMenu" aria-label="メインメニュー">
+            <ul class="jf-links">
+                <li class="jf-search-item">
+                    <a class="jf-link @(searchActive ? "is-active" : "")" asp-area="" asp-controller="Search" asp-action="Index">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+                        <span>検索</span>
+                    </a>
+                </li>
+                @foreach (var g in groups)
+                {
+                    <li class="dropdown">
+                        <a href="#" class="jf-link dropdown-toggle @(activeGroup == g.Code ? "is-active" : "")" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                            <span class="jf-long">@g.Name</span><span class="jf-short">@g.Short</span><i class="jf-caret" aria-hidden="true"></i>
+                        </a>
+                        <ul class="dropdown-menu jf-dd">
+                            <li class="jf-dd-all"><a asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="@g.Code">@(g.Name)のすべて<span aria-hidden="true">→</span></a></li>
+                            @foreach (Airline a in g.Airlines)
+                            {
+                                <li><a class="@(ctrl == "Aircraft" && act == "Airline" && a.AirlineCode == rid ? "is-current" : "")" asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">@a.AirlineNameJpShort</a></li>
+                            }
+                        </ul>
+                    </li>
+                }
+                <li class="dropdown jf-types-item">
+                    <a href="#" class="jf-link dropdown-toggle @(typeActive ? "is-active" : "")" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                        <span class="jf-long">型式から探す</span><span class="jf-short">型式</span><i class="jf-caret" aria-hidden="true"></i>
+                    </a>
+                    @* 型式は 40 を超えるので、縦に長いリストではなくメーカー別に段組みして一度に見せる *@
+                    <div class="dropdown-menu jf-dd jf-dd-types">
+                        @foreach (var tg in typeGroups)
+                        {
+                            <div class="jf-maker">
+                                <div class="jf-maker-name">@tg.Name</div>
+                                <div class="jf-maker-types">
+                                    @foreach (var t in tg.Types)
+                                    {
+                                        <a class="@(typeActive && t.TypeCode == rid ? "is-current" : "")" asp-area="" asp-controller="Aircraft" asp-action="Type" asp-route-id="@t.TypeCode">@t.TypeName</a>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </li>
+                @* 稼働状況の取得が止まっているときなどに、管理コンソールのサイト設定で隠せる *@
+                @if (SiteSettings.ShowNotWorkingInfoMenu)
+                {
+                    <li>
+                        <a class="jf-link @(nwActive ? "is-active" : "")" asp-area="" asp-controller="NotWorkingInfo" asp-action="Index">
+                            <span class="jf-long">非稼働情報</span><span class="jf-short">非稼働</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+
+            <ul class="jf-tools">
+                <li>
+                    <a href="#" class="jf-tool" data-toggle="modal" data-target="#lineinfo" title="LINE で更新情報を受け取る">
+                        <img src="~/images/linelogo.png" width="20" height="20" alt="" /><span class="jf-tool-label">LINE</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="https://x.com/ja_fleet" class="jf-tool" target="_blank" rel="noopener" title="X（@@ja_fleet）">
+                        <svg class="x" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.8 3h3.1l-6.8 7.8L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.3-8.3L2 3h6.4l4.4 5.8zm-1.1 16.2h1.7L7.4 4.7H5.6z" /></svg><span class="jf-tool-label">X</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="jf-tool" data-toggle="modal" data-target="#sendMessage" title="お問い合わせ">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3.5 6.5l8.5 6.5 8.5-6.5" /></svg><span class="jf-tool-label">お問い合わせ</span>
+                    </a>
+                </li>
+                @if (isAuthenticated)
+                {
+                    <li>
+                        <a href="/Admin" id="admin-link" class="jf-tool" title="管理コンソール">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z" /></svg><span class="jf-tool-label">管理コンソール</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/Account/Logout" id="logout-link" class="jf-tool" title="ログアウト">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3" /></svg><span class="jf-tool-label">ログアウト</span>
+                        </a>
+                    </li>
+                }
+                else
+                {
+                    @* 画面を 5 回たたくと出てくる（a.js） *@
+                    <li><a href="/Account/Login" id="login-link" class="jf-tool" style="display: none;" title="ログイン">🔒<span class="jf-tool-label">ログイン</span></a></li>
+                }
+            </ul>
+        </nav>
+    </div>
+</header>
+@* スマホ・タブレットでメニューを開いているあいだ本文を暗くする。押すと閉じる（開閉は _Layout のスクリプト） *@
+<div class="jf-backdrop" id="jfBackdrop" aria-hidden="true"></div>

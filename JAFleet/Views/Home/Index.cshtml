@@ -4,11 +4,24 @@
 @model HomeModel
 @{
     Model.Title = "Top";
+    bool isAdmin = AdminAuth.IsAdmin(Context);
+    var groups = new[]
+    {
+        (Code: "A", Name: "ANAグループ", Airlines: MasterManager.ANA!),
+        (Code: "J", Name: "JALグループ", Airlines: MasterManager.JAL!),
+        (Code: "L", Name: "LCC", Airlines: MasterManager.LCC!),
+        (Code: "O", Name: "その他の航空会社", Airlines: MasterManager.Other!),
+    };
+    // 型式はメーカーごとにまとめる（並びはマスタの表示順のまま）
+    var makers = (MasterManager.Maker ?? []).ToDictionary(m => m.MakerCode, m => m.MakerNameJp ?? m.MakerNameEn ?? m.MakerCode);
+    var typeGroups = (MasterManager.Type ?? [])
+        .GroupBy(t => t.MakerCode != null && makers.TryGetValue(t.MakerCode, out var n) ? n : "その他") // マスタに無いメーカーは「その他」にまとめる
+        .Select(g => (Name: g.Key, Types: g.ToList()))
+        .OrderBy(g => g.Name == "その他" ? 1 : 0) // 「その他」は最後に
+        .ToList();
 }
 @section HeadPartial{
     <meta name="description" content="JA-Fleetは日本国内の航空会社が保有する機材（飛行機）を一覧表示や検索できるサイトです。">
-
-    <meta content="JA-Fleetは日本国内の航空会社が保有する機材（飛行機）を一覧表示や検索できるサイトです。" name="description">
 
     <meta property="og:type" content="website" />
     <meta property="og:description" content="JA-Fleetは日本国内の航空会社が保有する機材（飛行機）を一覧表示や検索できるサイトです。" />
@@ -18,130 +31,122 @@
     <meta content="summary" name="twitter:card" />
     <meta content="@@ja_fleet" name="twitter:site" />
 }
-<h1></h1>
-<img src="~/images/JA-Fleet_1.png" alt="JA-Fleet【本邦航空会社機材一覧サイト】" class="img-responsive" />
-<a asp-area="" asp-controller="Search" asp-action="Index" class="btn btn-primary btn-lg">検索</a>
-<br />
-<br />
-<div style="width:70%">
-    @Html.DropDownList("Airline", new SelectList(MasterManager.AllAirline, "AirlineCode", "AirlineNameJpShort"), new { @class = "form-control", style = "width: 30%;display:inline;" })
-    ＆@Html.DropDownList("Type", Enumerable.Empty<SelectListItem>(), new { @class = "form-control", style = "width: 38%;display:inline;" })
-    <input type="button" value="クイックリンク" id="quick" class="btn btn-primary btn-sm" />
-    <br />
-    <br />
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title">
-                <a data-toggle="collapse" data-parent="#sampleAccordion" href="#ana">
-                    ANAグループ
-                </a>
-            </h3>
-        </div>
-        <div id="ana" class="panel-collapse collapse">
-            <div class="panel-body">
-                <h4>
-                    <a asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="A">全て</a><br />
-                </h4>
-                @foreach (Airline a in MasterManager.ANA!)
-                {
-                    <h4>
-                        <a asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">@a.AirlineNameJpShort</a><br />
-                    </h4>
-                }
+@section CssPartial{
+    <link rel="stylesheet" href="~/css/home.css" asp-append-version="true" />
+}
 
-            </div>
+<div class="hm">
+    @* ---- 見出し ---- *@
+    <section class="hm-hero">
+        <h1 class="hm-logo"><img src="~/images/JA-Fleet_1.png" alt="JA-Fleet【本邦航空会社機材一覧サイト】" /></h1>
+        <p class="hm-lead">日本の航空会社が持つ飛行機を、航空会社・型式ごとに一覧したり、条件で探したりできます。</p>
+
+        <div class="hm-finds">
+            <form class="hm-card hm-reg" id="regForm" autocomplete="off">
+                <label class="hm-label" for="regInput">機体記号で開く</label>
+                <div class="hm-row">
+                    <input type="text" id="regInput" class="hm-input mono" placeholder="JA381A" inputmode="text" autocapitalize="characters" spellcheck="false" />
+                    <button type="submit" class="hm-btn primary">開く</button>
+                </div>
+                <p class="hm-hint" id="regMsg">「381A」のように JA を省いても開けます</p>
+            </form>
+            <a class="hm-card hm-search" asp-area="" asp-controller="Search" asp-action="Index">
+                <span class="hm-search-title">条件で検索</span>
+                <span class="hm-search-sub">航空会社・型式・運用状況・Wi-Fi・特別塗装などを組み合わせて探す</span>
+                <span class="hm-search-go" aria-hidden="true">→</span>
+            </a>
         </div>
+    </section>
+
+    @* ---- 航空会社と型式で開く ---- *@
+    <section class="hm-card hm-quick">
+        <label class="hm-label" for="Airline">航空会社と型式で開く</label>
+        <div class="hm-row wrap">
+            @Html.DropDownList("Airline", new SelectList(MasterManager.AllAirline, "AirlineCode", "AirlineNameJpShort"), new { @class = "hm-input" })
+            <span class="hm-x" aria-hidden="true">×</span>
+            @Html.DropDownList("Type", Enumerable.Empty<SelectListItem>(), new { @class = "hm-input", aria_label = "型式" })
+            <button type="button" id="quick" class="hm-btn primary">開く</button>
+        </div>
+    </section>
+
+    @* ---- 航空会社から探す ---- *@
+    <h2 class="hm-h2">航空会社から探す</h2>
+    <div class="hm-groups">
+        @foreach (var g in groups)
+        {
+            int total = g.Airlines.Sum(a => Model.AirlineCount(a.AirlineCode));
+            @* 「その他」は社数が多いので下の段で横幅いっぱいに使う *@
+            <section class="hm-card hm-group @(g.Code == "O" ? "wide" : "")">
+                <a class="hm-group-head" asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="@g.Code">
+                    <span class="hm-group-name">@g.Name</span>
+                    <span class="hm-group-all">すべて <b>@total</b> 機 →</span>
+                </a>
+                <ul class="hm-airlines">
+                    @foreach (Airline a in g.Airlines)
+                    {
+                        int n = Model.AirlineCount(a.AirlineCode);
+                        <li>
+                            <a class="@(n == 0 ? "is-zero" : "")" asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">
+                                <span class="nm">@a.AirlineNameJpShort</span><span class="ct">@n</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
     </div>
 
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title">
-                <a data-toggle="collapse" data-parent="#sampleAccordion" href="#jal">
-                    JALグループ
-                </a>
-            </h3>
-        </div>
-        <div id="jal" class="panel-collapse collapse">
-            <div class="panel-body">
-                <h4>
-                    <a asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="J">全て</a><br />
-                </h4>
-                @foreach (Airline a in MasterManager.JAL!)
-                {
-                    <h4>
-                        <a asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">@a.AirlineNameJpShort</a><br />
-                    </h4>
-                }
-
+    @* ---- 型式から探す ---- *@
+    <h2 class="hm-h2">型式から探す <span class="hm-h2-sub">グレーは全機退役済</span></h2>
+    <section class="hm-card hm-types">
+        @foreach (var tg in typeGroups)
+        {
+            <div class="hm-maker">
+                <h3 class="hm-maker-name">@tg.Name</h3>
+                <div class="hm-type-chips">
+                    @foreach (var t in tg.Types)
+                    {
+                        int n = Model.TypeCount(t.TypeCode);
+                        <a class="hm-type @(n == 0 ? "is-zero" : "")" asp-area="" asp-controller="Aircraft" asp-action="Type" asp-route-id="@t.TypeCode">@(t.TypeName)@if (n > 0) {<span class="ct">@n</span>}</a>
+                    }
+                </div>
             </div>
-        </div>
-    </div>
+        }
+    </section>
 
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title">
-                <a data-toggle="collapse" data-parent="#sampleAccordion" href="#lcc">
-                    LCC
-                </a>
-            </h3>
+    @* ---- 運営・更新情報 ---- *@
+    <section class="hm-foot">
+        <div class="hm-card hm-about">
+            <h2 class="hm-h2 in">運営</h2>
+            <dl class="hm-about-list">
+                <dt>管理者</dt>
+                <dd><a href="https://twitter.com/noobow" target="_blank" rel="noopener">ぬーぼー（@@noobow）</a></dd>
+                <dt>更新情報</dt>
+                <dd><a href="https://twitter.com/ja_fleet" target="_blank" rel="noopener">@@ja_fleet</a></dd>
+            </dl>
+            <p class="hm-about-note">機数は抹消済の機体を除いた数です。誤りや要望はメニューの 📬 からお知らせください。</p>
+            @if (isAdmin)
+            {
+                <dl class="hm-about-list hm-version">
+                    <dt>ver</dt>
+                    <dd><a href="@AppVersion.CommitUrl" target="_blank">@AppVersion.CommitHash _ @AppVersion.CommitDate</a></dd>
+                    <dt>deploy</dt>
+                    <dd>@AppVersion.DeployDate</dd>
+                    <dt>launch</dt>
+                    <dd>@MasterManager.LaunchDate</dd>
+                </dl>
+            }
         </div>
-        <div id="lcc" class="panel-collapse collapse">
-            <div class="panel-body">
-                <h4>
-                    <a asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="L">全て</a><br />
-                </h4>
-                @foreach (Airline a in MasterManager.LCC!)
-                {
-                    <h4>
-                        <a asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">@a.AirlineNameJpShort</a><br />
-                    </h4>
-                }
-
+        @if (!isAdmin)
+        {
+            <div class="hm-card hm-timeline">
+                <a class="twitter-timeline" data-height="420" data-lang="ja" href="https://x.com/ja_fleet?ref_src=twsrc%5Etfw">@@ja_fleet のポストを X で見る</a>
+                <script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>
             </div>
-        </div>
-    </div>
-
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title">
-                <a data-toggle="collapse" data-parent="#sampleAccordion" href="#other">
-                    その他航空会社
-                </a>
-            </h3>
-        </div>
-        <div id="other" class="panel-collapse collapse">
-            <div class="panel-body">
-                <h4>
-                    <a asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="O">全て</a><br />
-                </h4>
-                @foreach (Airline a in MasterManager.Other!)
-                {
-                    <h4>
-                        <a asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">@a.AirlineNameJpShort</a><br />
-                    </h4>
-                }
-
-            </div>
-        </div>
-    </div>
+        }
+    </section>
 </div>
-<hr />
-    管理者：<a href="https://twitter.com/noobow">ぬーぼー（@@noobow）</a>
-<br />
-    更新情報アカウント：<a href="https://twitter.com/ja_fleet">@@ja_fleet</a>
-<br />
-@if (!AdminAuth.IsAdmin(Context))
-{
-    <a class="twitter-timeline" data-width="320" data-height="400" data-lang="ja" href="https://x.com/ja_fleet?ref_src=twsrc%5Etfw">@@ja_fleet のポストを X で見る</a>
-    <script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>
-}
-@if (AdminAuth.IsAdmin(Context))
-{
-    <hr />
-    @:ver：<a href="@AppVersion.CommitUrl" target="_blank">@AppVersion.CommitHash _ @AppVersion.CommitDate</a><br />
-    @:deploy：@AppVersion.DeployDate<br />
-    @:launch：@MasterManager.LaunchDate
-}
+
 @section ScriptsPartial{
     <script src="~/js/a.js" asp-append-version="true"></script>
     <script>
@@ -176,5 +181,23 @@
                 $("#quick").prop("disabled", false);
             });
         };
+
+        // 機体記号で開く。存在を確かめてから詳細へ（無いレジで 404 の画面を出さないため）
+        $('#regForm').on('submit', function (e) {
+            e.preventDefault();
+            let reg = $.trim($('#regInput').val()).toUpperCase().replace(/\s+/g, '');
+            if (!reg) { $('#regInput').focus(); return; }
+            if (/^[0-9]/.test(reg)) { reg = 'JA' + reg; }
+            const msg = $('#regMsg').removeClass('ng').text('確認しています…');
+            $.getJSON('/api/Reg/' + encodeURIComponent(reg)).done(function (list) {
+                if (list.length > 0) {
+                    window.location = '/AD/' + encodeURIComponent(list[0].registrationNumber);
+                } else {
+                    msg.addClass('ng').html('「' + $('<span>').text(reg).html() + '」は見つかりませんでした。<a href="/Search">検索</a>では正規表現でも探せます');
+                }
+            }).fail(function () {
+                msg.addClass('ng').text('確認できませんでした。時間をおいてもう一度お試しください');
+            });
+        });
     </script>
 }

@@ -8,6 +8,38 @@
     {
         Layout = "_Layout";
     }
+    var av = Model.AV!;
+    string reg = av.RegistrationNumber;
+    // 運用コード（JAFleet.Commons.Constants.OperationCode）→ バッジの色。fleet-list.js の OP_CLASS と揃える
+    string opClass = av.OperationCode switch
+    {
+        "0" or "1" => "pre",
+        "2" => "dlv",
+        "3" => "intl",
+        "4" => "dom",
+        "5" => "both",
+        "6" => "cargo",
+        "7" or "8" => "retire",
+        _ => "other"
+    };
+    // Wi-Fi は「○」「×」だけだと伝わりにくいので言葉にする（△ はマスタの補足付きの表記をそのまま使う）
+    string? wifiText = av.WifiCode switch
+    {
+        "1" => "あり",
+        "0" => "なし",
+        _ => av.Wifi
+    };
+    string wifiClass = av.WifiCode switch { "1" => "yes", "2" => "part", _ => "no" };
+    var seats = new List<(string Cls, string Name, int Count)>();
+    if (av.F != null) { seats.Add(("F", "ファースト", av.F.Value)); }
+    if (av.C != null) { seats.Add(("C", "ビジネス", av.C.Value)); }
+    if (av.PY != null) { seats.Add(("PY", "プレミアムエコノミー", av.PY.Value)); }
+    if (av.P != null) { seats.Add(("P", "プレミアムクラス", av.P.Value)); }
+    if (av.J != null) { seats.Add(("J", "クラスJ", av.J.Value)); }
+    if (av.Y != null) { seats.Add(("Y", "エコノミー", av.Y.Value)); }
+    bool photoIsExternal = Model.PhotoUrl.StartsWith("http");
+    bool hasPhoto = Model.PhotoUrl != "/nophoto.html";
+    string editQuery = Model.NoHead ? "?nohead=true" : "";
 }
 @section HeadPartial{
     <meta name="description" content="@(Model.Title)の詳細情報です。JA-Fleetは日本国内の航空会社が保有する機材（飛行機）を一覧表示や検索できるサイトです。">
@@ -28,42 +60,256 @@
     <meta property="og:image" content="@(Model.OgImageUrl)" />
     <meta property="og:url" content="https://ja-fleet.noobow.me/@Context.Request.Path" />
     <meta property="og:site_name" content="JA-Fleet【本邦航空会社機材一覧サイト】" />
-
+}
+@section CssPartial{
+    <link rel="stylesheet" href="~/css/aircraft-detail.css" asp-append-version="true" />
 }
 
-@if (!Model.NeedBack)
-{
-    <h2>@(Model.Title)</h2>
-    if (!Model.NoHead)
+<div class="ad @(Model.NoHead ? "ad--nohead" : "")">
+    @* ---- 見出し ---- *@
+    <div class="ad-head">
+        @if (Model.NeedBack)
+        {
+            <button type="button" class="ad-back" onclick="window.close();">← 戻る</button>
+        }
+        <div class="ad-title">
+            <div class="ad-reg-line">
+                <h2 class="ad-reg">@reg</h2>
+                @if (!string.IsNullOrEmpty(av.Operation))
+                {
+                    <span class="ad-op op-@opClass">@av.Operation</span>
+                }
+            </div>
+            <div class="ad-sub">
+                <span class="ad-sub-type">@av.TypeDetailName</span>
+                <span class="ad-sub-sep">·</span>
+                <span>@av.AirlineNameJpShort</span>
+                @if (!string.IsNullOrEmpty(av.TestRegistration))
+                {
+                    <span class="ad-sub-sep">·</span>
+                    <span class="ad-sub-test">試験飛行 @av.TestRegistration</span>
+                }
+            </div>
+        </div>
+        @if (Model.IsAdmin)
+        {
+            <div class="ad-admin">
+                <a class="ad-btn" href="/E/@(reg)@(editQuery)">編集</a>
+                <a class="ad-btn" href="/AircraftHistory?reg=@reg">履歴を編集</a>
+            </div>
+        }
+    </div>
+    @if (!Model.NoHead)
     {
-        <input type="button" value="@Model.AirlineGroupNmae" onclick="location.href='/Aircraft/AirlineGroup/@Model.AV?.AirlineGroupCode'" id="airline" class="btn btn-primary btn-xs" />
-        <input type="button" value="@Model.AV?.AirlineNameJpShort" onclick="location.href='/Aircraft/Airline/@Model.AV?.Airline'" id="airline" class="btn btn-primary btn-xs" />
-        <input type="button" value="@Model.AV?.TypeName" onclick="location.href='/Aircraft/Type/@Model.AV?.TypeCode'" id="type" class="btn btn-primary btn-xs" />
-        <input type="button" value="@(Model.AV?.AirlineNameJpShort)・@(Model.AV?.TypeName)" onclick="location.href='/Aircraft/Airline/@Model.AV?.Airline/@Model.AV?.TypeCode'" id="airlinetype" class="btn btn-primary btn-xs" />
+        <nav class="ad-related" aria-label="関連する一覧">
+            <a href="/Aircraft/AirlineGroup/@av.AirlineGroupCode">@Model.AirlineGroupNmae</a>
+            <a href="/Aircraft/Airline/@av.Airline">@av.AirlineNameJpShort</a>
+            <a href="/Aircraft/Type/@av.TypeCode">@av.TypeName</a>
+            <a href="/Aircraft/Airline/@av.Airline/@av.TypeCode">@(av.AirlineNameJpShort)・@(av.TypeName)</a>
+        </nav>
     }
-}
-else
-{
-    <h2 style="display:inline;">@(Model.Title)</h2>
-    <input type="button" value="戻る" onClick="window.close();" id="back" class="btn btn-primary btn-xs" />
-}
 
-@await Html.PartialAsync("/Views/Shared/ResultDatatableHead.cshtml")
-<iframe src="@Model.PhotoUrl" id="photofr" style="width: 100%;height: 700px"></iframe>
+    <div class="ad-layout">
+        <div class="ad-main">
+            @* ---- 現在の情報 ---- *@
+            <section class="ad-card">
+                <h3 class="ad-card-title">現在の情報 <span class="sub">@(av.UpdateTime?.ToString("yyyy/MM/dd")) 更新</span></h3>
+                <dl class="ad-spec">
+                    <div class="ad-item">
+                        <dt>航空会社</dt>
+                        <dd>@av.AirlineNameJpShort</dd>
+                    </div>
+                    <div class="ad-item">
+                        <dt>機種</dt>
+                        <dd>@av.TypeDetailName @if (av.TypeName != av.TypeDetailName) {<span class="ad-muted">@av.TypeName</span>}</dd>
+                    </div>
+                    <div class="ad-item">
+                        <dt>製造番号</dt>
+                        <dd class="ad-num">@(string.IsNullOrEmpty(av.SerialNumber) ? "—" : av.SerialNumber)</dd>
+                    </div>
+                    <div class="ad-item">
+                        <dt>登録年月日</dt>
+                        <dd class="ad-num">@(string.IsNullOrEmpty(av.RegisterDate) ? "—" : av.RegisterDate)</dd>
+                    </div>
+                    <div class="ad-item">
+                        <dt>運用</dt>
+                        <dd>@(string.IsNullOrEmpty(av.Operation) ? "—" : av.Operation)</dd>
+                    </div>
+                    <div class="ad-item">
+                        <dt>Wi-Fi</dt>
+                        <dd>@if (string.IsNullOrEmpty(wifiText)) {<text>—</text>} else {<span class="ad-wifi w-@wifiClass">@wifiText</span>}</dd>
+                    </div>
+                    <div class="ad-item wide">
+                        <dt>コンフィグ</dt>
+                        <dd>
+                            @if (seats.Count == 0)
+                            {
+                                <text>—</text>
+                            }
+                            else
+                            {
+                                <div class="ad-seats">
+                                    @foreach (var s in seats)
+                                    {
+                                        <span class="ad-seat" title="@s.Name"><b>@s.Cls</b>@s.Count</span>
+                                    }
+                                    <span class="ad-seat-total">計 <b>@seats.Sum(s => s.Count)</b> 席</span>
+                                    @if (!string.IsNullOrEmpty(av.SeatUrl))
+                                    {
+                                        <a class="ad-ext" href="@av.SeatUrl" target="_blank" rel="noopener">座席表</a>
+                                    }
+                                </div>
+                            }
+                        </dd>
+                    </div>
+                    @if (!string.IsNullOrEmpty(av.SpecialLivery))
+                    {
+                        <div class="ad-item wide">
+                            <dt>特別塗装</dt>
+                            <dd><span class="ad-livery">@av.SpecialLivery</span></dd>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(av.Remarks))
+                    {
+                        <div class="ad-item wide">
+                            <dt>備考</dt>
+                            <dd class="ad-remarks">@av.Remarks</dd>
+                        </div>
+                    }
+                </dl>
+            </section>
+
+            @* ---- 更新履歴（スクリプトで描く） ---- *@
+            <section class="ad-card ad-history-card">
+                <h3 class="ad-card-title">更新履歴</h3>
+                <div id="adHistory" class="ad-history"><p class="ad-muted">読み込み中…</p></div>
+            </section>
+        </div>
+
+        @* ---- 写真 ---- *@
+        <section class="ad-card ad-photo">
+            <h3 class="ad-card-title">
+                写真
+                @if (photoIsExternal)
+                {
+                    <a class="ad-ext" href="@Model.PhotoUrl" target="_blank" rel="noopener">JetPhotosで開く</a>
+                }
+            </h3>
+            @if (hasPhoto)
+            {
+                @* src はスクリプトで入れる（下の「写真は見えてから読み込む」） *@
+                <iframe data-src="@Model.PhotoUrl" id="photofr" class="ad-photo-frame" title="@reg の写真"></iframe>
+            }
+            else
+            {
+                @* 写真が無いときに大きな空の枠を出さないよう、nophoto.html と同じ案内をその場に出す *@
+                <p class="ad-nophoto"><a href="https://www.jetphotos.com/" target="_blank" rel="noopener">JetPhotos</a>に写真が登録されていないため表示できません。写真が投稿されると表示できるようになります。</p>
+            }
+        </section>
+    </div>
+</div>
 
 @section ScriptsPartial{
     <script>
-        var table;
-        $(function () {
-            $('body').tooltip({selector: '[data-toggle="tooltip"]'});
-            datatablesLangInit();
-            let gridheight = "20vh"
-            table = $('#' + '@(Model.TableId)').DataTable({
-                ajax: {url:'@(Model.api)',
-                    dataSrc: ''
-                },
-                @await Html.PartialAsync("/Views/Shared/ResultDatatableColumn.cshtml", Model)
+        (function () {
+            'use strict';
+            // 版ごとに比べる項目。changed は API（AircraftViewBase.getDifferenceWith）が 1 つ古い版と比べて立てる印
+            const FIELDS = [
+                { label: '航空会社', changed: 'airlineChanged', value: function (r) { return r.airlineNameJpShort; } },
+                { label: '機種', changed: 'typeDetailChanged', value: function (r) { return r.typeDetailName; } },
+                { label: '製造番号', changed: 'serialNumberChanged', value: function (r) { return r.serialNumber; } },
+                { label: '登録年月日', changed: 'registerDateChanged', value: function (r) { return r.registerDate; } },
+                { label: '運用', changed: 'operationChanged', value: function (r) { return r.operation; } },
+                { label: 'コンフィグ', changed: 'seatConfigChanged', value: function (r) { return r.seatConfig; } },
+                { label: 'Wi-Fi', changed: 'wifiChanged', value: function (r) { return r.wifi; } },
+                { label: '特別塗装', changed: 'specialLiveryChanged', value: function (r) { return r.specialLivery; } },
+                { label: '備考', changed: 'remarksChanged', value: function (r) { return r.remarks; } }
+            ];
+            const esc = function (s) {
+                if (s == null || s === '') { return '<span class="ad-none">（なし）</span>'; }
+                return String(s).replace(/[&<>"']/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                });
+            };
+
+            const renderTimeline = function (list) {
+                let h = '<ol class="ad-tl">';
+                list.forEach(function (r, i) {
+                    const isFirst = i === list.length - 1;
+                    const tags = (i === 0 ? '<span class="ad-tag now">現在</span>' : '') + (isFirst ? '<span class="ad-tag first">記録開始</span>' : '');
+                    h += '<li class="ad-tl-item' + (i === 0 ? ' is-now' : '') + '">';
+                    h += '<div class="ad-tl-date">' + esc(r.updateTimeString) + tags + '</div>';
+                    if (isFirst) {
+                        // いちばん古い版は比べる相手が無いので、主な項目をそのまま並べる
+                        h += '<div class="ad-tl-summary">' + [r.operation, r.typeDetailName, r.airlineNameJpShort, r.seatConfig, r.specialLivery]
+                            .filter(function (v) { return v; }).map(esc).join('<span class="ad-sub-sep">·</span>') + '</div>';
+                    } else {
+                        const older = list[i + 1];
+                        const changes = FIELDS.filter(function (f) { return r[f.changed] == 1; });
+                        if (changes.length === 0) {
+                            h += '<div class="ad-tl-summary ad-muted">表示している項目に変更はありません</div>';
+                        } else {
+                            h += '<ul class="ad-tl-changes">';
+                            changes.forEach(function (f) {
+                                h += '<li><span class="k">' + f.label + '</span><span class="v"><span class="old">' + esc(f.value(older)) + '</span>'
+                                    + '<span class="arrow" aria-label="から">→</span><span class="new">' + esc(f.value(r)) + '</span></span></li>';
+                            });
+                            h += '</ul>';
+                        }
+                    }
+                    h += '</li>';
+                });
+                return h + '</ol>';
+            };
+
+            // これまでの全項目の表（変わった欄に印）。必要な人だけ開く
+            const renderTable = function (list) {
+                let h = '<details class="ad-table-toggle"><summary>全項目を表で見る</summary><div class="ad-table-wrap"><table class="ad-table"><thead><tr><th>更新日</th>';
+                FIELDS.forEach(function (f) { h += '<th>' + f.label + '</th>'; });
+                h += '</tr></thead><tbody>';
+                list.forEach(function (r) {
+                    h += '<tr><td class="ad-num">' + esc(r.updateTimeString) + '</td>';
+                    FIELDS.forEach(function (f) {
+                        h += '<td' + (r[f.changed] == 1 ? ' class="chg"' : '') + '>' + esc(f.value(r)) + '</td>';
+                    });
+                    h += '</tr>';
+                });
+                return h + '</tbody></table></div></details>';
+            };
+
+            $.getJSON('@(Model.api)').done(function (list) {
+                $('#adHistory').html(list.length ? renderTimeline(list) + renderTable(list) : '<p class="ad-muted">更新履歴はありません</p>');
+            }).fail(function () {
+                $('#adHistory').html('<p class="ad-error">更新履歴を読み込めませんでした。時間をおいて開き直してください</p>');
             });
-        });
+
+            // 写真は見えてから読み込む。JetPhotos のページは読み込むと中の要素へフォーカスを当てるため、
+            // 枠が画面の外にあるうちに読み込むと、ブラウザが枠まで勝手にスクロールしてしまう
+            // （スマホでは開いた途端に機体の情報が見えなくなっていた）。PC では最初から見えているのですぐ読む
+            (function () {
+                const frame = document.getElementById('photofr');
+                if (!frame) { return; }
+                const load = function () { if (!frame.src) { frame.src = frame.getAttribute('data-src'); } };
+                if (!('IntersectionObserver' in window)) { load(); return; }
+                const io = new IntersectionObserver(function (entries) {
+                    if (entries.some(function (e) { return e.isIntersecting; })) { load(); io.disconnect(); }
+                }, { threshold: 0.3 });
+                io.observe(frame);
+            })();
+
+            // 固定ナビバーが折り返して高くなったときに見出しが隠れないよう余白を合わせる（単票編集・一覧と同じ）
+            const nav = $('.navbar-fixed-top');
+            if (nav.length) {
+                const base = parseFloat($('body').css('padding-top')) || 0;
+                const sync = function () {
+                    if (nav.find('.navbar-collapse').hasClass('in')) { return; }
+                    const h = nav.outerHeight();
+                    document.documentElement.style.setProperty('--ad-top', (h + 12) + 'px');
+                    $('body').css('padding-top', Math.max(base, h + 8) + 'px');
+                };
+                sync();
+                $(window).on('resize', sync);
+            }
+        })();
     </script>
 }

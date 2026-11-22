@@ -13,57 +13,41 @@
 }
 @section CssPartial{
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/magnific-popup.min.css" integrity="sha256-PZLhE6wwMbg4AB3d35ZdBF9HD/dI/y4RazA3iRDurss=" crossorigin="anonymous" />
+    <link rel="stylesheet" href="~/css/fleet-list.css" asp-append-version="true" />
 }
-<h2>@(Model.Title)</h2>
-<div class="form-group">
-    @Html.CheckBoxFor(model => model.IncludeRetire)
-    @Html.LabelFor(model => model.IncludeRetire, new { @class = "control-label" })
+<div class="fl-page-head">
+    <h2 class="fl-page-title">@(Model.Title)</h2>
+    <label class="fl-switch">
+        @Html.CheckBoxFor(model => model.IncludeRetire)
+        @Html.DisplayNameFor(model => model.IncludeRetire)
+    </label>
     @if (Model.IsAllRetire)
     {
-        @:<u><font color="red">この機種は全機退役済です</font></u>
+        <span class="fl-note">この機種は全機退役済です</span>
     }
 </div>
-@await Html.PartialAsync("/Views/Shared/ResultDatatableHead.cshtml")
+<div id="fleetList"></div>
 @section ScriptsPartial{
     <script src="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/jquery.magnific-popup.min.js" integrity="sha256-P93G0oq6PBPWTP1IR8Mz/0jHHUpaWL0aBJTKauisG7Q=" crossorigin="anonymous"></script>
+    <script src="~/js/fleet-list.js" asp-append-version="true"></script>
     <script>
-        var table;
         $(function () {
-            $('body').tooltip({selector: '[data-toggle="tooltip"]'});
-            let gridheight;
-            if (window.innerHeight < 800) {
-                gridheight = '60vh';
-            } else {
-                gridheight = '68vh';
-            }
+            const api = '@(Model.api)';
+            const fleet = FleetList.create('#fleetList', { isAdmin: @(Model.IsAdmin ? "true" : "false") });
 
-            datatablesLangInit();
+            const getIncludeRetire = function () {
+                return $('#IncludeRetire').prop('checked');
+            };
+            const load = function () {
+                fleet.load($.getJSON(api + '?includeRetire=' + getIncludeRetire()));
+            };
 
-            table = $('#' + '@(Model.TableId)').DataTable({
-                dom: 'Bfrtip',
-                buttons: [
-                    {   extend: "excelHtml5",
-                        className: "buttonsToHide",
-                        exportOptions: {
-                            columns: [1,2,3,4,5,6,7,8,9,11],
-                        }
-                    }
-                ],
-                ajax: {url:'@(Model.api)?includeRetire=' + getIncludeRetire(),
-                    dataSrc: ''
-                },
-                @await Html.PartialAsync("/Views/Shared/ResultDatatableColumn.cshtml", Model)
+            $('#IncludeRetire').on('change', function () {
+                history.pushState(null, null, "?includeRetire=" + getIncludeRetire());
+                load();
             });
+
+            load();
         });
-
-        $('#IncludeRetire').change(function ()  {
-            history.pushState(null, null, "?includeRetire=" + getIncludeRetire());
-            table.ajax.url('@(Model.api)?includeRetire=' + getIncludeRetire()).load();
-        });
-
-        const getIncludeRetire = function ()  {
-            return $('#IncludeRetire').prop('checked');
-        }
-
     </script>
 }

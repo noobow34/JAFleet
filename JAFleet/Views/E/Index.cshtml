@@ -216,7 +216,7 @@ textarea.ed-input { height: auto; min-height: 76px; resize: vertical; line-heigh
                 <a class="ed-link" href="/AD/@reg?fromAdmin=@fromAdmin" target="_blank" rel="noopener">🔍 詳細</a>
                 @* 間違った内容で積まれた履歴を直しに行くための入口 *@
                 <a class="ed-link" href="/AircraftHistory?reg=@reg&fromAdmin=@fromAdmin">🕘 更新履歴</a>
-                <button type="button" class="ed-link" id="copy" data-clipboard-text="@Model.LinkPage" title="詳細ページのURLをコピー">📋 リンク</button>
+                <button type="button" class="ed-link" id="copy" data-copy-text="@Model.LinkPage" title="詳細ページのURLをコピー">📋 リンク</button>
                 <a class="ed-link" href="https://twitter.com/intent/tweet?text=@(reg)%0a@(Model.LinkPage)" target="_blank" rel="noopener">𝕏 投稿</a>
             </div>
         }
@@ -465,11 +465,10 @@ textarea.ed-input { height: auto; min-height: 76px; resize: vertical; line-heigh
 @section ScriptsPartial{
     <partial name="_TypeDetailPickerScript" />
     <partial name="_SeatConfigQuickAddScript" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.4/clipboard.min.js" integrity="sha256-FiZwavyI2V6+EXO1U+xzLG3IKldpiTFf3153ea9zikQ=" crossorigin="anonymous"></script>
     <script>
         $(function () {
             // ---- 共通レイアウトのナビバーは固定表示で、タブレット幅だと折り返して2〜3段になり見出しを隠す。
-            //      bodyの余白（site.cssの80px）より高くなったときだけ、余白をナビバーの高さに合わせる ----
+            //      bodyの余白（site.cssの64px）より高くなったときだけ、余白をナビバーの高さに合わせる ----
             const nav = $('.navbar-fixed-top');
             const basePadding = parseFloat($('body').css('padding-top')) || 0;
             const fitTop = function () {
@@ -484,14 +483,31 @@ textarea.ed-input { height: auto; min-height: 76px; resize: vertical; line-heigh
             const storeConfirm = $('#storeConfirm');
 
             // ---- リンクのコピー ----
-            if (window.ClipboardJS && $('#copy').length) {
-                new ClipboardJS('#copy').on('success', function () {
-                    const button = $('#copy');
-                    const label = button.text();
-                    button.text('✔ コピーしました');
-                    setTimeout(function () { button.text(label); }, 1500);
-                });
-            }
+            // ブラウザ標準の Clipboard API（https と localhost で使える）で書き込む。アプリ内ブラウザなどで
+            // 書き込みを拒否されたときは、以前の clipboard.js と同じ execCommand('copy') で写す
+            const copyByCommand = function (text) {
+                const ta = $('<textarea readonly>').val(text).css({ position: 'fixed', top: 0, left: 0, opacity: 0 }).appendTo('body');
+                ta[0].select();
+                let ok = false;
+                try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+                ta.remove();
+                return ok ? Promise.resolve() : Promise.reject();
+            };
+            const copyLink = function () {
+                const text = String($('#copy').data('copy-text') || '');
+                if (!text) { return Promise.reject(); }
+                if (!navigator.clipboard) { return copyByCommand(text); }
+                return navigator.clipboard.writeText(text).catch(function () { return copyByCommand(text); });
+            };
+            const flashCopy = function (label) {
+                const button = $('#copy');
+                const original = button.data('label') || button.text();
+                button.data('label', original).text(label);
+                setTimeout(function () { button.text(original); }, 1500);
+            };
+            $('#copy').on('click', function () {
+                copyLink().then(function () { flashCopy('✔ コピーしました'); }, function () { flashCopy('コピーできませんでした'); });
+            });
 
             // ---- 変えた項目に印を付ける ----
             // 開いたときの値と比べる。保存前にどこを触ったかを見失わないようにするため。
@@ -584,9 +600,13 @@ textarea.ed-input { height: auto; min-height: 76px; resize: vertical; line-heigh
 
             $('#storeConfirmOk').on('click', function () {
                 storeConfirm.modal('hide');
-                //登録するときだけ詳細ページのURLをクリップボードへ入れる（以前と同じ）
-                $('#copy').trigger('click');
-                form[0].submit();
+                //登録するときだけ詳細ページのURLをクリップボードへ入れる（以前と同じ）。
+                //書き込みは非同期なので、終わってから（失敗しても）送る。返事が来ないときも 1 秒で送る
+                let submitted = false;
+                const submit = function () { if (!submitted) { submitted = true; form[0].submit(); } };
+                const copying = $('#copy').length ? copyLink() : Promise.resolve();
+                copying.then(submit, submit);
+                setTimeout(submit, 1000);
             });
 
             // ---- コンフィグの選択肢は航空会社と詳細型式で絞る ----

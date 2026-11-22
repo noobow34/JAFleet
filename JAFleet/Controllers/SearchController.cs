@@ -34,8 +34,6 @@ namespace JAFleet.Controllers
         /// <returns></returns>
         public IActionResult Index(SearchModel model, [FromQuery] string sc)
         {
-            model.IsAdmin = AdminAuth.IsAdmin(HttpContext);
-
             if (!string.IsNullOrEmpty(sc))
             {
                 //GETパラメーターで検索条件キーが指定されたら
@@ -57,6 +55,8 @@ namespace JAFleet.Controllers
                 }
             }
 
+            //保存済みの条件から復元するとmodelが作り直されるので、管理者の判定はそのあとで入れる
+            model.IsAdmin = AdminAuth.IsAdmin(HttpContext);
             model.AirlineList = MasterManager.AllAirline!;
             model.TypeDetailList = MasterManager.TypeDetailGroup!;
             model.OperationList = MasterManager.Operation!;

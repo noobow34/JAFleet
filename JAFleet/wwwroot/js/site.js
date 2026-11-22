@@ -40,14 +40,6 @@ const sendMessageToMe = function() {
     });
 }
 
-const datatablesLangInit = function() {
-    $.extend($.fn.dataTable.defaults, {
-        language: {
-            url: "https://cdn.datatables.net/plug-ins/9dcbecd42ad/i18n/Japanese.json"
-        }
-    });
-}
-
 const ZGB = function() {
     var s = "4+T06//>g899,9AU7/", r = "";
     for (i = 0; i < s.length; i++)r += String.fromCharCode((s.charCodeAt(i) + 21) % 93 + 33);

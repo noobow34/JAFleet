@@ -1,0 +1,130 @@
+/*
+ * トップページ（/）
+ * 注意: Bootstrap3 が html{font-size:10px} を設定しているため rem は使わず px で指定すること。
+ * 航空会社のカードは スマホ（〜599px）1 列、600〜767px は 2 列、768px〜は 3 列。
+ * 「その他の航空会社」は社数が多いので、タブレット以上では下の段で横幅いっぱいに使い、中を 2〜4 列に並べる。
+ */
+.hm { color: #1e293b; padding: 4px 0 32px; }
+.hm-card {
+    border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;
+    padding: 14px 16px; box-shadow: 0 1px 3px rgba(15,23,42,.05); min-width: 0;
+}
+.hm-h2 { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 10px; font-size: 18px; font-weight: 700; color: #0f172a; }
+.hm-h2.in { margin: 0 0 10px; font-size: 14px; }
+.hm-h2-sub { font-size: 12px; font-weight: 600; color: #94a3b8; }
+.hm-label { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 700; color: #64748b; }
+.hm-row { display: flex; gap: 8px; align-items: center; }
+.hm-row.wrap { flex-wrap: wrap; }
+.hm-input {
+    flex: 1 1 160px; min-width: 0; height: 42px; padding: 6px 10px;
+    border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; font-size: 15px;
+    transition: border-color .15s, box-shadow .15s;
+}
+.hm-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+.hm-input.mono { font-family: ui-monospace, Consolas, "SFMono-Regular", Menlo, monospace; font-size: 18px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.hm-input.mono::placeholder { font-weight: 500; color: #cbd5e1; }
+.hm-btn {
+    flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; height: 42px; padding: 0 20px;
+    border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155;
+    font-size: 15px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.hm-btn.primary { background: #0f172a; border-color: #0f172a; color: #fff; }
+.hm-btn.primary:hover { background: #1e293b; }
+.hm-btn[disabled] { opacity: .5; cursor: default; }
+.hm-hint { margin: 6px 0 0; font-size: 12px; color: #94a3b8; }
+.hm-hint.ng { color: #b91c1c; }
+.hm-x { color: #94a3b8; font-weight: 700; }
+
+/* ===== 見出し ===== */
+.hm-hero { margin-bottom: 14px; }
+.hm-logo { margin: 0; }
+.hm-logo img { display: block; width: 100%; max-width: 520px; height: auto; }
+.hm-lead { margin: 8px 0 16px; font-size: 14px; color: #475569; line-height: 1.7; }
+.hm-finds { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.hm-search {
+    position: relative; display: flex; flex-direction: column; justify-content: center; gap: 4px;
+    padding-right: 52px; text-decoration: none; color: inherit;
+    background: linear-gradient(135deg, #eff6ff, #fff 70%); border-color: #bfdbfe;
+    transition: border-color .15s, box-shadow .15s;
+}
+.hm-search:hover, .hm-search:focus { text-decoration: none; color: inherit; border-color: #3b82f6; box-shadow: 0 4px 14px rgba(37,99,235,.12); }
+.hm-search-title { font-size: 18px; font-weight: 700; color: #1d4ed8; }
+.hm-search-sub { font-size: 13px; color: #475569; line-height: 1.6; }
+.hm-search-go {
+    position: absolute; right: 16px; top: 50%; margin-top: -16px; width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; background: #1d4ed8; color: #fff; font-size: 16px; font-weight: 700;
+}
+.hm-quick .hm-input { flex-basis: 180px; }
+
+/* ===== 航空会社 ===== */
+.hm-groups { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.hm-group { padding: 0; overflow: hidden; }
+.hm-group-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 12px 16px;
+    background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-decoration: none; color: #0f172a;
+}
+.hm-group-head:hover, .hm-group-head:focus { background: #eff6ff; text-decoration: none; color: #0f172a; }
+.hm-group-name { font-size: 16px; font-weight: 700; }
+.hm-group-all { font-size: 12px; font-weight: 600; color: #2563eb; white-space: nowrap; }
+.hm-group-all b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.hm-airlines { list-style: none; margin: 0; padding: 6px 0; }
+.hm-airlines a {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px;
+    color: #1e293b; font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.hm-airlines a:hover, .hm-airlines a:focus { background: #f1f5f9; color: #1d4ed8; text-decoration: none; }
+.hm-airlines .nm { min-width: 0; overflow-wrap: anywhere; }
+.hm-airlines .ct {
+    flex: 0 0 auto; min-width: 34px; padding: 0 8px; border-radius: 999px; background: #f1f5f9;
+    text-align: center; font-size: 12px; font-weight: 700; color: #475569; line-height: 22px; font-variant-numeric: tabular-nums;
+}
+.hm-airlines a.is-zero { color: #94a3b8; }
+.hm-airlines li { break-inside: avoid; }
+
+/* ===== 型式 ===== */
+.hm-types { display: grid; gap: 14px; }
+.hm-maker-name { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: #64748b; }
+.hm-type-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hm-type {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; border-radius: 999px;
+    border: 1px solid #e2e8f0; background: #fff; color: #1e293b; font-size: 13px; font-weight: 600; text-decoration: none;
+}
+.hm-type:hover, .hm-type:focus { border-color: #3b82f6; color: #1d4ed8; text-decoration: none; }
+.hm-type .ct { padding: 0 7px; border-radius: 999px; background: #f1f5f9; font-size: 11px; font-weight: 700; color: #475569; line-height: 18px; font-variant-numeric: tabular-nums; }
+.hm-type.is-zero { padding-right: 12px; color: #94a3b8; background: #f8fafc; }
+
+/* ===== 運営 ===== */
+.hm-foot { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); margin-top: 26px; align-items: start; }
+.hm-about-list { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 14px; }
+.hm-about-list dt { font-size: 12px; font-weight: 700; color: #94a3b8; padding-top: 2px; }
+.hm-about-list dd { margin: 0; overflow-wrap: anywhere; }
+.hm-about-note { margin: 12px 0 0; font-size: 12px; color: #64748b; line-height: 1.7; }
+.hm-version { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e2e8f0; font-size: 12px; }
+.hm-timeline { padding: 8px; }
+
+/* ===== タブレット ===== */
+@media (min-width: 600px) {
+    .hm-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hm-group.wide { grid-column: 1 / -1; }
+    .hm-group.wide .hm-airlines { columns: 2; column-gap: 0; }
+}
+@media (min-width: 768px) {
+    .hm-groups { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .hm-group.wide .hm-airlines { columns: 3; }
+    .hm-finds { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .hm-foot { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+/* ===== PC ===== */
+@media (min-width: 992px) {
+    .hm-group.wide .hm-airlines { columns: 4; }
+    .hm-types { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
+}
+
+/* ===== スマホ ===== */
+@media (max-width: 599px) {
+    .hm-input { font-size: 16px; } /* 16px 未満だと iOS が拡大する */
+    .hm-quick .hm-row.wrap > .hm-input { flex-basis: 100%; }
+    .hm-x { display: none; }
+    .hm-quick .hm-btn { flex: 1 1 100%; }
+}

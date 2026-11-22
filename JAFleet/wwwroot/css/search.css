@@ -1,0 +1,127 @@
+/*
+ * 検索画面（/Search）の条件フォーム。結果の一覧は fleet-list.css。
+ * 注意: Bootstrap3 が html{font-size:10px} を設定しているため rem は使わず px で指定すること。
+ * 条件の並びは スマホ（〜599px）1 列、タブレット（600〜991px）2 列、PC（992px〜）3 列。
+ * 複数選択は bootstrap-multiselect（ボタンに .sx-ms を付けて見た目を合わせる）、単一選択は素の select。
+ */
+.sx { color: #1e293b; padding-top: 4px; }
+.sx-title { margin: 4px 0 12px; font-size: 24px; font-weight: 700; color: #0f172a; }
+
+/* ===== カード ===== */
+.sx-card {
+    border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;
+    box-shadow: 0 1px 3px rgba(15,23,42,.05); margin-bottom: 16px;
+}
+.sx-body { padding: 14px 16px 4px; }
+
+.sx-preset { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px dashed #e2e8f0; }
+.sx-preset-row { display: flex; gap: 8px; align-items: center; }
+.sx-grow { flex: 1; min-width: 0; }
+
+.sx-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px 16px; }
+.sx-field { min-width: 0; }
+.sx-label { display: flex; align-items: baseline; gap: 6px; margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #64748b; }
+.sx-hint { font-size: 11px; font-weight: 500; color: #94a3b8; }
+
+.sx-input, .sx-ms {
+    display: block; width: 100%; height: 40px; padding: 6px 10px;
+    border: 1px solid #cbd5e1; border-radius: 8px; background-color: #fff; color: #0f172a;
+    font-size: 14px; box-shadow: none; transition: border-color .15s, box-shadow .15s;
+}
+.sx-input:focus, .sx-ms:focus, .open > .sx-ms { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+.sx-input.mono { font-family: ui-monospace, Consolas, "SFMono-Regular", Menlo, monospace; text-transform: uppercase; }
+.sx-input.mono::placeholder { text-transform: none; font-family: inherit; }
+.sx-inline { display: flex; gap: 6px; }
+.sx-inline .sx-input { flex: 1; min-width: 0; }
+.sx-inline .sx-narrow { flex: 0 0 104px; }
+/* キーワード欄は「キーワード指定」を選んだときだけ出す */
+.sx-keyword { margin-top: 6px; }
+.sx-keyword:disabled { display: none; }
+
+/* ---- 複数選択（bootstrap-multiselect）の見た目 ---- */
+.sx .btn-group { display: block; width: 100%; box-shadow: none; } /* テーマが btn-group に影を付けている */
+.sx-ms {
+    position: relative; text-align: left; padding-right: 30px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.sx-ms:hover { border-color: #94a3b8; }
+.sx-ms .caret { position: absolute; right: 12px; top: 50%; margin-top: -2px; color: #64748b; }
+.sx-ms .multiselect-selected-text { color: #0f172a; }
+.sx-ms[title=""] .multiselect-selected-text, .sx-ms[title="指定しない"] .multiselect-selected-text,
+.sx-ms[title="（選んでください）"] .multiselect-selected-text { color: #94a3b8; }
+.sx .multiselect-container {
+    width: 100%; min-width: 220px; padding: 4px 0; margin-top: 4px;
+    border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.15);
+}
+.sx .multiselect-container > li > a { padding: 0; }
+.sx .multiselect-container > li > a > label { padding: 7px 12px 7px 36px; font-size: 14px; font-weight: 500; color: #1e293b; }
+.sx .multiselect-container > li > a > label > input[type="checkbox"] { margin-left: -24px; margin-top: 3px; }
+.sx .multiselect-container > li.active > a, .sx .multiselect-container > li.active > a:hover { background: #eff6ff; color: #1d4ed8; }
+.sx .multiselect-container > li.active > a > label { color: #1d4ed8; font-weight: 700; }
+.sx .multiselect-container > li.multiselect-group > a > label { padding-left: 12px; font-size: 12px; color: #64748b; }
+.sx .multiselect-container > li.multiselect-group.active > a > label { color: #1d4ed8; }
+.sx .multiselect-container > li.multiselect-filter { padding: 6px 8px 8px; }
+.sx .multiselect-container .input-group { display: flex; width: 100%; }
+.sx .multiselect-container .input-group-addon { display: none; }
+.sx .multiselect-container .multiselect-search { height: 36px; border-radius: 8px !important; border-color: #cbd5e1; box-shadow: none; font-size: 14px; }
+.sx .multiselect-container .input-group-btn { display: none; }
+
+/* ===== 操作バー ===== */
+.sx-actions {
+    display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+    border-top: 1px solid #f1f5f9; background: #fff; border-radius: 0 0 12px 12px;
+}
+.sx-btn {
+    display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 16px;
+    border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155;
+    font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer;
+}
+.sx-btn:hover { background: #f1f5f9; color: #0f172a; }
+.sx-btn[disabled] { opacity: .5; cursor: default; background: #fff; }
+.sx-btn.primary { margin-left: auto; min-width: 140px; background: #0f172a; border-color: #0f172a; color: #fff; }
+.sx-btn.primary:hover { background: #1e293b; color: #fff; }
+
+/* ===== 畳んだときの要約（スマホだけ） ===== */
+.sx-summary { display: none; }
+.sx-chip {
+    display: inline-flex; align-items: baseline; gap: 4px; max-width: 100%; padding: 2px 9px; border-radius: 999px;
+    background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #0f172a;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sx-chip b { font-size: 10px; color: #64748b; }
+.sx-chip.empty { color: #64748b; }
+
+/* ===== タブレット: 2 列 ===== */
+@media (min-width: 600px) {
+    .sx-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sx-preset-row { max-width: 560px; }
+}
+
+/* ===== PC: 3 列 ===== */
+@media (min-width: 992px) {
+    .sx-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .sx-body { padding: 16px 20px 6px; }
+    .sx-actions { padding: 12px 20px; }
+}
+
+/* ===== スマホ ===== */
+@media (max-width: 767px) {
+    .sx-input, .sx-ms, .sx .multiselect-container .multiselect-search { font-size: 16px; } /* 16px 未満だと iOS が拡大する */
+    /* 長い条件でも「検索」を押しやすいよう、操作バーはカードの下端に貼り付ける */
+    .sx-actions {
+        position: sticky; bottom: 0; z-index: 4;
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+        box-shadow: 0 -4px 12px rgba(15,23,42,.06);
+    }
+    .sx-actions .sx-btn { padding: 0 12px; }
+    .sx-btn.primary { flex: 1; min-width: 0; }
+
+    .sx-card.is-collapsed .sx-body, .sx-card.is-collapsed .sx-actions { display: none; }
+    .sx-card.is-collapsed .sx-summary { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+    .sx-summary-chips { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+    .sx-summary .sx-btn { height: 34px; padding: 0 12px; font-size: 13px; }
+}
+@media (max-width: 599px) {
+    .sx-title { font-size: 22px; }
+    .sx-body { padding: 12px 12px 2px; }
+}

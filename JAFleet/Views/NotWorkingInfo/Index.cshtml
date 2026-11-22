@@ -13,99 +13,155 @@
 }
 @section CssPartial{
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/magnific-popup.min.css" integrity="sha256-PZLhE6wwMbg4AB3d35ZdBF9HD/dI/y4RazA3iRDurss=" crossorigin="anonymous" />
+    <link rel="stylesheet" href="~/css/not-working.css" asp-append-version="true" />
 }
-<h2>非稼働情報</h2>
-<div class="form-group">
-    最終稼働日が @Html.TextBox("fromDate", null, null, new { type = "date" }) 以前
+<div class="nw">
+    <h2 class="nw-title">非稼働情報</h2>
+    <p class="nw-lead">運用中なのに、しばらく飛んでいない機体です。毎日朝 6 時ごろに Flightradar24 から取った情報をそのまま出しています。</p>
+
+    <div class="nw-bar">
+        <label class="nw-date">
+            <span>最終稼働日が</span>
+            @* 初期値は 3 日前（サーバ側で入れる） *@
+            <input type="date" id="fromDate" class="nw-input" value="@DateTime.Now.AddDays(-3).ToString("yyyy-MM-dd")" />
+            <span>以前</span>
+        </label>
+        <div class="nw-search"><input type="search" id="nwFilter" class="nw-input" placeholder="レジ・機種・航空会社・空港で絞り込み" aria-label="絞り込み" autocomplete="off" /></div>
+        <span class="nw-count" id="nwCount" aria-live="polite"></span>
+        <button type="button" class="nw-btn" id="nwExcel">Excel出力</button>
+    </div>
+
+    <div class="nw-table" role="table" aria-label="非稼働の機体">
+        <div class="nw-head" role="row">
+            <span class="c-last" role="columnheader">最終稼働</span>
+            <span class="c-reg" role="columnheader">機体記号</span>
+            <span class="c-type" role="columnheader">機種</span>
+            <span class="c-air" role="columnheader">航空会社</span>
+            <span class="c-flt" role="columnheader">便名</span>
+            <span class="c-route" role="columnheader">区間</span>
+            <span class="c-status" role="columnheader">状況</span>
+            <span class="c-link" role="columnheader"></span>
+        </div>
+        <div class="nw-body" id="nwBody" role="rowgroup"></div>
+    </div>
+    <div class="nw-msg" id="nwMsg">読み込み中…</div>
 </div>
-毎日朝6時頃にFlightradar24から取得した情報をそのまま表示してます。<input type="button" value="Excel出力" onclick="$('.buttons-html5').eq(0).click();" id="excel" class="btn btn-primary btn-xs" />
-<table id="notWorkingInfoTable" class="display cell-border compact dt-body-center nowrap" style="width:100%">
-    <thead>
-        <tr>
-            <th></th>
-            <th>最終稼働日時</th>
-            <th>機体記号</th>
-            <th>機種</th>
-            <th>From</th>
-            <th>To</th>
-            <th>便名</th>
-            <th>ステータス</th>
-        </tr>
-    </thead>
-</table>
 
 @section ScriptsPartial{
     <script src="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/jquery.magnific-popup.min.js" integrity="sha256-P93G0oq6PBPWTP1IR8Mz/0jHHUpaWL0aBJTKauisG7Q=" crossorigin="anonymous"></script>
+    <script src="~/js/fleet-list.js" asp-append-version="true"></script>
     <script>
-        var table;
-        $(function () {
-            let gridheight;
+        (function () {
+            'use strict';
+            let rows = [];
+            let shown = [];
 
-            $("#fromDate").val(dayjs().add(-3, "day").format("YYYY-MM-DD"));
+            const esc = function (s) {
+                if (s == null) { return ''; }
+                return String(s).replace(/[&<>"']/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                });
+            };
+            // "2026-05-17 04:30:00+09" → Date（取れていない機体は null）
+            const parseDate = function (s) {
+                const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?([+-]\d{2})?(?::?(\d{2}))?/.exec(s || '');
+                if (!m) { return null; }
+                const iso = m[1] + '-' + m[2] + '-' + m[3] + 'T' + m[4] + ':' + m[5] + ':' + (m[6] || '00') + (m[7] ? m[7] + ':' + (m[8] || '00') : '');
+                const t = new Date(iso);
+                return isNaN(t) ? null : t;
+            };
+            const pad = function (n) { return (n < 10 ? '0' : '') + n; };
+            const fmt = function (t) { return t.getFullYear() + '/' + pad(t.getMonth() + 1) + '/' + pad(t.getDate()) + ' ' + pad(t.getHours()) + ':' + pad(t.getMinutes()); };
+            // "Chicago (ORD)" → { code: "ORD", city: "Chicago" }
+            const airport = function (s) {
+                const m = /^(.*)\s*\(([A-Z0-9]{3,4})\)\s*$/.exec(s || '');
+                return m ? { code: m[2], city: $.trim(m[1]) } : { code: '', city: s || '' };
+            };
+            const apHtml = function (a) {
+                if (!a.code && !a.city) { return '<span class="nw-none">—</span>'; }
+                return '<span class="ap"><b>' + esc(a.code || a.city) + '</b>' + (a.code && a.city ? '<small>' + esc(a.city) + '</small>' : '') + '</span>';
+            };
 
-            if (window.innerHeight < 800) {
-                gridheight = '60vh';
-            } else {
-                gridheight = '68vh';
-            }
+            const buildRow = function (r, now) {
+                const t = parseDate(r.flightDate);
+                const days = t ? Math.floor((now - t) / 86400000) : null;
+                const level = days == null ? 'unknown' : days >= 30 ? 'long' : days >= 7 ? 'mid' : 'short';
+                const from = airport(r.fromAp), to = airport(r.toAp);
+                const reg = esc(r.registrationNumber);
+                let h = '<div class="nw-row" role="row">';
+                h += '<div class="c-last" role="cell"><span class="nw-days d-' + level + '">' + (days == null ? '不明' : days + '日前') + '</span>'
+                    + '<span class="nw-when">' + (t ? fmt(t) : '日時不明') + '</span></div>';
+                h += '<div class="c-reg" role="cell"><a class="nw-reg" href="/AD/' + encodeURIComponent(r.registrationNumber) + '" data-reg="' + reg + '">' + reg + '</a></div>';
+                h += '<div class="c-type" role="cell">' + esc(r.typeDetailName) + '</div>';
+                h += '<div class="c-air" role="cell" title="' + esc(r.airlineNameJpShort) + '">' + esc(r.airlineNameJpShort) + '</div>';
+                h += '<i class="nw-br" aria-hidden="true"></i>';
+                h += '<div class="c-flt" role="cell" title="' + esc(r.flightNumber) + '">' + esc(r.flightNumber) + '</div>';
+                h += '<div class="c-route" role="cell">' + apHtml(from) + '<span class="arrow">→</span>' + apHtml(to) + '</div>';
+                h += '<div class="c-status" role="cell">' + esc(r.status) + '</div>';
+                h += '<div class="c-link" role="cell"><a class="nw-ext" href="https://www.flightradar24.com/data/aircraft/' + encodeURIComponent(r.registrationNumber) + '" target="_blank" rel="noopener">FR24</a></div>';
+                return h + '</div>';
+            };
 
-            datatablesLangInit();
+            const render = function () {
+                const words = $.trim($('#nwFilter').val()).toLowerCase().split(/\s+/).filter(Boolean);
+                shown = words.length === 0 ? rows : rows.filter(function (r) {
+                    return words.every(function (w) { return r._text.indexOf(w) >= 0; });
+                });
+                $('#nwBody').html(shown.map(function (r) { return r._html; }).join(''));
+                $('#nwCount').html(words.length ? '<b>' + shown.length + '</b> / ' + rows.length + ' 機' : '<b>' + rows.length + '</b> 機');
+                const empty = shown.length === 0;
+                $('.nw-table').toggle(!empty);
+                $('#nwMsg').toggle(empty).text(rows.length === 0 ? '該当する機体はありません' : '当てはまる機体はありません');
+            };
 
-            table = $('#notWorkingInfoTable').DataTable({
-                dom: 'Bfrtip',
-                buttons: [
-                    {   extend: "excelHtml5",
-                        className: "buttonsToHide",
-                        exportOptions: {
-                            columns: [1, 2, 3, 4, 5, 6]
-                        }
-                    }
-                ],
-                ajax: {
-                    url: '/NotWorkingInfo/GetInfo?fromDate=' + getFromDate(),
-                    dataSrc: ''
-                },
-                columns: [
-                    {
-                        data: '', className: 'dt-center'
-                        , render: function (data, type, row, meta) {
-                            return "<a href=\"javascript:openDetail('" + row.registrationNumber + "')\">機材</a> " +
-                                "<a href=\"https://www.flightradar24.com/data/aircraft/" + row.registrationNumber + "\" target=\"_blank\">稼働</a>";
-                        }
-                    },
-                    { data: 'flightDate', className: 'dt-center' },
-                    { data: 'registrationNumber', className: 'dt-center' },
-                    {
-                        data: '', className: 'dt-center'
-                        , render: function (data, type, row) {
-                            return row.typeDetailName.replace('(','<br />(');
-                        }
-                    },
-                    { data: 'fromAp', className: 'dt-center' },
-                    { data: 'toAp', className: 'dt-center' },
-                    { data: 'flightNumber', className: 'dt-center' },
-                    { data: 'status', className: 'dt-center' }
-                ],
-                paging: false,
-                ordering: false,
-                fixedHeader: true,
-                scrollY: gridheight,
-                scrollX: true,
-                scrollCollapse: true,
-                searching: false
+            const load = function () {
+                $('.nw-table').hide();
+                $('#nwMsg').show().text('読み込み中…');
+                $('#nwCount').text('');
+                $.getJSON('/NotWorkingInfo/GetInfo', { fromDate: $('#fromDate').val() }).done(function (data) {
+                    const now = Date.now();
+                    rows = data.map(function (r) {
+                        r._html = buildRow(r, now);
+                        r._text = [r.registrationNumber, r.typeDetailName, r.airlineNameJpShort, r.flightNumber, r.fromAp, r.toAp, r.status]
+                            .filter(Boolean).join(' ').toLowerCase();
+                        return r;
+                    });
+                    render();
+                }).fail(function () {
+                    $('#nwMsg').show().text('読み込めませんでした。時間をおいて開き直してください');
+                });
+            };
+
+            $('#fromDate').on('change', load);
+            let timer = null;
+            $('#nwFilter').on('input', function () { clearTimeout(timer); timer = setTimeout(render, 120); });
+
+            // 行のどこを押しても機体詳細を開く（FR24 のリンクと、別タブで開くときのレジのリンクはそのまま）
+            $('#nwBody').on('click', 'a.nw-reg', function (e) {
+                if (e.ctrlKey || e.metaKey || e.shiftKey || e.button > 0) { return; }
+                e.preventDefault();
+                openDetail($(this).data('reg'));
             });
-        });
+            $('#nwBody').on('click', '.nw-row', function (e) {
+                if ($(e.target).closest('a').length || String(window.getSelection())) { return; }
+                openDetail($(this).find('a.nw-reg').data('reg'));
+            });
 
-        const getFromDate = function () {
-            if ($("#fromDate").val() == null) {
-                $("#fromDate").val(dayjs().add(-3, "day").format("YYYY-MM-DD"));
-            }
-            return $("#fromDate").val();
-        }
+            $('#nwExcel').on('click', function () {
+                if (shown.length === 0) { return; }
+                const btn = $(this).prop('disabled', true).text('作成中…');
+                const aoa = [['最終稼働日時', '機体記号', '機種', '航空会社', 'From', 'To', '便名', 'ステータス']];
+                shown.forEach(function (r) {
+                    aoa.push([r.flightDate, r.registrationNumber, r.typeDetailName, r.airlineNameJpShort, r.fromAp, r.toAp, r.flightNumber, r.status]);
+                });
+                FleetList.exportXlsx(aoa, [20, 10, 16, 14, 24, 24, 10, 26]).always(function () {
+                    btn.prop('disabled', false).text('Excel出力');
+                });
+            });
 
-        $("#fromDate").change(function () {
-            table.ajax.url('/NotWorkingInfo/GetInfo?fromDate=' + getFromDate()).load();
-        });
-
+            FleetList.syncNavbarOffset();
+            $(window).on('resize', FleetList.syncNavbarOffset);
+            load();
+        })();
     </script>
 }

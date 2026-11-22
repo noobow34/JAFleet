@@ -1,0 +1,263 @@
+/*
+ * 機体一覧（fleet-list.js と対）
+ * 注意: Bootstrap3 が html{font-size:10px} を設定しているため rem は使わず px で指定すること。
+ * 幅は スマホ（〜599px）= 1 機 2 行、タブレット（600〜991px）= 2 段の表、PC（992px〜）= 1 段の表。
+ */
+.fl { color: #1e293b; margin-bottom: 24px; }
+
+/* ===== 見出し（ページ側） ===== */
+.fl-page-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 12px; }
+.fl-page-title { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.3; color: #0f172a; }
+.fl-switch {
+    display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 5px 12px 5px 8px;
+    border: 1px solid #e2e8f0; border-radius: 999px; background: #fff;
+    font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; user-select: none;
+}
+.fl-switch input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
+.fl-switch:has(input:checked) { border-color: #94a3b8; background: #f1f5f9; color: #0f172a; }
+.fl-note {
+    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 6px;
+    background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; font-size: 12px; font-weight: 700;
+}
+
+/* ===== 操作バー ===== */
+.fl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.fl-search { flex: 1 1 260px; max-width: 420px; position: relative; }
+.fl-search::before {
+    content: ""; position: absolute; left: 11px; top: 50%; width: 12px; height: 12px; margin-top: -8px;
+    border: 2px solid #94a3b8; border-radius: 50%;
+}
+.fl-search::after {
+    content: ""; position: absolute; left: 21px; top: 50%; width: 6px; height: 2px; margin-top: 4px;
+    background: #94a3b8; transform: rotate(45deg); border-radius: 1px;
+}
+.fl-filter {
+    display: block; width: 100%; height: 36px; padding: 6px 10px 6px 32px;
+    border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a;
+    font-size: 14px; box-shadow: none; transition: border-color .15s, box-shadow .15s;
+}
+.fl-filter:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+.fl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; flex: 1 1 auto; }
+.fl-count { font-size: 13px; color: #64748b; white-space: nowrap; }
+.fl-count b { font-size: 18px; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; margin-right: 1px; }
+.fl-legend { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #64748b; white-space: nowrap; margin-left: auto; }
+.fl-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #fdf2f8; box-shadow: inset 3px 0 0 #ec4899; border: 1px solid #fbcfe8; }
+.fl-btn, .fl-sortsel {
+    height: 30px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
+    color: #334155; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.fl-btn:hover { background: #f1f5f9; color: #0f172a; }
+.fl-btn[disabled] { opacity: .6; cursor: default; }
+.fl-btn[hidden] { display: none; }
+.fl-reset { border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
+.fl-sortsel { display: none; padding: 0 6px; max-width: 190px; }
+
+/* ===== 表 ===== */
+.fl-table { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+.fl.is-blank .fl-table { display: none; }
+.fl-msg { padding: 32px 16px; border: 1px dashed #cbd5e1; border-radius: 12px; text-align: center; color: #64748b; font-size: 14px; }
+.fl-msg[data-kind="error"] { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.fl-msg[data-kind="loading"] { border-style: solid; border-color: #e2e8f0; background: #f8fafc; }
+
+.fl-head, .fl-row { display: grid; column-gap: 10px; align-items: center; padding: 0 12px; }
+.fl-head {
+    position: sticky; top: var(--fl-top, 50px); z-index: 5;
+    background: #f8fafc; border-bottom: 1px solid #e2e8f0; border-radius: 12px 12px 0 0;
+}
+.fl-h {
+    display: flex; align-items: center; gap: 3px; min-width: 0; padding: 8px 0; margin: 0;
+    border: 0; background: none; text-align: left; white-space: nowrap;
+    font-size: 12px; font-weight: 700; color: #64748b; cursor: pointer;
+}
+.fl-h:hover { color: #0f172a; }
+.fl-h::after { content: "↕"; font-size: 10px; color: #cbd5e1; }
+.fl-h:hover::after { color: #94a3b8; }
+.fl-h.is-asc, .fl-h.is-desc { color: #1d4ed8; }
+.fl-h.is-asc::after { content: "▲"; color: #1d4ed8; font-size: 9px; }
+.fl-h.is-desc::after { content: "▼"; color: #1d4ed8; font-size: 9px; }
+
+.fl-row {
+    min-height: 31px; padding-top: 4px; padding-bottom: 4px;
+    border-bottom: 1px solid #f1f5f9; font-size: 13px; cursor: pointer; transition: background-color .1s;
+}
+.fl-row:last-child { border-bottom: 0; border-radius: 0 0 12px 12px; }
+.fl-row:hover { background: #f8fafc; }
+.fl-row.is-new { background: #fdf2f8; box-shadow: inset 3px 0 0 #ec4899; }
+.fl-row.is-new:hover { background: #fce7f3; }
+.fl-row.is-retired { color: #94a3b8; }
+.fl-row.is-retired .fl-c a.fl-reg { color: #64748b; }
+
+.fl-c { min-width: 0; overflow-wrap: anywhere; line-height: 1.4; }
+.fl-br, .fl-lbl { display: none; }
+.fl-c a { color: #2563eb; }
+.fl-c a.fl-reg { color: #0f172a; }
+.fl-reg {
+    font-family: ui-monospace, Consolas, "SFMono-Regular", Menlo, monospace; font-weight: 700; font-size: 14px;
+    color: #0f172a; letter-spacing: .01em; text-decoration: none;
+}
+.fl-c a.fl-reg:hover, .fl-c a.fl-reg:focus { color: #1d4ed8; text-decoration: underline; }
+.fl-test { display: block; font-size: 11px; color: #94a3b8; font-family: ui-monospace, Consolas, monospace; }
+.c-type { font-weight: 600; color: #334155; }
+.fl-type-sub { font-weight: 500; font-size: 11px; color: #64748b; }
+.c-sn, .c-date, .c-cfg { font-variant-numeric: tabular-nums; }
+.c-sn, .c-date { white-space: nowrap; }
+.c-air { color: #475569; }
+.c-wifi { text-align: center; }
+.c-sn a, .c-cfg a { text-decoration: none; }
+.c-sn a:hover, .c-cfg a:hover { text-decoration: underline; }
+
+.fl-op {
+    display: inline-block; padding: 0 7px; border-radius: 999px; line-height: 20px;
+    font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.op-intl   { background: #dbeafe; color: #1d4ed8; }
+.op-dom    { background: #dcfce7; color: #15803d; }
+.op-both   { background: #e0e7ff; color: #4338ca; }
+.op-cargo  { background: #ffedd5; color: #c2410c; }
+.op-pre    { background: #f3e8ff; color: #7e22ce; }
+.op-dlv    { background: #cffafe; color: #0e7490; }
+.op-retire { background: #f1f5f9; color: #64748b; }
+.op-other  { background: #f1f5f9; color: #475569; }
+
+.fl-wifi { font-weight: 700; font-size: 14px; cursor: default; }
+.fl-wifi.w-yes { color: #16a34a; }
+.fl-wifi.w-part { color: #d97706; }
+.fl-wifi.w-no { color: #94a3b8; }
+.fl-wifi-extra { display: none; font-weight: 600; font-size: 11px; }
+
+.fl-livery {
+    display: inline-flex; align-items: baseline; gap: 5px; padding: 1px 8px; border-radius: 6px;
+    background: #f5f3ff; border: 1px solid #ede9fe; color: #6d28d9; font-size: 12px; font-weight: 600; line-height: 1.5;
+}
+.fl-livery::before {
+    content: ""; flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%;
+    background: conic-gradient(#ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444);
+}
+.fl-rem { font-size: 12px; color: #64748b; }
+.fl-row.is-retired .fl-livery { background: #f8fafc; border-color: #e2e8f0; color: #94a3b8; }
+
+/* ===== PC: 1 機 1 行 ===== */
+@media (min-width: 992px) {
+    .fl-head, .fl-row {
+        column-gap: 8px;
+        grid-template-columns:
+            minmax(96px, 1.1fr) minmax(92px, 1.5fr) 78px 56px 82px 84px
+            minmax(150px, 1.1fr) 40px minmax(110px, 1.8fr) minmax(64px, 1fr);
+        grid-template-areas: "air type reg sn date op cfg wifi liv rem";
+    }
+    .fl--one-airline .fl-head, .fl--one-airline .fl-row {
+        grid-template-columns:
+            minmax(100px, 1.4fr) 82px 64px 86px 84px
+            minmax(150px, 1.2fr) 44px minmax(150px, 2fr) minmax(90px, 1.2fr);
+        grid-template-areas: "type reg sn date op cfg wifi liv rem";
+    }
+    /* 行の高さを揃えて 1 画面の機数を稼ぐ。長い塗装名・備考は省略し、全文は title で見せる */
+    .c-air, .c-cfg, .c-liv, .c-rem { white-space: nowrap; }
+    .c-air, .c-liv, .c-rem { overflow: hidden; text-overflow: ellipsis; }
+    .fl-row .c-air { font-size: 12px; }
+    .fl-livery { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle; }
+    .fl-livery::before { display: inline-block; margin-right: 5px; vertical-align: 1px; }
+}
+
+/* 狭い PC（992〜1199px）: 特別塗装の幅を取るため、備考は特別塗装の下へ回す（備考のある機体だけ 2 段になる） */
+@media (min-width: 992px) and (max-width: 1199px) {
+    .fl-head, .fl-row {
+        grid-template-columns:
+            minmax(88px, 1fr) minmax(92px, 1.4fr) 78px 56px 82px 84px
+            minmax(150px, 1.1fr) 36px minmax(150px, 2fr);
+        grid-template-areas:
+            "air type reg sn date op cfg wifi liv"
+            "air type reg sn date op cfg wifi rem";
+    }
+    .fl--one-airline .fl-head, .fl--one-airline .fl-row {
+        grid-template-columns:
+            minmax(100px, 1.4fr) 82px 64px 86px 84px
+            minmax(150px, 1.2fr) 40px minmax(170px, 2fr);
+        grid-template-areas:
+            "type reg sn date op cfg wifi liv"
+            "type reg sn date op cfg wifi rem";
+    }
+    .fl-head { padding-top: 4px; padding-bottom: 4px; }
+    .fl-h { padding: 2px 0; }
+    .fl-head .c-rem { font-weight: 600; font-size: 11px; color: #94a3b8; }
+    .fl-row .c-rem { font-size: 11px; }
+}
+
+/* ===== タブレット: 機体記号/製造番号、機種/航空会社、登録年月日/運用、特別塗装/備考 を上下に重ねる ===== */
+@media (min-width: 600px) and (max-width: 991px) {
+    .fl-head, .fl-row {
+        column-gap: 8px;
+        grid-template-columns: 80px minmax(88px, 1.2fr) 84px minmax(110px, 1.3fr) 30px minmax(100px, 1.6fr);
+        grid-template-areas:
+            "reg type date cfg wifi liv"
+            "sn  air  op   cfg wifi rem";
+    }
+    .fl--one-airline .fl-head, .fl--one-airline .fl-row {
+        grid-template-areas:
+            "reg type date cfg wifi liv"
+            "sn  type op   cfg wifi rem";
+    }
+    .fl-head { padding-top: 4px; padding-bottom: 4px; }
+    .fl-h { padding: 2px 0; }
+    .fl-head .c-sn, .fl-head .c-air, .fl-head .c-op, .fl-head .c-rem { font-weight: 600; font-size: 11px; color: #94a3b8; }
+    .fl-row { padding-top: 5px; padding-bottom: 5px; row-gap: 1px; }
+    .fl-row .fl-c { line-height: 1.3; }
+    .fl-row .c-sn, .fl-row .c-air, .fl-row .c-rem { font-size: 11px; color: #94a3b8; }
+    .fl-row .c-date { font-size: 12px; }
+    .fl-row .fl-op { line-height: 16px; font-size: 10px; }
+    .fl-row .fl-livery { line-height: 1.35; }
+    .fl-test { display: inline; margin-left: 4px; }
+}
+
+/* 列の割り当て（PC・タブレット共通） */
+@media (min-width: 600px) {
+    .c-air { grid-area: air; } .c-type { grid-area: type; } .c-reg { grid-area: reg; } .c-sn { grid-area: sn; }
+    .c-date { grid-area: date; } .c-op { grid-area: op; } .c-cfg { grid-area: cfg; } .c-wifi { grid-area: wifi; }
+    .c-liv { grid-area: liv; } .c-rem { grid-area: rem; }
+    .fl-h.c-wifi { justify-content: center; }
+    .fl--one-airline .c-air { display: none; }
+}
+
+/* ===== スマホ: 1 機 2 行（特別塗装・備考があれば 3 行） ===== */
+@media (max-width: 599px) {
+    .fl-search { flex-basis: 100%; max-width: none; }
+    .fl-filter { height: 40px; font-size: 16px; } /* 16px 未満だと iOS が拡大する */
+    .fl-tools { gap: 6px 8px; }
+    .fl-sortsel { display: inline-block; height: 32px; max-width: 48%; }
+    .fl-legend { order: 10; margin-left: 0; } /* 並べ替え・Excel を 1 行に収め、凡例は次の行へ */
+
+    .fl-table { border-radius: 10px; }
+    .fl-head { display: none; }
+    .fl-row {
+        display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 1px;
+        padding: 7px 12px; min-height: 0;
+    }
+    .fl-row:first-child { border-radius: 10px 10px 0 0; }
+    .fl-row:last-child { border-radius: 0 0 10px 10px; }
+    .fl-row:only-child { border-radius: 10px; }
+    .fl-row .fl-c { line-height: 1.35; }
+    .fl-br { display: block; flex-basis: 100%; height: 0; }
+    .fl-c:empty { display: none; }
+
+    /* 1 行目: レジ・機種 … Wi-Fi・運用 */
+    .c-reg { order: 1; } .c-type { order: 2; flex: 1 1 auto; } .c-wifi { order: 3; } .c-op { order: 4; }
+    .fl-reg { font-size: 16px; }
+    .fl-test { display: inline; margin-left: 4px; }
+    .c-type { font-size: 14px; } /* 機種を伸ばして Wi-Fi・運用を右端へ寄せる */
+
+    /* 2 行目: 航空会社・製造番号・登録年月日・コンフィグ */
+    .br1 { order: 5; } .c-air { order: 6; } .c-sn { order: 7; } .c-date { order: 8; } .c-cfg { order: 9; }
+    .c-air, .c-sn, .c-date, .c-cfg { font-size: 12px; color: #64748b; }
+    .c-air { font-weight: 600; color: #475569; }
+    .fl--one-airline .c-air { display: none; }
+    .fl-lbl { display: inline; margin-right: 2px; font-size: 10px; font-weight: 600; color: #94a3b8; }
+    .c-wifi .fl-wifi { font-size: 12px; }
+    .fl-wifi .fl-lbl { margin-right: 1px; }
+    .fl-wifi-extra { display: inline; font-size: 10px; } /* タップでは title が見えないので本文に出す */
+
+    /* 3 行目: 特別塗装・備考 */
+    .br2 { order: 10; } .c-liv { order: 11; } .c-rem { order: 12; }
+    .c-liv, .c-rem { margin-top: 2px; }
+    .fl-livery { font-size: 11px; padding: 0 6px; }
+    .fl-rem { font-size: 11px; }
+}

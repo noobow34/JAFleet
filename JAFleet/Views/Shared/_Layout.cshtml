@@ -14,99 +14,11 @@
 
     <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.min.css" asp-append-version="true" />
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.19/css/jquery.dataTables.min.css">
     @RenderSection("CssPartial", required: false)
 </head>
 
 <body>
-    <header>
-        <nav class="navbar navbar-default navbar-fixed-top">
-            <div class="container-fluid">
-                <div class="navbar-header">
-                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse" style="background-color:gray">
-                        <span style="color:white;">Menu</span>
-                    </button>
-                    <a asp-area="" asp-controller="Home" asp-action="Index" class="navbar-brand"></a>
-                </div>
-                <div class="navbar-collapse collapse">
-                    <ul class="nav navbar-nav">
-                        <li><a asp-area="" asp-controller="Search" asp-action="Index">検索</a></li>
-                        <li class="dropdown">
-                            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">ANAグループ<span class="caret"></span></a>
-                            <ul class="dropdown-menu">
-                                <li><a asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="A">全て</a></li>
-                                <li role="separator" class="divider"></li>
-                                @foreach (Airline a in MasterManager.ANA!)
-                                {
-                                    <li><a asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">@a.AirlineNameJpShort</a></li>
-                                }
-                            </ul>
-                        </li>
-
-                        <li class="dropdown">
-                            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">JALグループ<span class="caret"></span></a>
-                            <ul class="dropdown-menu">
-                                <li><a asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="J">全て</a></li>
-                                <li role="separator" class="divider"></li>
-                                @foreach (Airline a in MasterManager.JAL!)
-                                {
-                                    <li><a asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">@a.AirlineNameJpShort</a></li>
-                                }
-                            </ul>
-                        </li>
-
-                        <li class="dropdown">
-                            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">LCC<span class="caret"></span></a>
-                            <ul class="dropdown-menu">
-                                <li><a asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="L">全て</a></li>
-                                <li role="separator" class="divider"></li>
-                                @foreach (Airline a in MasterManager.LCC!)
-                                {
-                                    <li><a asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">@a.AirlineNameJpShort</a></li>
-                                }
-                            </ul>
-                        </li>
-
-                        <li class="dropdown">
-                            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">その他航空会社<span class="caret"></span></a>
-                            <ul class="dropdown-menu">
-                                <li><a asp-area="" asp-controller="Aircraft" asp-action="AirlineGroup" asp-route-id="O">全て</a></li>
-                                <li role="separator" class="divider"></li>
-                                @foreach (Airline a in MasterManager.Other!)
-                                {
-                                    <li><a asp-area="" asp-controller="Aircraft" asp-action="Airline" asp-route-id="@a.AirlineCode">@a.AirlineNameJpShort</a></li>
-                                }
-                            </ul>
-                        </li>
-
-                        <li class="dropdown">
-                            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">型式別<span class="caret"></span></a>
-                            <ul class="dropdown-menu scrollable-menu">
-                                @foreach (JAFleet.Commons.Data.Type a in MasterManager.Type!)
-                                {
-                                    <li><a asp-area="" asp-controller="Aircraft" asp-action="Type" asp-route-id="@a.TypeCode">@a.TypeName</a></li>
-                                }
-                            </ul>
-                        </li>
-                        @* 稼働状況の取得が止まっているときなどに、管理コンソールのサイト設定で隠せる *@
-                        @if (SiteSettings.ShowNotWorkingInfoMenu)
-                        {
-                            <li><a asp-area="" asp-controller="NotWorkingInfo" asp-action="Index">非稼働情報</a></li>
-                        }
-                        <li><a href="#" data-toggle="modal" data-target="#lineinfo"><img src="~/images/linelogo.png" height="25" alt="LINE" /></a></li>
-                        <li><a href="https://twitter.com/ja_fleet" target="_blank"><img src="~/images/twitterlogo.png" height="25" alt="Twitter" /></a></li>
-                        <li><a href="#" data-toggle="modal" data-target="#sendMessage">📬</a></li>
-                        @if (Context.User.Identity!.IsAuthenticated){
-                            <li><a href="/Account/Logout" id="logout-link">🔓</a></li>
-                            <li><a href="/Admin" id="admin-link" title="管理コンソール">🛠</a></li>
-                        }else{
-                            <li><a href="/Account/Login" id="login-link" style="display: none;">🔒</a></li>
-                        }
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
+    <partial name="_SiteNav" />
 
     <div class="modal fade" id="lineinfo" tabindex="-1" data-loadtarget="@Url.Content("~/line.html")" data-loaded=""></div>
     <div class="modal fade" id="sendMessage" tabindex="-1" data-loadtarget="@Url.Content("~/message.html")" data-loaded=""></div>
@@ -125,15 +37,16 @@
 
     <script src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-3.4.1.min.js" integrity="sha384-vk5WoKIaW/vJyUAd9n/wmopsmNhiy+L2Z+SBxGYnUkunIxVxAv/UtMOhba/xskxh" crossorigin="anonymous"></script>
     <script src="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/bootstrap.min.js" crossorigin="anonymous" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"></script>
-    <script src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.datatables.net/buttons/1.6.1/js/dataTables.buttons.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.datatables.net/buttons/1.6.1/js/buttons.html5.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.datatables.net/plug-ins/1.10.19/api/order.neutral().js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.8.5/dayjs.min.js" integrity="sha256-cautXtuzdqnrn4ue0yo/50ZM6zI7AsxibIbJJRWLajo=" crossorigin="anonymous"></script>
     <script src="~/js/site.min.js" asp-append-version="true"></script>
     <script>
         $(function () {
+            // ナビバーのメニュー（スマホ・タブレット）: 開いているあいだは本文を暗くしてスクロールを止め、外を押したら閉じる
+            $('#jfMenu').on('show.bs.collapse', function () { $('body').addClass('jf-menu-open'); })
+                .on('hide.bs.collapse', function () { $('body').removeClass('jf-menu-open'); });
+            $('#jfBackdrop').on('click', function () { $('#jfMenu').collapse('hide'); });
+            // メニューからお問い合わせ・LINE を開いたときはメニューを閉じる
+            $('#jfMenu [data-toggle="modal"]').on('click', function () { if ($('#jfMenu').hasClass('in')) { $('#jfMenu').collapse('hide'); } });
+
             $('.modal').on('show.bs.modal', function (e) {
                 let id = $(e.target).attr('id');
                 if ($(e.target).data('loaded') == "") {

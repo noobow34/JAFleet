@@ -1,0 +1,119 @@
+/*
+ * 非稼働情報（/NotWorkingInfo）。見た目は機体一覧（fleet-list.css）に揃えている。
+ * 注意: Bootstrap3 が html{font-size:10px} を設定しているため rem は使わず px で指定すること。
+ * PC・タブレット（600px〜）は 1 機 1 行の表、スマホ（〜599px）は 1 機 2 行。
+ */
+.nw { color: #1e293b; padding: 4px 0 24px; }
+.nw-title { margin: 4px 0 4px; font-size: 24px; font-weight: 700; color: #0f172a; }
+.nw-lead { margin: 0 0 12px; font-size: 13px; color: #64748b; line-height: 1.7; }
+
+/* ===== 操作バー ===== */
+.nw-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.nw-date { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 600; color: #475569; }
+.nw-input {
+    height: 36px; padding: 4px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
+    color: #0f172a; font-size: 14px; box-shadow: none; transition: border-color .15s, box-shadow .15s;
+}
+.nw-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+.nw-search { flex: 1 1 220px; max-width: 360px; }
+.nw-search .nw-input { width: 100%; }
+.nw-count { font-size: 13px; color: #64748b; white-space: nowrap; }
+.nw-count b { font-size: 18px; color: #0f172a; font-variant-numeric: tabular-nums; margin-right: 1px; }
+.nw-btn {
+    margin-left: auto; height: 30px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
+    color: #334155; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.nw-btn:hover { background: #f1f5f9; }
+.nw-btn[disabled] { opacity: .6; cursor: default; }
+
+/* ===== 表 ===== */
+.nw-table { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+.nw-msg { padding: 32px 16px; border: 1px dashed #cbd5e1; border-radius: 12px; text-align: center; color: #64748b; font-size: 14px; }
+.nw-head, .nw-row {
+    display: grid; align-items: center; column-gap: 10px; padding: 0 12px;
+    grid-template-columns: 150px 78px minmax(90px, 1fr) minmax(80px, .9fr) 64px minmax(170px, 2fr) minmax(100px, 1.2fr) 44px;
+}
+.nw-head {
+    position: sticky; top: var(--fl-top, 64px); z-index: 5;
+    background: #f8fafc; border-bottom: 1px solid #e2e8f0; border-radius: 12px 12px 0 0;
+    font-size: 12px; font-weight: 700; color: #64748b;
+}
+.nw-head > span { padding: 8px 0; white-space: nowrap; }
+.nw-row { min-height: 34px; padding-top: 5px; padding-bottom: 5px; border-bottom: 1px solid #f1f5f9; font-size: 13px; cursor: pointer; }
+.nw-row:last-child { border-bottom: 0; border-radius: 0 0 12px 12px; }
+.nw-row:hover { background: #f8fafc; }
+.nw-row > div { min-width: 0; overflow-wrap: anywhere; line-height: 1.4; }
+.nw-br { display: none; }
+
+.nw-row .c-last { display: flex; align-items: center; gap: 6px; }
+.nw-days {
+    flex: 0 0 auto; min-width: 54px; padding: 0 7px; border-radius: 999px; text-align: center;
+    font-size: 11px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums;
+}
+.nw-days.d-long { background: #fee2e2; color: #b91c1c; }
+.nw-days.d-mid { background: #ffedd5; color: #c2410c; }
+.nw-days.d-short { background: #f1f5f9; color: #475569; }
+.nw-days.d-unknown { background: #f1f5f9; color: #94a3b8; }
+.nw-when { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nw-reg {
+    font-family: ui-monospace, Consolas, "SFMono-Regular", Menlo, monospace; font-weight: 700; font-size: 14px;
+    color: #0f172a; text-decoration: none;
+}
+.nw-reg:hover, .nw-reg:focus { color: #1d4ed8; text-decoration: underline; }
+.nw-row .c-type { font-weight: 600; color: #334155; }
+.nw-row .c-air { font-size: 12px; color: #475569; }
+.nw-row .c-flt { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #334155; }
+/* 長い社名や試験便の便名で行が太らないよう、表のときは 1 行で省略する（全文は title） */
+@media (min-width: 600px) {
+    .nw-row .c-air, .nw-row .c-flt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+.nw-row .c-route { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 4px; }
+.ap b { font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: #0f172a; }
+.ap small { margin-left: 4px; font-size: 11px; color: #94a3b8; }
+.arrow { color: #94a3b8; }
+.nw-none { color: #cbd5e1; }
+.nw-row .c-status { font-size: 12px; color: #64748b; }
+.nw-ext { font-size: 11px; font-weight: 700; color: #2563eb; text-decoration: none; white-space: nowrap; }
+.nw-ext::after { content: " ↗"; }
+.nw-ext:hover { text-decoration: underline; }
+
+/* ===== タブレット: 状況の列を外して詰める（状況は区間の下に小さく出す） ===== */
+@media (min-width: 600px) and (max-width: 991px) {
+    .nw-head, .nw-row { grid-template-columns: 100px 74px minmax(84px, 1fr) minmax(70px, .8fr) 58px minmax(130px, 1.6fr) 40px; column-gap: 8px; }
+    /* 「〇日前」の下に日時を重ねる（横に並べると機体記号の列にはみ出す） */
+    .nw-row .c-last { flex-direction: column; align-items: flex-start; gap: 1px; grid-row: 1 / span 2; }
+    .nw-when { font-size: 10px; }
+    .nw-head .c-status { display: none; }
+    .nw-row .c-status { grid-column: 6; grid-row: 2; font-size: 11px; }
+    .nw-row .c-link { grid-column: 7; grid-row: 1; }
+    .ap small { display: none; }
+}
+
+/* ===== スマホ: 1 機 2 行 ===== */
+@media (max-width: 599px) {
+    .nw-input { font-size: 16px; } /* 16px 未満だと iOS が拡大する */
+    .nw-date { flex-basis: 100%; }
+    .nw-date .nw-input { flex: 1; }
+    .nw-search { flex-basis: 100%; max-width: none; }
+    .nw-head { display: none; }
+    .nw-row {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 7px 12px;
+    }
+    .nw-row:first-child { border-radius: 12px 12px 0 0; }
+    .nw-br { display: block; flex-basis: 100%; height: 0; }
+    .nw-row > div:empty { display: none; }
+    /* 1 行目: レジ・機種・航空会社 … 何日前 */
+    .nw-row .c-reg { order: 1; }
+    .nw-row .nw-reg { font-size: 16px; }
+    .nw-row .c-type { order: 2; font-size: 14px; }
+    .nw-row .c-air { order: 3; flex: 1 1 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nw-row .c-last { order: 4; }
+    .nw-row .nw-when { display: none; }
+    /* 2 行目: 便名・区間・状況・最終稼働日時 */
+    .nw-br { order: 5; }
+    .nw-row .c-flt { order: 6; }
+    .nw-row .c-route { order: 7; }
+    .ap small { display: none; }
+    .nw-row .c-status { order: 8; font-size: 11px; color: #94a3b8; flex: 1 1 auto; }
+    .nw-row .c-link { order: 9; }
+}
