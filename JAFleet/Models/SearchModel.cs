@@ -33,6 +33,10 @@ namespace JAFleet.Models
         public string? RegistrationSelection { get; set; }
         public List<SelectListItem> RegistrationSelectionList { get; set; } = MasterManager.PERIOD_SELECTION;
 
+        [Display(Name = "抹消年月")]
+        public string? DeregistrationDate { get; set; }
+        public string? DeregistrationSelection { get; set; }
+
         [Display(Name = "備考")]
         public string Remarks { get; set; } = string.Empty;
         public string RemarksKeyword { get; set; } = string.Empty;

@@ -1,4 +1,5 @@
 using JAFleet.Commons.Data;
+using JAFleet.Commons.Util;
 using JAFleet.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -140,6 +141,18 @@ namespace JAFleet.Services
                         ErrorAhId = input.AhId,
                     };
                 }
+                foreach ((string label, string? text) in new[] { ("登録年月日", input.RegisterDate), ("抹消年月日", input.DeregisterDate) })
+                {
+                    if (!JaDateUtil.TryParse(text, out _))
+                    {
+                        return new Result
+                        {
+                            Reg = reg,
+                            Error = $"{label}「{text}」を日付として読めません。yyyy/MM/dd で入れてください。",
+                            ErrorAhId = input.AhId,
+                        };
+                    }
+                }
             }
 
             foreach (AircraftHistoryInput input in inputs)
@@ -207,7 +220,8 @@ namespace JAFleet.Services
             target.Airline = input.Airline!.Trim();
             target.TypeDetailId = input.TypeDetailId;
             target.SerialNumber = Empty(input.SerialNumber);
-            target.RegisterDate = Empty(input.RegisterDate);
+            target.RegisterDate = JaDateUtil.ParseOrNull(input.RegisterDate);
+            target.DeregisterDate = JaDateUtil.ParseOrNull(input.DeregisterDate);
             target.OperationCode = Empty(input.OperationCode);
             target.WifiCode = Empty(input.WifiCode);
             target.SeatConfig = input.SeatConfig;

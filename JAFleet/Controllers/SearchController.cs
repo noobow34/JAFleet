@@ -2,6 +2,7 @@
 using JAFleet.Services;
 using JAFleet.Models;
 using JAFleet.Commons.Data;
+using JAFleet.Commons.Util;
 using JAFleet.Infrastructure;
 using JAFleet.Commons.Constants;
 using AutoMapper;
@@ -89,7 +90,6 @@ namespace JAFleet.Controllers
             int[] typeDetail = [];
             string[] operation;
             string[] wifi;
-            string registrationDate;
             var addSpecialLiveryReg = new List<string>();
 
             if (model.RegistrationNumber != null)
@@ -128,23 +128,24 @@ namespace JAFleet.Controllers
                 query = query.Where(p => wifi.Contains(p.WifiCode));
             }
 
-            if (!string.IsNullOrEmpty(model.RegistrationDate))
+            //登録年月・抹消年月（yyyy/MM）で絞る。「と等しい」はその月、「以前」「以降」はその月を含む
+            if (MonthRange(model.RegistrationDate) is (DateOnly regFirst, DateOnly regLast))
             {
-                registrationDate = model.RegistrationDate;
-                if (model.RegistrationSelection == "0")
+                query = model.RegistrationSelection switch
                 {
-                    query = query.Where(p => p.RegisterDate!.StartsWith(registrationDate));
-                }
-                else if (model.RegistrationSelection == "1")
+                    "1" => query.Where(p => p.RegisterDate <= regLast),
+                    "2" => query.Where(p => p.RegisterDate >= regFirst),
+                    _ => query.Where(p => p.RegisterDate >= regFirst && p.RegisterDate <= regLast),
+                };
+            }
+            if (MonthRange(model.DeregistrationDate) is (DateOnly deregFirst, DateOnly deregLast))
+            {
+                query = model.DeregistrationSelection switch
                 {
-                    registrationDate += "zzz";
-                    query = query.Where(p => p.RegisterDate!.CompareTo(registrationDate) <= 0);
-                }
-                else if (model.RegistrationSelection == "2")
-                {
-                    registrationDate += "   ";
-                    query = query.Where(p => p.RegisterDate!.CompareTo(registrationDate) >= 0);
-                }
+                    "1" => query.Where(p => p.DeregisterDate <= deregLast),
+                    "2" => query.Where(p => p.DeregisterDate >= deregFirst),
+                    _ => query.Where(p => p.DeregisterDate >= deregFirst && p.DeregisterDate <= deregLast),
+                };
             }
 
             if (!string.IsNullOrEmpty(model.OperationCode))
@@ -303,6 +304,17 @@ namespace JAFleet.Controllers
             });
 
             return Json(new SearchResult { ResultList = searchResult!, SearchConditionKey = schash });
+        }
+
+        /// <summary>"yyyy/MM" をその月の初日と末日にする。空・読めないときは null（その条件では絞らない）</summary>
+        private static (DateOnly First, DateOnly Last)? MonthRange(string? month)
+        {
+            if (string.IsNullOrEmpty(month) || !JaDateUtil.TryParse(month, out DateOnly? monthEnd) || monthEnd == null)
+            {
+                return null;
+            }
+            DateOnly last = monthEnd.Value;
+            return (new DateOnly(last.Year, last.Month, 1), last);
         }
 
         /// <summary>

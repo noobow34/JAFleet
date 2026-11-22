@@ -34,21 +34,21 @@ namespace JAFleet.Test
         }
 
         [TestMethod]
-        public void ReservationKeepsMonthOnlyScheduledDate()
+        public void ReservationMonthOnlyScheduledDateBecomesMonthEnd()
         {
-            //予定は月までしか無いことが多い。日を勝手に補わずそのまま入れる
+            //予定は月までしか無いことが多い。登録年月日は日付で持つので、その月の末日にする
             ImportPreviewItem item = Item(Reservation("2026/06/03", "2028/07"));
 
-            Assert.AreEqual("2028/07", ImportPreviewBuilder.SuggestRegisterDate(item, null));
+            Assert.AreEqual("2028/07/31", ImportPreviewBuilder.SuggestRegisterDate(item, null));
         }
 
         [TestMethod]
         public void ReservationOverridesExistingAircraftDate()
         {
             ImportPreviewItem item = Item(Reservation("2026/06/03", "2028/07"));
-            Aircraft aircraft = new() { RegistrationNumber = "JA123A", RegisterDate = "2027/01" };
+            Aircraft aircraft = new() { RegistrationNumber = "JA123A", RegisterDate = new DateOnly(2027, 1, 31) };
 
-            Assert.AreEqual("2028/07", ImportPreviewBuilder.SuggestRegisterDate(item, aircraft));
+            Assert.AreEqual("2028/07/31", ImportPreviewBuilder.SuggestRegisterDate(item, aircraft));
         }
 
         [TestMethod]
@@ -64,9 +64,9 @@ namespace JAFleet.Test
         public void ReservationWithoutScheduledDateKeepsExistingAircraftDate()
         {
             ImportPreviewItem item = Item(Reservation("2026/06/03", null));
-            Aircraft aircraft = new() { RegistrationNumber = "JA123A", RegisterDate = "2027/01" };
+            Aircraft aircraft = new() { RegistrationNumber = "JA123A", RegisterDate = new DateOnly(2027, 1, 31) };
 
-            Assert.AreEqual("2027/01", ImportPreviewBuilder.SuggestRegisterDate(item, aircraft));
+            Assert.AreEqual("2027/01/31", ImportPreviewBuilder.SuggestRegisterDate(item, aircraft));
         }
 
         [TestMethod]
@@ -85,7 +85,7 @@ namespace JAFleet.Test
         {
             ImportPreviewItem item = Item(
                 new JcabRecord { RecordType = JcabRecordType.Transfer, RegistrationNumber = "JA123A", RegisterDate = "2026/10/01" });
-            Aircraft aircraft = new() { RegistrationNumber = "JA123A", RegisterDate = "2019/04/01" };
+            Aircraft aircraft = new() { RegistrationNumber = "JA123A", RegisterDate = new DateOnly(2019, 4, 1) };
 
             Assert.AreEqual("2019/04/01", ImportPreviewBuilder.SuggestRegisterDate(item, aircraft));
         }

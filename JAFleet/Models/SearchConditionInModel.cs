@@ -22,6 +22,12 @@ namespace JAFleet.Models
         [DefaultValue("0")]
         public string? RegistrationSelection { get; set; }
 
+        //既定値のときはJSONに出ない（DefaultValueHandling.Ignore）ので、足しても既存の検索条件のキーは変わらない
+        [DefaultValue(null)]
+        public string? DeregistrationDate { get; set; }
+        [DefaultValue("0")]
+        public string? DeregistrationSelection { get; set; }
+
         [DefaultValue(null)]
         public string Remarks { get; set; } = string.Empty;
         [DefaultValue(null)]

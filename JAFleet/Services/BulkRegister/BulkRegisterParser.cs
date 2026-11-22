@@ -1,3 +1,4 @@
+using JAFleet.Commons.Util;
 using System.Text;
 using System.Text.RegularExpressions;
 using JAFleet.Services.JcabImport;
@@ -20,10 +21,10 @@ namespace JAFleet.Services.BulkRegister
         public string? RegisterDate { get; set; }
 
         /// <summary>
-        /// 登録年月日を yyyy/MM/dd に直せず、書いたままを入れる場合にtrue。
-        /// 「2026/08/xx」のように日がまだ決まっていない書き方を通すためのもの。
+        /// 月までしか書いていなかったので、その月の末日にした場合にtrue（画面で知らせる）。
+        /// 登録年月日は日付で持つので、「2026/08/xx」のような月までの登録はできない。
         /// </summary>
-        public bool RegisterDateAsIs { get; set; }
+        public bool RegisterDateMonthEnd { get; set; }
 
         public string? SerialNumber { get; set; }
 
@@ -37,7 +38,7 @@ namespace JAFleet.Services.BulkRegister
     /// 1行1機で「レジ / 登録年月日 / 製造番号」。区切りはタブ・カンマ・空白のいずれか。
     /// Excelから列をコピーするとタブ区切りで入るので、そのまま貼れる。
     /// 登録年月日と製造番号は省略できる。
-    /// 登録年月日は yyyy/MM/dd に寄せるが、寄せられない書き方はエラーにせず書いたまま通す。
+    /// 登録年月日は yyyy/MM/dd に寄せる。月までしか書いていなければその月の末日にし、日付として読めなければその行をエラーにする。
     /// </summary>
     public static partial class BulkRegisterParser
     {
@@ -90,7 +91,13 @@ namespace JAFleet.Services.BulkRegister
                     continue;
                 }
 
-                (line.RegisterDate, line.RegisterDateAsIs) = ReadDate(fields.Length > 1 ? fields[1] : null);
+                string? dateError;
+                (line.RegisterDate, line.RegisterDateMonthEnd, dateError) = ReadDate(fields.Length > 1 ? fields[1] : null);
+                if (dateError != null)
+                {
+                    line.Error = dateError;
+                    continue;
+                }
 
                 string serial = fields.Length > 2 ? fields[2].Trim() : string.Empty;
                 line.SerialNumber = serial.Length == 0 ? null : TextUtil.Widen(serial);
@@ -139,21 +146,27 @@ namespace JAFleet.Services.BulkRegister
         }
 
         /// <summary>
-        /// 登録年月日として入れる値を決める。
-        /// yyyy/MM/dd に直せた場合はそれを、直せなかった場合は書いたままを返す（AsIs）。
-        /// 予定月までしか分からないときの「2026/08/xx」のような書き方をそのまま登録できるようにするため、
-        /// 解釈できないことをエラーにはしない。
+        /// 登録年月日として入れる値（yyyy/MM/dd）を決める。和暦（R8.6.3 など）も読む。
+        /// 月までしか書いていなければ（「2026/08」「2026/08/xx」「R8.8」）その月の末日にして MonthEnd を立てる。
+        /// 日付として読めなければエラーの文言を返す。
         /// </summary>
-        public static (string? Date, bool AsIs) ReadDate(string? value)
+        public static (string? Date, bool MonthEnd, string? Error) ReadDate(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
-                return (null, false);
+                return (null, false, null);
             }
 
             string trimmed = value.Trim();
-            string? normalized = JcabDateUtil.ToDateString(trimmed);
-            return normalized != null ? (normalized, false) : (TextUtil.Widen(trimmed), true);
+            //和暦や「2026年8月」も yyyy/MM(/dd) に寄せてから日付にする
+            string loose = JcabDateUtil.ToLooseDateString(trimmed) ?? trimmed;
+            if (!JaDateUtil.TryParse(loose, out DateOnly? date) || date == null)
+            {
+                return (null, false, $"登録年月日として読めません（{trimmed}）。yyyy/MM/dd で書いてください。");
+            }
+            //日まで読めなかった（月まで・年までだった）ので末日にした
+            bool monthEnd = JcabDateUtil.ToDateString(trimmed) == null;
+            return (JaDateUtil.Format(date), monthEnd, null);
         }
     }
 }

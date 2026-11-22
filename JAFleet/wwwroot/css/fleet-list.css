@@ -209,11 +209,70 @@
     .fl-test { display: inline; margin-left: 4px; }
 }
 
+/* ===== 抹消年月日の列（一覧に抹消済みの機体が 1 機でもあるとき、.fl--has-dereg が付く） ===== */
+.fl .c-dereg { display: none; }
+.fl.fl--has-dereg .fl-c.c-dereg { display: block; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fl.fl--has-dereg .fl-h.c-dereg { display: flex; }
+
+/* PC: 登録年月日の右に 1 列足す */
+@media (min-width: 992px) {
+    .fl--has-dereg .fl-head, .fl--has-dereg .fl-row {
+        grid-template-columns:
+            minmax(96px, 1.1fr) minmax(92px, 1.5fr) 78px 56px 82px 82px 84px
+            minmax(150px, 1.1fr) 40px minmax(110px, 1.8fr) minmax(64px, 1fr);
+        grid-template-areas: "air type reg sn date dereg op cfg wifi liv rem";
+    }
+    .fl--one-airline.fl--has-dereg .fl-head, .fl--one-airline.fl--has-dereg .fl-row {
+        grid-template-columns:
+            minmax(100px, 1.4fr) 82px 64px 86px 86px 84px
+            minmax(150px, 1.2fr) 44px minmax(150px, 2fr) minmax(90px, 1.2fr);
+        grid-template-areas: "type reg sn date dereg op cfg wifi liv rem";
+    }
+}
+/* 狭い PC（992〜1199px）: 幅が足りないので登録年月日の下に重ねる（備考と同じ 2 段目） */
+@media (min-width: 992px) and (max-width: 1199px) {
+    .fl--has-dereg .fl-head, .fl--has-dereg .fl-row {
+        grid-template-columns:
+            minmax(88px, 1fr) minmax(92px, 1.4fr) 78px 56px 82px 84px
+            minmax(150px, 1.1fr) 36px minmax(150px, 2fr);
+        grid-template-areas:
+            "air type reg sn date  op cfg wifi liv"
+            "air type reg sn dereg op cfg wifi rem";
+    }
+    .fl--one-airline.fl--has-dereg .fl-head, .fl--one-airline.fl--has-dereg .fl-row {
+        grid-template-columns:
+            minmax(100px, 1.4fr) 82px 64px 86px 84px
+            minmax(150px, 1.2fr) 40px minmax(170px, 2fr);
+        grid-template-areas:
+            "type reg sn date  op cfg wifi liv"
+            "type reg sn dereg op cfg wifi rem";
+    }
+    .fl-head .c-dereg { font-weight: 600; font-size: 11px; color: #94a3b8; }
+    .fl-row .c-dereg { font-size: 11px; }
+}
+/* タブレット: 登録年月日・運用の下に 3 段目として重ねる（抹消年月日の無い機体では 3 段目は高さ 0） */
+@media (min-width: 600px) and (max-width: 991px) {
+    .fl--has-dereg .fl-head, .fl--has-dereg .fl-row {
+        grid-template-areas:
+            "reg type date  cfg wifi liv"
+            "sn  air  op    cfg wifi rem"
+            ".   .    dereg cfg wifi rem";
+    }
+    .fl--one-airline.fl--has-dereg .fl-head, .fl--one-airline.fl--has-dereg .fl-row {
+        grid-template-areas:
+            "reg type date  cfg wifi liv"
+            "sn  type op    cfg wifi rem"
+            ".   type dereg cfg wifi rem";
+    }
+    .fl-head .c-dereg { font-weight: 600; font-size: 11px; color: #94a3b8; }
+    .fl-row .c-dereg { font-size: 11px; }
+}
+
 /* 列の割り当て（PC・タブレット共通） */
 @media (min-width: 600px) {
     .c-air { grid-area: air; } .c-type { grid-area: type; } .c-reg { grid-area: reg; } .c-sn { grid-area: sn; }
     .c-date { grid-area: date; } .c-op { grid-area: op; } .c-cfg { grid-area: cfg; } .c-wifi { grid-area: wifi; }
-    .c-liv { grid-area: liv; } .c-rem { grid-area: rem; }
+    .c-liv { grid-area: liv; } .c-rem { grid-area: rem; } .c-dereg { grid-area: dereg; }
     .fl-h.c-wifi { justify-content: center; }
     .fl--one-airline .c-air { display: none; }
 }
@@ -246,8 +305,10 @@
     .c-type { font-size: 14px; } /* 機種を伸ばして Wi-Fi・運用を右端へ寄せる */
 
     /* 2 行目: 航空会社・製造番号・登録年月日・コンフィグ */
-    .br1 { order: 5; } .c-air { order: 6; } .c-sn { order: 7; } .c-date { order: 8; } .c-cfg { order: 9; }
-    .c-air, .c-sn, .c-date, .c-cfg { font-size: 12px; color: #64748b; }
+    .br1 { order: 5; } .c-air { order: 6; } .c-sn { order: 7; } .c-date { order: 8; } .c-dereg { order: 8; } .c-cfg { order: 9; }
+    .c-air, .c-sn, .c-date, .c-dereg, .c-cfg { font-size: 12px; color: #64748b; }
+    /* 抹消年月日の列がある一覧でも、抹消していない機体には出さない */
+    .fl.fl--has-dereg .fl-c.c-dereg:empty { display: none; }
     .c-air { font-weight: 600; color: #475569; }
     .fl--one-airline .c-air { display: none; }
     .fl-lbl { display: inline; margin-right: 2px; font-size: 10px; font-weight: 600; color: #94a3b8; }

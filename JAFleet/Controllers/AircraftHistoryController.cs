@@ -149,7 +149,8 @@ namespace JAFleet.Controllers
             Airline = history.Airline,
             TypeDetailId = history.TypeDetailId,
             SerialNumber = history.SerialNumber,
-            RegisterDate = history.RegisterDate,
+            RegisterDate = JaDateUtil.Format(history.RegisterDate),
+            DeregisterDate = JaDateUtil.Format(history.DeregisterDate),
             OperationCode = history.OperationCode,
             WifiCode = history.WifiCode,
             SeatConfig = history.SeatConfig,
@@ -177,7 +178,8 @@ namespace JAFleet.Controllers
                 TypeDetailName = model.TypeDetailList.FirstOrDefault(t => t.TypeDetailId == aircraft.TypeDetailId)?.TypeDetailName
                                  ?? $"ID:{aircraft.TypeDetailId}",
                 SerialNumber = aircraft.SerialNumber,
-                RegisterDate = aircraft.RegisterDate,
+                RegisterDate = JaDateUtil.Format(aircraft.RegisterDate),
+                DeregisterDate = JaDateUtil.Format(aircraft.DeregisterDate),
                 OperationName = model.OperationList.FirstOrDefault(c => c.Key == aircraft.OperationCode)?.Value
                                 ?? aircraft.OperationCode,
                 WifiName = model.WifiList.FirstOrDefault(c => c.Key == aircraft.WifiCode)?.Value

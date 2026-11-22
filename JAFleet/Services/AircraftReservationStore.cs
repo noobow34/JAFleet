@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
+using JAFleet.Commons.Util;
 using Microsoft.EntityFrameworkCore;
 
 namespace JAFleet.Services
@@ -55,6 +56,7 @@ namespace JAFleet.Services
             nameof(Aircraft.TypeDetailId),
             nameof(Aircraft.SerialNumber),
             nameof(Aircraft.RegisterDate),
+            nameof(Aircraft.DeregisterDate),
             nameof(Aircraft.OperationCode),
             nameof(Aircraft.WifiCode),
             nameof(Aircraft.SpecialLivery),
@@ -69,6 +71,8 @@ namespace JAFleet.Services
         {
             //日本語をエスケープせずに入れる（DBを直接見ても読めるように）
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            //登録年月日などの日付は "yyyy/MM/dd" で持つ。文字列だったころに積んだ予約もそのまま読める
+            Converters = { new SlashDateOnlyJsonConverter() },
         };
 
         /// <summary>
@@ -103,8 +107,8 @@ namespace JAFleet.Services
         public static ReservedChange Change(string field, object? before, object? after) => new()
         {
             Field = field,
-            Before = JsonSerializer.SerializeToElement(before),
-            After = JsonSerializer.SerializeToElement(after),
+            Before = JsonSerializer.SerializeToElement(before, JSON_OPTIONS),
+            After = JsonSerializer.SerializeToElement(after, JSON_OPTIONS),
         };
 
         public static string Serialize(IEnumerable<ReservedChange> changes)
@@ -143,7 +147,7 @@ namespace JAFleet.Services
                 PropertyInfo prop = Property(change.Field);
                 object? after = change.After.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
                     ? null
-                    : change.After.Deserialize(prop.PropertyType);
+                    : change.After.Deserialize(prop.PropertyType, JSON_OPTIONS);
                 if (after == null && prop.PropertyType.IsValueType && Nullable.GetUnderlyingType(prop.PropertyType) == null)
                 {
                     //int（詳細型式）にnullは入れられない

@@ -345,6 +345,7 @@
                         bool typeChanged = item.ExistsInJAFleet && item.CurrentTypeDetailId != item.EditTypeDetailId;
                         bool operationChanged = item.ExistsInJAFleet && item.CurrentOperationCode != item.EditOperationCode;
                         bool registerDateChanged = item.ExistsInJAFleet && item.CurrentRegisterDate != item.EditRegisterDate;
+                        bool deregisterDateChanged = item.ExistsInJAFleet && item.CurrentDeregisterDate != item.EditDeregisterDate;
                         bool serialChanged = item.ExistsInJAFleet && item.CurrentSerialNumber != item.EditSerialNumber;
                         bool remarksChanged = item.ExistsInJAFleet && item.CurrentRemarks != item.EditRemarks;
 
@@ -446,6 +447,15 @@
                                     @if (registerDateChanged)
                                     {
                                         <span class="imp-was changed">変更前: @(item.CurrentRegisterDate ?? "―")</span>
+                                    }
+                                </div>
+
+                                <div class="imp-field @(deregisterDateChanged ? "changed" : "")">
+                                    <label>抹消年月日</label>
+                                    <input type="text" name="Rows[@key].DeregisterDate" value="@item.EditDeregisterDate" placeholder="yyyy/MM/dd" />
+                                    @if (deregisterDateChanged)
+                                    {
+                                        <span class="imp-was changed">変更前: @(item.CurrentDeregisterDate ?? "―")</span>
                                     }
                                 </div>
 

@@ -62,6 +62,13 @@
                     </div>
                 </div>
                 <div class="sx-field">
+                    <label class="sx-label" for="DeregistrationDate">抹消年月</label>
+                    <div class="sx-inline">
+                        @Html.TextBoxFor(model => model.DeregistrationDate, new { @class = "sx-input", type = "month" })
+                        @Html.DropDownListFor(model => model.DeregistrationSelection, Model.RegistrationSelectionList, new { @class = "sx-input sx-narrow", aria_label = "抹消年月の範囲" })
+                    </div>
+                </div>
+                <div class="sx-field">
                     <label class="sx-label" for="SpecialLiveryList">特別塗装</label>
                     @Html.DropDownListFor(model => model.SpecialLiveryList, Model.SpecialLiveryList, "指定しない", new { @class = "sx-input" })
                     @Html.TextBoxFor(model => model.SpecialLiveryKeyword, new { @class = "sx-input sx-keyword", placeholder = "塗装名のキーワード", @disabled = "true", aria_label = "特別塗装のキーワード" })
@@ -180,6 +187,14 @@
         {
             @:$('#RegistrationDate').val("@Model.RegistrationDate.Replace("/","-")");
         }
+        @if (!string.IsNullOrEmpty(Model.DeregistrationDate))
+        {
+            @:$('#DeregistrationDate').val("@Model.DeregistrationDate.Replace("/","-")");
+        }
+        @if (!string.IsNullOrEmpty(Model.DeregistrationSelection))
+        {
+            @:$('#DeregistrationSelection').val("@Model.DeregistrationSelection");
+        }
 
         fleet = FleetList.create('#SerachResult', {
             isAdmin: @(Model.IsAdmin ? "true" : "false"),
@@ -205,6 +220,9 @@
         add('Wi-Fi', shortList(selectedTexts('#WiFiCode')));
         if ($('#RegistrationDate').val()) {
             add('登録', $('#RegistrationDate').val().replace('-', '/') + ' ' + $('#RegistrationSelection option:selected').text());
+        }
+        if ($('#DeregistrationDate').val()) {
+            add('抹消', $('#DeregistrationDate').val().replace('-', '/') + ' ' + $('#DeregistrationSelection option:selected').text());
         }
         const withKeyword = function (selectId, keywordId) {
             if (!$(selectId).val()) { return ''; }
@@ -244,6 +262,8 @@
                 OperationCode: GetOperationCode(),
                 RegistrationDate: GetRegistrationDate(),
                 RegistrationSelection: GetRegistrationSelection(),
+                DeregistrationDate: GetDeregistrationDate(),
+                DeregistrationSelection: GetDeregistrationSelection(),
                 WiFiCode: GetWiFiCode(),
                 Remarks: GetRemarks(),
                 RemarksKeyword: GetRemarksKeyword(),
@@ -316,6 +336,8 @@
                 , OperationCode: GetOperationCode()
                 , RegistrationDate: GetRegistrationDate()
                 , RegistrationSelection: GetRegistrationSelection()
+                , DeregistrationDate: GetDeregistrationDate()
+                , DeregistrationSelection: GetDeregistrationSelection()
                 , WiFiCode: GetWiFiCode()
                 , Remarks: GetRemarks()
                 , RemarksKeyword: GetRemarksKeyword()
@@ -359,6 +381,8 @@
                 , OperationCode: GetOperationCode()
                 , RegistrationDate: GetRegistrationDate()
                 , RegistrationSelection: GetRegistrationSelection()
+                , DeregistrationDate: GetDeregistrationDate()
+                , DeregistrationSelection: GetDeregistrationSelection()
                 , WiFiCode: GetWiFiCode()
                 , Remarks: GetRemarks()
                 , RemarksKeyword: GetRemarksKeyword()
@@ -436,6 +460,14 @@
         return $('#RegistrationSelection').val();
     }
 
+    const GetDeregistrationDate = function ()  {
+        return $('#DeregistrationDate').val().toString().replace('-', '/');
+    }
+
+    const GetDeregistrationSelection = function ()  {
+        return $('#DeregistrationSelection').val();
+    }
+
     const GetWiFiCode = function ()  {
         let type = $('#WiFiCode').val().toString();
         return type.replace(/,/g, '|');
@@ -478,6 +510,8 @@
         $('#TypeDetail').multiselect("deselectAll", false).multiselect("refresh");
         $('#RegistrationDate').val('');
         $('#RegistrationSelection').val('0');
+        $('#DeregistrationDate').val('');
+        $('#DeregistrationSelection').val('0');
         $('#OperationCode').multiselect("deselectAll", false).multiselect("refresh");
         $('#WiFiCode').multiselect("deselectAll", false).multiselect("refresh");
         $('#SpecialLiveryList').val('');
@@ -504,6 +538,12 @@
                 }
                 if (scJson.RegistrationSelection != null) {
                     $('#RegistrationSelection').val(scJson.RegistrationSelection);
+                }
+                if (scJson.DeregistrationDate != null) {
+                    $('#DeregistrationDate').val(scJson.DeregistrationDate.replace("/", "-"));
+                }
+                if (scJson.DeregistrationSelection != null) {
+                    $('#DeregistrationSelection').val(scJson.DeregistrationSelection);
                 }
                 if (scJson.OperationCode != null) {
                     $('#OperationCode').multiselect('select', scJson.OperationCode.split("|"));

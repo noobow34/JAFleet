@@ -82,7 +82,7 @@
 .ahx-btn.icon { width: 32px; padding: 0; font-size: 12px; color: #64748b; }
 
 .ahx-table-wrap { overflow-x: auto; }
-table.ahx-table { width: 100%; min-width: 1680px; border-collapse: collapse; font-size: 13px; }
+table.ahx-table { width: 100%; min-width: 1780px; border-collapse: collapse; font-size: 13px; }
 .ahx-table th {
     font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .03em;
     text-align: left; padding: 0 6px 8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
@@ -264,6 +264,7 @@ tr.ahx-detail > td { background: #f8fafc; padding: 12px 14px; }
                                     <th>詳細型式</th>
                                     <th>製造番号</th>
                                     <th>登録年月日</th>
+                                    <th>抹消年月日</th>
                                     <th>運用状況</th>
                                     <th>コンフィグ</th>
                                     <th>Wi-Fi</th>
@@ -284,6 +285,7 @@ tr.ahx-detail > td { background: #f8fafc; padding: 12px 14px; }
                                         <td>@Model.Current.TypeDetailName</td>
                                         <td>@Model.Current.SerialNumber</td>
                                         <td>@Model.Current.RegisterDate</td>
+                                        <td>@Model.Current.DeregisterDate</td>
                                         <td>@Model.Current.OperationName</td>
                                         <td>@Model.Current.SeatConfigText</td>
                                         <td>@Model.Current.WifiName</td>
@@ -355,7 +357,8 @@ tr.ahx-detail > td { background: #f8fafc; padding: 12px 14px; }
                                             }
                                         </td>
                                         <td><input type="text" name="rows[@i].SerialNumber" value="@row.SerialNumber" aria-label="製造番号" /></td>
-                                        <td><input type="text" name="rows[@i].RegisterDate" value="@row.RegisterDate" aria-label="登録年月日" /></td>
+                                        <td><input type="text" name="rows[@i].RegisterDate" value="@row.RegisterDate" placeholder="yyyy/MM/dd" aria-label="登録年月日" /></td>
+                                        <td><input type="text" name="rows[@i].DeregisterDate" value="@row.DeregisterDate" placeholder="yyyy/MM/dd" aria-label="抹消年月日" /></td>
                                         <td>
                                             <select name="rows[@i].OperationCode" aria-label="運用状況">
                                                 <option value="">　</option>
@@ -405,7 +408,7 @@ tr.ahx-detail > td { background: #f8fafc; padding: 12px 14px; }
 
                                     @* ---- 一覧に出していない項目 ---- *@
                                     <tr class="ahx-detail" id="detail_@ahId" style="display:none">
-                                        <td colspan="13">
+                                        <td colspan="14">
                                             <div class="ahx-detail-grid">
                                                 <div class="ahx-field">
                                                     <label>リンクURL</label>

@@ -1,4 +1,5 @@
-﻿@model AircraftDetailModel
+﻿@using JAFleet.Commons.Util
+@model AircraftDetailModel
 @{
     if (Model.NoHead)
     {
@@ -129,7 +130,7 @@
                     </div>
                     <div class="ad-item">
                         <dt>登録年月日</dt>
-                        <dd class="ad-num">@(string.IsNullOrEmpty(av.RegisterDate) ? "—" : av.RegisterDate)</dd>
+                        <dd class="ad-num">@(JaDateUtil.Format(av.RegisterDate) ?? "—")</dd>
                     </div>
                     <div class="ad-item">
                         <dt>運用</dt>
@@ -167,6 +168,13 @@
                         <div class="ad-item wide">
                             <dt>特別塗装</dt>
                             <dd><span class="ad-livery">@av.SpecialLivery</span></dd>
+                        </div>
+                    }
+                    @if (av.DeregisterDate != null)
+                    {
+                        <div class="ad-item">
+                            <dt>抹消年月日</dt>
+                            <dd class="ad-num">@JaDateUtil.Format(av.DeregisterDate)</dd>
                         </div>
                     }
                     @if (!string.IsNullOrEmpty(av.Remarks))
@@ -219,6 +227,7 @@
                 { label: '機種', changed: 'typeDetailChanged', value: function (r) { return r.typeDetailName; } },
                 { label: '製造番号', changed: 'serialNumberChanged', value: function (r) { return r.serialNumber; } },
                 { label: '登録年月日', changed: 'registerDateChanged', value: function (r) { return r.registerDate; } },
+                { label: '抹消年月日', changed: 'deregisterDateChanged', value: function (r) { return r.deregisterDate; } },
                 { label: '運用', changed: 'operationChanged', value: function (r) { return r.operation; } },
                 { label: 'コンフィグ', changed: 'seatConfigChanged', value: function (r) { return r.seatConfig; } },
                 { label: 'Wi-Fi', changed: 'wifiChanged', value: function (r) { return r.wifi; } },

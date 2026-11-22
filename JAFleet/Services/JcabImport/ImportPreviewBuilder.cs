@@ -1,5 +1,6 @@
 ﻿using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
+using JAFleet.Commons.Util;
 using Microsoft.EntityFrameworkCore;
 
 namespace JAFleet.Services.JcabImport
@@ -32,6 +33,8 @@ namespace JAFleet.Services.JcabImport
         public string? CurrentTypeDetailName { get; set; }
 
         public string? CurrentRegisterDate { get; set; }
+
+        public string? CurrentDeregisterDate { get; set; }
 
         public string? CurrentSerialNumber { get; set; }
 
@@ -94,6 +97,9 @@ namespace JAFleet.Services.JcabImport
         public string? EditOperationCode { get; set; }
 
         public string? EditRegisterDate { get; set; }
+
+        /// <summary>抹消年月日。抹消登録のときに入る</summary>
+        public string? EditDeregisterDate { get; set; }
 
         public string? EditSerialNumber { get; set; }
 
@@ -168,7 +174,8 @@ namespace JAFleet.Services.JcabImport
                     item.CurrentOperationCode = aircraft.OperationCode;
                     item.CurrentTypeDetailId = aircraft.TypeDetailId;
                     item.CurrentTypeDetailName = typeDetailNames.TryGetValue(aircraft.TypeDetailId, out string? name) ? name : null;
-                    item.CurrentRegisterDate = aircraft.RegisterDate;
+                    item.CurrentRegisterDate = JaDateUtil.Format(aircraft.RegisterDate);
+                    item.CurrentDeregisterDate = JaDateUtil.Format(aircraft.DeregisterDate);
                     item.CurrentSerialNumber = aircraft.SerialNumber;
                     item.CurrentRemarks = aircraft.Remarks;
                 }
@@ -225,6 +232,7 @@ namespace JAFleet.Services.JcabImport
             item.EditTypeDetailId = saved.TypeDetailId ?? item.EditTypeDetailId;
             item.EditOperationCode = saved.OperationCode ?? item.EditOperationCode;
             item.EditRegisterDate = saved.RegisterDate ?? item.EditRegisterDate;
+            item.EditDeregisterDate = saved.DeregisterDate ?? item.EditDeregisterDate;
             item.EditSerialNumber = saved.SerialNumber ?? item.EditSerialNumber;
             item.EditRemarks = saved.Remarks ?? item.EditRemarks;
 
@@ -281,7 +289,8 @@ namespace JAFleet.Services.JcabImport
         /// 登録年月日の初期値。
         ///   新規登録 … その登録年月日
         ///   予約登録 … F列2行目の納入予定年月日。1行目の予約年月日は予約を受け付けた日で、
-        ///              機体の登録年月日ではない。予定は月までのことが多く、そのときは yyyy/MM のまま入れる
+        ///              機体の登録年月日ではない。予定は月までのことが多く、そのときはその月の末日にする
+        ///              （登録年月日は日付で持つので、月までの登録はできない）
         ///   移転・変更・抹消 … JAFleetの現在値を残す。JAFleetに無ければ最新のイベントの日付
         /// 予定年月日が読めなかった予約登録が、最後の逃げ道で予約年月日を拾ってしまわないよう、
         /// 「最新のイベントの日付」の候補から予約登録は外している（空のまま要確認に回す）。
@@ -293,8 +302,14 @@ namespace JAFleet.Services.JcabImport
                 .Select(e => e.RecordType == JcabRecordType.Reservation ? e.ScheduledDate : e.RegisterDate)
                 .LastOrDefault(d => d != null);
 
+            //月まで（yyyy/MM）の納入予定はその月の末日にする
+            if (fromRegistration != null && JaDateUtil.TryParse(fromRegistration, out DateOnly? parsed) && parsed != null)
+            {
+                fromRegistration = JaDateUtil.Format(parsed);
+            }
+
             return fromRegistration
-                ?? aircraft?.RegisterDate
+                ?? JaDateUtil.Format(aircraft?.RegisterDate)
                 ?? item.Events
                     .Where(e => e.RecordType != JcabRecordType.Reservation)
                     .Select(e => e.RegisterDate)
@@ -325,11 +340,16 @@ namespace JAFleet.Services.JcabImport
                 .LastOrDefault(s => !string.IsNullOrEmpty(s) && s != "未定");
             item.EditSerialNumber = serial ?? aircraft?.SerialNumber;
 
-            //抹消されたレジは備考に抹消年月日を残す。それ以外はJAFleet側で自由に使っている項目なので触らない。
+            //抹消されたレジは抹消年月日を入れる。新規・予約で登録し直したレジは抹消年月日を消す。
+            //備考はJAFleet側で自由に使っている項目なので触らない（以前は備考に「yyyy/MM/dd抹消」と書いていた）。
             JcabRecord last = item.Events[^1];
-            item.EditRemarks = last is { RecordType: JcabRecordType.Delete, RegisterDate: not null }
-                ? $"{last.RegisterDate}抹消"
-                : aircraft?.Remarks;
+            item.EditDeregisterDate = last.RecordType switch
+            {
+                JcabRecordType.Delete => last.RegisterDate,
+                JcabRecordType.New or JcabRecordType.Reservation => null,
+                _ => JaDateUtil.Format(aircraft?.DeregisterDate),
+            };
+            item.EditRemarks = aircraft?.Remarks;
         }
 
         private static string? SuggestOperationCode(ImportPreviewItem item, Aircraft? aircraft)

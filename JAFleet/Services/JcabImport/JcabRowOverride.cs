@@ -20,6 +20,8 @@ namespace JAFleet.Services.JcabImport
 
         public string? RegisterDate { get; set; }
 
+        public string? DeregisterDate { get; set; }
+
         public string? SerialNumber { get; set; }
 
         public string? Remarks { get; set; }

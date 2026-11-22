@@ -2,6 +2,7 @@
 using JAFleet.Services.Gmail;
 using JAFleet.Services.JcabImport;
 using JAFleet.Commons.Data;
+using JAFleet.Commons.Util;
 using JAFleet.Models;
 using JAFleet.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -588,6 +589,7 @@ namespace JAFleet.Controllers
                     TypeDetailId = row.TypeDetailId,
                     OperationCode = row.OperationCode,
                     RegisterDate = row.RegisterDate,
+                    DeregisterDate = row.DeregisterDate,
                     SerialNumber = row.SerialNumber,
                     Remarks = row.Remarks,
                     NotUpdateDate = row.NotUpdateDate,
@@ -696,7 +698,8 @@ namespace JAFleet.Controllers
                 aircraft.Airline = row.Airline;
                 aircraft.TypeDetailId = row.TypeDetailId!.Value;
                 aircraft.OperationCode = row.OperationCode;
-                aircraft.RegisterDate = row.RegisterDate;
+                aircraft.RegisterDate = JaDateUtil.ParseOrNull(row.RegisterDate);
+                aircraft.DeregisterDate = JaDateUtil.ParseOrNull(row.DeregisterDate);
                 aircraft.SerialNumber = row.SerialNumber;
                 aircraft.Remarks = row.Remarks;
 
@@ -709,7 +712,7 @@ namespace JAFleet.Controllers
                 resultRow.Airline = row.Airline;
                 resultRow.TypeDetailName = typeDetailNames.TryGetValue(row.TypeDetailId.Value, out string? name) ? name : null;
                 resultRow.OperationName = MasterManager.Operation?.FirstOrDefault(o => o.Key == row.OperationCode)?.Value;
-                resultRow.RegisterDate = row.RegisterDate;
+                resultRow.RegisterDate = JaDateUtil.Format(aircraft.RegisterDate);
             }
 
             if (result.Rows.Any(r => r.Success))
@@ -733,6 +736,15 @@ namespace JAFleet.Controllers
             if (string.IsNullOrEmpty(row.OperationCode))
             {
                 return "運用状況が未選択です。";
+            }
+            //登録年月日・抹消年月日は日付で持つので、読めない書き方は登録しない
+            if (!JaDateUtil.TryParse(row.RegisterDate, out _))
+            {
+                return $"登録年月日「{row.RegisterDate}」を日付として読めません。yyyy/MM/dd で入れてください。";
+            }
+            if (!JaDateUtil.TryParse(row.DeregisterDate, out _))
+            {
+                return $"抹消年月日「{row.DeregisterDate}」を日付として読めません。yyyy/MM/dd で入れてください。";
             }
             return null;
         }

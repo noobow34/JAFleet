@@ -1,6 +1,7 @@
 using JAFleet.Services;
 using JAFleet.Services.BulkRegister;
 using JAFleet.Commons.Data;
+using JAFleet.Commons.Util;
 using JAFleet.Models;
 using JAFleet.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -133,7 +134,7 @@ namespace JAFleet.Controllers
                 aircraft.SpecialLivery = Trimmed(model.SpecialLivery);
                 aircraft.Remarks = Trimmed(model.Remarks);
                 aircraft.MaintenanceNotify = model.MaintenanceNotify;
-                aircraft.RegisterDate = row.Line.RegisterDate;
+                aircraft.RegisterDate = JaDateUtil.ParseOrNull(row.Line.RegisterDate);
                 aircraft.SerialNumber = row.Line.SerialNumber;
 
                 //新規は履歴を作りようがないので、指定が効くのは既存機の上書きのときだけ
@@ -197,7 +198,7 @@ namespace JAFleet.Controllers
                     row.CurrentTypeDetailName = typeDetailNames.TryGetValue(current.TypeDetailId, out string? name) ? name : null;
                     row.CurrentOperationName = MasterManager.Operation?
                         .FirstOrDefault(o => o.Key == current.OperationCode)?.Value ?? current.OperationCode;
-                    row.CurrentRegisterDate = current.RegisterDate;
+                    row.CurrentRegisterDate = JaDateUtil.Format(current.RegisterDate);
                 }
 
                 //既存機は上書きになるので、自分でチェックを入れてもらう

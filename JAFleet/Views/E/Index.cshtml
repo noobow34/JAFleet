@@ -302,9 +302,14 @@ textarea.ed-input { height: auto; min-height: 76px; resize: vertical; line-heigh
                             @Html.LabelFor(model => model.Aircraft!.SerialNumber)
                             @Html.TextBoxFor(model => model.Aircraft!.SerialNumber, new { @class = "ed-input mono" })
                         </div>
+                        @* 登録年月日・抹消年月日は日付で持つ（月までの登録はできない）。カレンダーから選べる *@
                         <div class="ed-field">
                             @Html.LabelFor(model => model.Aircraft!.RegisterDate)
-                            @Html.TextBoxFor(model => model.Aircraft!.RegisterDate, new { @class = "ed-input mono", placeholder = "yyyy/MM/dd" })
+                            @Html.TextBoxFor(model => model.Aircraft!.RegisterDate, "{0:yyyy-MM-dd}", new { @class = "ed-input mono", type = "date" })
+                        </div>
+                        <div class="ed-field">
+                            @Html.LabelFor(model => model.Aircraft!.DeregisterDate)
+                            @Html.TextBoxFor(model => model.Aircraft!.DeregisterDate, "{0:yyyy-MM-dd}", new { @class = "ed-input mono", type = "date" })
                         </div>
                     </div>
                 </section>

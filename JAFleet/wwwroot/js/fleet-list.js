@@ -39,19 +39,22 @@
         return seats.length === 0 ? null : seats.reduce(function (a, b) { return a + b; }, 0);
     };
 
-    // 並べ替えと Excel の列。first は見出しを初めて押したときの向き
+    // 並べ替えと Excel の列。first は見出しを初めて押したときの向き、width は Excel の列幅。
+    // optional の列は、一覧にその値を持つ機体が 1 機でもあるときだけ出す
     const COLUMNS = [
-        { key: 'air', label: '航空会社', first: 'asc', value: function (r) { return r.airlineNameJpShort; }, xlsx: function (r) { return r.airlineNameJpShort; } },
-        { key: 'type', label: '機種', first: 'asc', value: function (r) { return r.typeDetailName; }, xlsx: function (r) { return r.typeDetailName; } },
-        { key: 'reg', label: '機体記号', first: 'asc', value: function (r) { return r.registrationNumber; }, xlsx: function (r) { return r.registrationNumber + (r.testRegistration ? '(' + r.testRegistration + ')' : ''); } },
-        { key: 'sn', label: '製造番号', first: 'asc', value: function (r) { return r.serialNumber; }, xlsx: function (r) { return r.serialNumber; } },
-        { key: 'date', label: '登録年月日', first: 'desc', ascLabel: '古い順', descLabel: '新しい順', value: function (r) { return r.registerDate; }, xlsx: function (r) { return r.registerDate; } },
-        { key: 'op', label: '運用', first: 'asc', value: function (r) { return r.operationCode; }, xlsx: function (r) { return r.operation; } },
-        { key: 'cfg', label: 'コンフィグ', first: 'desc', ascLabel: '席数が少ない順', descLabel: '席数が多い順', value: seatTotal, xlsx: function (r) { return r.seatConfig; } },
-        { key: 'wifi', label: 'Wi-Fi', first: 'desc', value: function (r) { return r.wifiCode; }, xlsx: function (r) { return r.wifiShort; } },
-        { key: 'liv', label: '特別塗装', first: 'asc', value: function (r) { return r.specialLivery; }, xlsx: function (r) { return r.specialLivery; } },
-        { key: 'rem', label: '備考', first: 'asc', value: function (r) { return r.remarks; }, xlsx: function (r) { return r.remarks; } }
+        { key: 'air', label: '航空会社', first: 'asc', width: 14, value: function (r) { return r.airlineNameJpShort; }, xlsx: function (r) { return r.airlineNameJpShort; } },
+        { key: 'type', label: '機種', first: 'asc', width: 16, value: function (r) { return r.typeDetailName; }, xlsx: function (r) { return r.typeDetailName; } },
+        { key: 'reg', label: '機体記号', first: 'asc', width: 10, value: function (r) { return r.registrationNumber; }, xlsx: function (r) { return r.registrationNumber + (r.testRegistration ? '(' + r.testRegistration + ')' : ''); } },
+        { key: 'sn', label: '製造番号', first: 'asc', width: 10, value: function (r) { return r.serialNumber; }, xlsx: function (r) { return r.serialNumber; } },
+        { key: 'date', label: '登録年月日', first: 'desc', width: 12, ascLabel: '古い順', descLabel: '新しい順', value: function (r) { return r.registerDate; }, xlsx: function (r) { return r.registerDate; } },
+        { key: 'dereg', label: '抹消年月日', first: 'desc', width: 12, optional: true, ascLabel: '古い順', descLabel: '新しい順', value: function (r) { return r.deregisterDate; }, xlsx: function (r) { return r.deregisterDate; } },
+        { key: 'op', label: '運用', first: 'asc', width: 12, value: function (r) { return r.operationCode; }, xlsx: function (r) { return r.operation; } },
+        { key: 'cfg', label: 'コンフィグ', first: 'desc', width: 26, ascLabel: '席数が少ない順', descLabel: '席数が多い順', value: seatTotal, xlsx: function (r) { return r.seatConfig; } },
+        { key: 'wifi', label: 'Wi-Fi', first: 'desc', width: 6, value: function (r) { return r.wifiCode; }, xlsx: function (r) { return r.wifiShort; } },
+        { key: 'liv', label: '特別塗装', first: 'asc', width: 30, value: function (r) { return r.specialLivery; }, xlsx: function (r) { return r.specialLivery; } },
+        { key: 'rem', label: '備考', first: 'asc', width: 40, value: function (r) { return r.remarks; }, xlsx: function (r) { return r.remarks; } }
     ];
+
     const COLUMN_BY_KEY = {};
     COLUMNS.forEach(function (c) { COLUMN_BY_KEY[c.key] = c; });
 
@@ -113,6 +116,8 @@
         }
         h += '</div>';
         h += '<div class="fl-c c-date" role="cell">' + (r.registerDate ? '<span class="fl-lbl">登録</span>' + esc(r.registerDate) : '') + '</div>';
+        // 抹消年月日の列は、一覧に抹消済みの機体が 1 機でもあるときだけ出す（.fl--has-dereg）
+        h += '<div class="fl-c c-dereg" role="cell">' + (r.deregisterDate ? '<span class="fl-lbl">抹消</span>' + esc(r.deregisterDate) : '') + '</div>';
         h += '<div class="fl-c c-cfg" role="cell">';
         if (r.seatConfig) {
             h += r.seatUrl
@@ -143,14 +148,15 @@
     const buildHeadHtml = function () {
         let h = '<div class="fl-head" role="row">';
         COLUMNS.forEach(function (c) {
+            // optional の列の見出しも置いておき、出すかどうかは CSS（.fl--has-dereg）で切り替える
             h += '<button type="button" class="fl-h c-' + c.key + '" role="columnheader" data-sort="' + c.key + '" aria-sort="none">' + esc(c.label) + '</button>';
         });
         return h + '</div>';
     };
 
-    const buildSortOptions = function () {
+    const buildSortOptions = function (visible) {
         let h = '<option value="">標準の並び</option>';
-        COLUMNS.forEach(function (c) {
+        COLUMNS.filter(visible).forEach(function (c) {
             const dirs = c.first === 'asc' ? ['asc', 'desc'] : ['desc', 'asc'];
             dirs.forEach(function (d) {
                 const suffix = d === 'asc' ? (c.ascLabel || '昇順') : (c.descLabel || '降順');
@@ -212,7 +218,7 @@
             + '<div class="fl-tools">'
             + '<span class="fl-count" aria-live="polite"></span>'
             + '<button type="button" class="fl-btn fl-reset" hidden>並びを戻す</button>'
-            + '<select class="fl-sortsel" aria-label="並べ替え">' + buildSortOptions() + '</select>'
+            + '<select class="fl-sortsel" aria-label="並べ替え">' + buildSortOptions(function (c) { return !c.optional; }) + '</select>'
             + '<span class="fl-legend"><i></i>1週間以内に更新</span>'
             + '<button type="button" class="fl-btn fl-excel">Excel出力</button>'
             + '</div>'
@@ -235,11 +241,20 @@
         let filterText = '';
         let state = 'empty'; // empty / loading / ready
 
+        // 抹消済みの機体が 1 機でもあれば抹消年月日の列を出す
+        let hasDereg = false;
+        const isVisible = function (c) { return !c.optional || hasDereg; };
+
         const applyLayoutClass = function () {
             // 1 社だけの一覧では航空会社の列を出さない（全行同じで場所を取るだけ）
             const airlines = {};
             rows.forEach(function (r) { airlines[r.airline] = true; });
             root.toggleClass('fl--one-airline', Object.keys(airlines).length === 1);
+
+            hasDereg = rows.some(function (r) { return !!r.deregisterDate; });
+            root.toggleClass('fl--has-dereg', hasDereg);
+            if (sort && !isVisible(COLUMN_BY_KEY[sort.key])) { sort = null; }
+            sortSel.html(buildSortOptions(isVisible));
         };
 
         const render = function () {
@@ -295,7 +310,7 @@
                     o._i = i;
                     o._html = buildRowHtml(r, i, opt, now);
                     o._text = [r.registrationNumber, r.testRegistration, r.typeDetailName, r.typeName, r.airlineNameJpShort,
-                        r.serialNumber, r.registerDate, r.operation, r.seatConfig, r.specialLivery, r.remarks]
+                        r.serialNumber, r.registerDate, r.operation, r.seatConfig, r.specialLivery, r.remarks, r.deregisterDate]
                         .filter(function (v) { return v != null; }).join(' ').toLowerCase();
                     return o;
                 });
@@ -383,11 +398,12 @@
             const btn = $(this);
             if (shown.length === 0) { return; }
             btn.prop('disabled', true).text('作成中…');
-            const aoa = [COLUMNS.map(function (c) { return c.label; })];
+            const cols = COLUMNS.filter(isVisible);
+            const aoa = [cols.map(function (c) { return c.label; })];
             shown.forEach(function (r) {
-                aoa.push(COLUMNS.map(function (c) { return c.xlsx(r); }));
+                aoa.push(cols.map(function (c) { return c.xlsx(r); }));
             });
-            exportXlsx(aoa, [14, 16, 10, 10, 12, 12, 26, 6, 30, 40], opt.exportName).always(function () {
+            exportXlsx(aoa, cols.map(function (c) { return c.width; }), opt.exportName).always(function () {
                 btn.prop('disabled', false).text('Excel出力');
             });
         });

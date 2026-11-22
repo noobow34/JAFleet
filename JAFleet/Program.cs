@@ -3,6 +3,7 @@ using JAFleet.Jobs;
 using JAFleet.Middleware;
 using JAFleet.Services;
 using JAFleet.Commons.Data;
+using JAFleet.Commons.Util;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.WebEncoders;
@@ -48,7 +49,10 @@ builder.Services.Configure<WebEncoderOptions>(options =>
 {
     options.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All);
 });
-builder.Services.AddControllersWithViews();
+//登録年月日・抹消年月日（DateOnly）は JSON で "yyyy/MM/dd" にする。
+//register_date が文字列だったころの JSON API と同じ形を保つため（既定の "yyyy-MM-dd" にしない）
+builder.Services.AddControllersWithViews()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new SlashDateOnlyJsonConverter()));
 builder.Services.AddMemoryCache();
 builder.Services.AddProgressiveWebApp();
 //DataProtectionのApplicationDiscriminatorは既定でContentRootPathから導出される。

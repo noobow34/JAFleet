@@ -154,3 +154,4 @@ $RECYCLE.BIN/
 .DS_Store
 /JAFleet/Properties/launchSettings.json
 /JAFleet.Test/test.runsettings
+/.claude

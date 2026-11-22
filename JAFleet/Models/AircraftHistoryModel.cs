@@ -54,6 +54,8 @@ namespace JAFleet.Models
 
         public string? RegisterDate { get; set; }
 
+        public string? DeregisterDate { get; set; }
+
         public string? OperationName { get; set; }
 
         public string? WifiName { get; set; }
@@ -81,7 +83,11 @@ namespace JAFleet.Models
 
         public string? SerialNumber { get; set; }
 
+        /// <summary>画面では yyyy/MM/dd の文字列で受け、保存のときに日付へ変える</summary>
         public string? RegisterDate { get; set; }
+
+        /// <summary>抹消年月日。登録年月日と同じく文字列で受ける</summary>
+        public string? DeregisterDate { get; set; }
 
         public string? OperationCode { get; set; }
 

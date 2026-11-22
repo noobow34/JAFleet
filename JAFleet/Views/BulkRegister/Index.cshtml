@@ -125,7 +125,7 @@
 .blk-reg:hover { text-decoration: underline; }
 .blk-reg.plain { color: #0f172a; }
 .blk-cell { font-family: Consolas, monospace; color: #334155; white-space: nowrap; }
-/* yyyy/MM/dd に直せず書いたまま登録する日付 */
+/* 月までの指定を末日にした日付 */
 .blk-cell.asis { color: #b45309; }
 .blk-state {
     display: inline-block; font-size: 11px; font-weight: 700;
@@ -339,7 +339,7 @@
                 1行に1機で、レジと登録年月日をこの欄にまとめて貼り付けます。
                 区切りはタブ・カンマ・空白のどれでも構いません。Excelから2列コピーしてそのまま貼れます。<br />
                 レジは <b>JA</b> を省いても構いません。<br />
-                登録年月日は <b>yyyy/MM/dd</b> に直して登録しますが、<b>2026/08/xx</b> のように直せない書き方はそのまま登録します。<br />
+                登録年月日は <b>yyyy/MM/dd</b> に直して登録します。<b>2026/08</b> のように月までしか書いていなければ、その月の末日にします。日付として読めない行は登録できません。<br />
                 登録年月日を空にして製造番号だけ入れるときは、区切りを2つ続けて <b>JA805A,,65003</b> のように書きます（空白区切りではできません）。
             </div>
 
@@ -415,11 +415,11 @@ JA805A,,65003</div>
                                         <span class="blk-reg plain">@row.Line.RegistrationNumber</span>
                                     }
                                 </td>
-                                <td class="blk-cell @(row.Line.RegisterDateAsIs ? "asis" : "")">
+                                <td class="blk-cell @(row.Line.RegisterDateMonthEnd ? "asis" : "")">
                                     @(row.Line.RegisterDate ?? "―")
-                                    @if (row.Line.RegisterDateAsIs)
+                                    @if (row.Line.RegisterDateMonthEnd)
                                     {
-                                        <div class="blk-current">書いたまま登録</div>
+                                        <div class="blk-current">月までの指定なので末日にしました</div>
                                     }
                                 </td>
                                 <td class="blk-cell">@(row.Line.SerialNumber ?? "―")</td>

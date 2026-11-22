@@ -105,25 +105,39 @@ namespace JAFleet.Test
         }
 
         /// <summary>
-        /// yyyy/MM/dd に直せない日付はエラーにせず書いたまま通す。
-        /// 予定月までしか分かっていない「2026/08/xx」のような登録があるため。
+        /// 月までしか書いていない日付はその月の末日にする（月までの登録はやめたため）。
+        /// 日付として読めないものは、書いたまま通さずにその行をエラーにする。
         /// </summary>
         [TestMethod]
-        public void KeepUnparsableDateAsIs()
+        public void MonthOnlyDateBecomesMonthEnd()
         {
-            var lines = BulkRegisterParser.Parse("JA801A\t2026/08/xx\nJA802A\t納入予定\nJA803A\t2026/04/01");
+            var lines = BulkRegisterParser.Parse("JA801A\t2026/08/xx\nJA802A\t2026/02\nJA803A\tR8.6\nJA804A\t2026/04/01");
 
             Assert.IsTrue(lines[0].IsValid);
-            Assert.AreEqual("2026/08/xx", lines[0].RegisterDate);
-            Assert.IsTrue(lines[0].RegisterDateAsIs);
+            Assert.AreEqual("2026/08/31", lines[0].RegisterDate);
+            Assert.IsTrue(lines[0].RegisterDateMonthEnd);
 
-            Assert.IsTrue(lines[1].IsValid);
-            Assert.AreEqual("納入予定", lines[1].RegisterDate);
-            Assert.IsTrue(lines[1].RegisterDateAsIs);
+            Assert.AreEqual("2026/02/28", lines[1].RegisterDate);
+            Assert.IsTrue(lines[1].RegisterDateMonthEnd);
 
-            //直せた行にはAsIsの印を付けない
-            Assert.AreEqual("2026/04/01", lines[2].RegisterDate);
-            Assert.IsFalse(lines[2].RegisterDateAsIs);
+            //和暦の月まで（令和8年6月）
+            Assert.AreEqual("2026/06/30", lines[2].RegisterDate);
+            Assert.IsTrue(lines[2].RegisterDateMonthEnd);
+
+            //日まで書いてあれば印を付けない
+            Assert.AreEqual("2026/04/01", lines[3].RegisterDate);
+            Assert.IsFalse(lines[3].RegisterDateMonthEnd);
+        }
+
+        [TestMethod]
+        public void UnparsableDateIsError()
+        {
+            var lines = BulkRegisterParser.Parse("JA801A\t納入予定\nJA802A\t2026/02/30");
+
+            Assert.IsFalse(lines[0].IsValid);
+            StringAssert.Contains(lines[0].Error, "登録年月日として読めません");
+            //存在しない日付もエラー
+            Assert.IsFalse(lines[1].IsValid);
         }
 
         /// <summary>解釈できない行はエラーとして残す。捨てると気付けない。</summary>
