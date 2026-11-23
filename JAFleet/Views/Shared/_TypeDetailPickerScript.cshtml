@@ -1,81 +1,92 @@
 ﻿@*
     _TypeDetailPicker.cshtml を動かすスクリプト。
-    jQueryは_Layoutの末尾で読み込まれるので、画面側の @@section ScriptsPartial の中に置くこと。
+    site.min.js（JfUi / JfHttp / JfDom）は_Layoutの末尾で読み込まれるので、画面側の @@section ScriptsPartial の中に置くこと。
     画面内のピッカーは全部まとめて初期化するので、画面側から呼ぶものは無い。
-
-    型式コードや詳細型式IDは数字だけのことがあり、jQueryの.data()は数値に変換してしまう。
-    比較がずれるので、この画面では読み取りに.attr()だけを使う。
 *@
 <script>
-    $(function () {
-        $('.tdp-modal').each(function () {
-            const modal = $(this);
-            const field = $('#' + modal.attr('data-tdp-field'));
+    JfDom.ready(function () {
+        document.querySelectorAll('.tdp-modal').forEach(function (modal) {
+            const field = document.getElementById(modal.getAttribute('data-tdp-field'));
             //ピッカーのボタンとモーダルは対になっている。同じ画面に複数あっても取り違えない。
-            const opener = $('[data-tdp-open="' + modal.attr('id') + '"]');
+            const openers = document.querySelectorAll('[data-tdp-open="' + modal.id + '"]');
 
-            const search = modal.find('.tdp-search');
-            const empty = modal.find('.tdp-empty');
-            const error = modal.find('.tdp-detail-error');
-            const typeError = modal.find('.tdp-newtype-error');
-            const newType = modal.find('.tdp-new-type');
-            //新規登録した分を後から足すので再代入する
-            let details = modal.find('.tdp-detail');
+            const find = function (selector) { return modal.querySelector(selector); };
+            const findAll = function (selector) { return Array.from(modal.querySelectorAll(selector)); };
+            const search = find('.tdp-search');
+            const empty = find('.tdp-empty');
+            const error = find('.tdp-detail-error');
+            const typeError = find('.tdp-newtype-error');
+            const newType = find('.tdp-new-type');
 
-            //型式も新規登録で後から増える。取り違えないよう引き直して使う。
-            const types = function () { return modal.find('.tdp-type'); };
+            //詳細型式も型式も新規登録で後から増える。取り違えないよう毎回引き直して使う。
+            const details = function () { return findAll('.tdp-detail'); };
+            const types = function () { return findAll('.tdp-type'); };
+            const currentTypeCode = function () {
+                const on = types().filter(function (t) { return t.classList.contains('on'); })[0];
+                return (on && on.getAttribute('data-type')) || '';
+            };
+
+            const showError = function (el, text) { el.textContent = text; JfDom.show(el); };
+            const clearError = function (el) { JfDom.hide(el); el.textContent = ''; };
 
             //この部品はフォームの中に置かれる。中に入力欄があるとEnterでフォームが送信されてしまうので、
             //初期化のときにフォームの外（body直下）へ出しておく。
-            modal.appendTo(document.body);
+            document.body.appendChild(modal);
 
             // ---- 一覧の絞り込み ----
             // 検索語があるときは型式をまたいで探す。型式の選択より検索を優先する。
             const refresh = function () {
-                const keyword = (search.val() || '').trim().toLowerCase();
-                const typeCode = types().filter('.on').attr('data-type') || '';
+                const keyword = (search.value || '').trim().toLowerCase();
+                const typeCode = currentTypeCode();
                 let shown = 0;
 
-                details.each(function () {
-                    const button = $(this);
+                details().forEach(function (button) {
                     const nameMatched = keyword === '' ||
-                        (button.attr('data-name') || '').toLowerCase().indexOf(keyword) >= 0;
+                        (button.getAttribute('data-name') || '').toLowerCase().indexOf(keyword) >= 0;
                     const typeMatched = keyword !== '' || typeCode === '' ||
-                        (button.attr('data-type') || '') === typeCode;
+                        (button.getAttribute('data-type') || '') === typeCode;
                     const visible = nameMatched && typeMatched;
 
-                    button.parent().toggle(visible);
+                    JfDom.toggle(button.parentElement, visible);
                     if (visible) { shown++; }
                 });
 
-                empty.toggle(shown === 0);
+                JfDom.toggle(empty, shown === 0);
             };
 
-            modal.on('click', '.tdp-type', function () {
-                types().removeClass('on');
-                $(this).addClass('on');
-                //型式を選び直したら検索語は邪魔になるので消す
-                search.val('');
-                refresh();
-            });
-
-            search.on('input', refresh);
+            search.addEventListener('input', refresh);
 
             // ---- 選ぶ ----
             const select = function (id, name) {
-                field.val(id);
-                opener.find('.tdp-value').text(name).removeClass('empty');
+                field.value = id;
+                openers.forEach(function (opener) {
+                    const value = opener.querySelector('.tdp-value');
+                    value.textContent = name;
+                    value.classList.remove('empty');
+                });
 
-                details.removeClass('cur');
-                details.filter('[data-id="' + id + '"]').addClass('cur');
+                details().forEach(function (d) { d.classList.toggle('cur', d.getAttribute('data-id') === id); });
 
                 //セレクトだった頃と同じようにchangeを見ている処理があるので飛ばす
-                field.trigger('change');
+                JfDom.trigger(field, 'change');
                 JfUi.modal.hide(modal);
             };
 
-            modal.on('click', '.tdp-detail', function () {
-                select($(this).attr('data-id'), $(this).attr('data-name'));
+            // 型式の選択と詳細型式の選択は、後から足したボタンにも効くようモーダルで受ける
+            modal.addEventListener('click', function (e) {
+                const type = e.target.closest('.tdp-type');
+                if (type) {
+                    types().forEach(function (t) { t.classList.remove('on'); });
+                    type.classList.add('on');
+                    //型式を選び直したら検索語は邪魔になるので消す
+                    search.value = '';
+                    refresh();
+                    return;
+                }
+                const detail = e.target.closest('.tdp-detail');
+                if (detail) {
+                    select(detail.getAttribute('data-id'), detail.getAttribute('data-name'));
+                }
             });
 
             // ---- 選ぶ / 詳細型式の新規登録 / 型式の新規登録 の切り替え ----
@@ -86,142 +97,150 @@
             };
 
             const showPage = function (page) {
-                modal.find('.tdp-page-select').toggle(page === 'select');
-                modal.find('.tdp-page-new').toggle(page === 'new');
-                modal.find('.tdp-page-newtype').toggle(page === 'newtype');
-                modal.find('.tdp-title').text(titles[page]);
+                JfDom.toggle(modal.querySelectorAll('.tdp-page-select'), page === 'select');
+                JfDom.toggle(modal.querySelectorAll('.tdp-page-new'), page === 'new');
+                JfDom.toggle(modal.querySelectorAll('.tdp-page-newtype'), page === 'newtype');
+                find('.tdp-title').textContent = titles[page];
             };
 
-            modal.find('.tdp-to-new').on('click', function () {
-                error.hide().text('');
+            find('.tdp-to-new').addEventListener('click', function () {
+                clearError(error);
                 //探していた語をそのまま名前の下書きにする
-                modal.find('.tdp-new-name').val(search.val() || '');
-                modal.find('.tdp-new-code').val('');
-                newType.val(types().filter('.on').attr('data-type') || '');
+                find('.tdp-new-name').value = search.value || '';
+                find('.tdp-new-code').value = '';
+                newType.value = currentTypeCode();
                 showPage('new');
             });
 
-            modal.find('.tdp-to-select').on('click', function () { showPage('select'); });
+            find('.tdp-to-select').addEventListener('click', function () { showPage('select'); });
 
             //詳細型式の入力は消さずに残す。型式を足したら続きを入れてもらう。
-            modal.find('.tdp-to-newtype').on('click', function () {
-                typeError.hide().text('');
-                modal.find('.tdp-newtype-code').val('');
-                modal.find('.tdp-newtype-name').val('');
-                modal.find('.tdp-newtype-maker').val('');
-                modal.find('.tdp-newtype-order').val('');
+            find('.tdp-to-newtype').addEventListener('click', function () {
+                clearError(typeError);
+                find('.tdp-newtype-code').value = '';
+                find('.tdp-newtype-name').value = '';
+                find('.tdp-newtype-maker').value = '';
+                find('.tdp-newtype-order').value = '';
                 showPage('newtype');
             });
 
-            modal.find('.tdp-newtype-back').on('click', function () { showPage('new'); });
+            find('.tdp-newtype-back').addEventListener('click', function () { showPage('new'); });
 
-            modal.find('.tdp-new-name, .tdp-new-code').on('keydown', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    modal.find('.tdp-new-submit').click();
-                }
+            const submitOnEnter = function (inputs, submitSelector) {
+                inputs.forEach(function (input) {
+                    input.addEventListener('keydown', function (e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            find(submitSelector).click();
+                        }
+                    });
+                });
+            };
+            submitOnEnter(findAll('.tdp-new-name, .tdp-new-code'), '.tdp-new-submit');
+
+            openers.forEach(function (opener) {
+                opener.addEventListener('click', function () {
+                    showPage('select');
+                    refresh();
+                    JfUi.modal.show(modal);
+                });
             });
 
-            opener.on('click', function () {
-                showPage('select');
-                refresh();
-                JfUi.modal.show(modal);
-            });
+            const li = function (child) {
+                const item = document.createElement('li');
+                item.appendChild(child);
+                return item;
+            };
+            const button = function (className, attrs, spans) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = className;
+                Object.keys(attrs).forEach(function (k) { b.setAttribute(k, attrs[k]); });
+                spans.forEach(function (s) {
+                    const span = document.createElement('span');
+                    span.className = s[0];
+                    span.textContent = s[1];
+                    b.appendChild(span);
+                });
+                return b;
+            };
 
             // ---- 新規登録 ----
-            modal.find('.tdp-new-submit').on('click', function () {
-                const button = $(this);
-                button.prop('disabled', true);
+            const newSubmit = find('.tdp-new-submit');
+            newSubmit.addEventListener('click', function () {
+                newSubmit.disabled = true;
 
-                $.ajax({
-                    url: '/Master/CreateTypeDetail',
-                    type: 'POST',
-                    data: {
-                        typeCode: modal.find('.tdp-new-type').val(),
-                        typeDetailCode: modal.find('.tdp-new-code').val(),
-                        typeDetailName: modal.find('.tdp-new-name').val()
-                    }
-                }).done(function (data) {
+                JfHttp.post('/Master/CreateTypeDetail', {
+                    typeCode: newType.value,
+                    typeDetailCode: find('.tdp-new-code').value,
+                    typeDetailName: find('.tdp-new-name').value
+                }).then(function (data) {
                     if (data.error) {
-                        error.text(data.error).show();
+                        showError(error, data.error);
                         return;
                     }
 
-                    const typeCode = newType.val() || '';
-                    const typeName = modal.find('.tdp-new-type option:selected').text();
+                    const typeCode = newType.value || '';
+                    const typeName = newType.selectedOptions[0] ? newType.selectedOptions[0].text : '';
+                    const id = String(data.id);
 
                     //登録したものを一覧にも足す。閉じて開き直しても選べる。
-                    if (details.filter('[data-id="' + data.id + '"]').length === 0) {
-                        const added = $('<button type="button" class="tdp-detail">')
-                            .attr('data-id', data.id)
-                            .attr('data-type', typeCode)
-                            .attr('data-name', data.name)
-                            .append($('<span class="nm">').text(data.name))
-                            .append($('<span class="tp">').text(typeName));
-                        modal.find('.tdp-details').append($('<li>').append(added));
-                        details = details.add(added);
+                    if (!details().some(function (d) { return d.getAttribute('data-id') === id; })) {
+                        find('.tdp-details').appendChild(li(button('tdp-detail',
+                            { 'data-id': id, 'data-type': typeCode, 'data-name': data.name },
+                            [['nm', data.name], ['tp', typeName]])));
                     }
 
                     //型式ごと新規登録した直後は左の一覧に出ていない（詳細型式が0件の型式は出していないため）。
                     //これで絞り込みからも辿れる。
-                    if (typeCode !== '' && types().filter('[data-type="' + typeCode + '"]').length === 0) {
-                        modal.find('.tdp-types').append($('<li>').append(
-                            $('<button type="button" class="tdp-type">')
-                                .attr('data-type', typeCode)
-                                .append($('<span class="nm">').text(typeName))
-                                .append($('<span class="cnt">').text('1'))));
+                    if (typeCode !== '' && !types().some(function (t) { return t.getAttribute('data-type') === typeCode; })) {
+                        find('.tdp-types').appendChild(li(button('tdp-type',
+                            { 'data-type': typeCode },
+                            [['nm', typeName], ['cnt', '1']])));
                     }
 
-                    search.val('');
+                    search.value = '';
                     showPage('select');
-                    select(String(data.id), data.name);
-                }).fail(function (xhr) {
-                    error.text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
-                }).always(function () {
-                    button.prop('disabled', false);
+                    select(id, data.name);
+                }, function (xhr) {
+                    showError(error, '登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')');
+                }).then(function () {
+                    newSubmit.disabled = false;
                 });
             });
 
             // ---- 型式の新規登録 ----
-            modal.find('.tdp-newtype-code, .tdp-newtype-name, .tdp-newtype-order').on('keydown', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    modal.find('.tdp-newtype-submit').click();
-                }
-            });
+            submitOnEnter(findAll('.tdp-newtype-code, .tdp-newtype-name, .tdp-newtype-order'), '.tdp-newtype-submit');
 
-            modal.find('.tdp-newtype-submit').on('click', function () {
-                const button = $(this);
-                button.prop('disabled', true);
+            const newTypeSubmit = find('.tdp-newtype-submit');
+            newTypeSubmit.addEventListener('click', function () {
+                newTypeSubmit.disabled = true;
 
-                $.ajax({
-                    url: '/Master/CreateType',
-                    type: 'POST',
-                    data: {
-                        typeCode: modal.find('.tdp-newtype-code').val(),
-                        typeName: modal.find('.tdp-newtype-name').val(),
-                        makerCode: modal.find('.tdp-newtype-maker').val(),
-                        displayOrder: modal.find('.tdp-newtype-order').val()
-                    }
-                }).done(function (data) {
+                JfHttp.post('/Master/CreateType', {
+                    typeCode: find('.tdp-newtype-code').value,
+                    typeName: find('.tdp-newtype-name').value,
+                    makerCode: find('.tdp-newtype-maker').value,
+                    displayOrder: find('.tdp-newtype-order').value
+                }).then(function (data) {
                     if (data.error) {
-                        typeError.text(data.error).show();
+                        showError(typeError, data.error);
                         return;
                     }
 
                     //登録した型式を詳細型式側の選択肢に足して選ばせる。
                     //同じ画面に複数のピッカーがあっても、開いているモーダルの分だけ足せば用は足りる
                     //（この画面を保存したあとは読み直されるため）。
-                    if (newType.find('option[value="' + data.code + '"]').length === 0) {
-                        newType.append($('<option>').attr('value', data.code).text(data.name));
+                    const code = String(data.code);
+                    if (!Array.from(newType.options).some(function (o) { return o.value === code; })) {
+                        newType.add(new Option(data.name, code));
                     }
-                    newType.val(data.code);
+                    newType.value = code;
 
                     showPage('new');
-                }).fail(function (xhr) {
-                    typeError.text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
-                }).always(function () {
-                    button.prop('disabled', false);
+                }, function (xhr) {
+                    showError(typeError, '登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')');
+                }).then(function () {
+                    newTypeSubmit.disabled = false;
                 });
             });
 

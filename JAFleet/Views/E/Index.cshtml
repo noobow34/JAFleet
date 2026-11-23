@@ -471,169 +471,186 @@ textarea.ed-input { height: auto; min-height: 76px; resize: vertical; line-heigh
     <partial name="_TypeDetailPickerScript" />
     <partial name="_SeatConfigQuickAddScript" />
     <script>
-        $(function () {
+        JfDom.ready(function () {
+            const byId = function (id) { return document.getElementById(id); };
+
             // ---- 共通レイアウトのナビバーは固定表示で、タブレット幅だと折り返して2〜3段になり見出しを隠す。
             //      bodyの余白（site.cssの64px）より高くなったときだけ、余白をナビバーの高さに合わせる ----
-            const nav = $('.navbar-fixed-top');
-            const basePadding = parseFloat($('body').css('padding-top')) || 0;
+            const nav = document.querySelector('.navbar-fixed-top');
+            const basePadding = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
             const fitTop = function () {
-                if (nav.length === 0 || nav.find('.navbar-collapse').hasClass('in')) { return; }
-                $('body').css('padding-top', Math.max(basePadding, nav.outerHeight() + 8) + 'px');
+                if (!nav || nav.querySelector('.navbar-collapse.in')) { return; }
+                document.body.style.paddingTop = Math.max(basePadding, nav.offsetHeight + 8) + 'px';
             };
             fitTop();
-            $(window).on('resize', fitTop);
+            window.addEventListener('resize', fitTop);
 
             const isNew = @(Model.IsNew.ToString().ToLowerInvariant());
-            const form = $('#editForm');
-            const storeConfirm = $('#storeConfirm');
+            const form = byId('editForm');
+            const storeConfirm = byId('storeConfirm');
+            const storeConfirmOk = byId('storeConfirmOk');
+            const copyButton = byId('copy');
 
             // ---- リンクのコピー ----
             // ブラウザ標準の Clipboard API（https と localhost で使える）で書き込む。アプリ内ブラウザなどで
             // 書き込みを拒否されたときは、以前の clipboard.js と同じ execCommand('copy') で写す
             const copyByCommand = function (text) {
-                const ta = $('<textarea readonly>').val(text).css({ position: 'fixed', top: 0, left: 0, opacity: 0 }).appendTo('body');
-                ta[0].select();
+                const ta = document.createElement('textarea');
+                ta.readOnly = true;
+                ta.value = text;
+                Object.assign(ta.style, { position: 'fixed', top: '0', left: '0', opacity: '0' });
+                document.body.appendChild(ta);
+                ta.select();
                 let ok = false;
                 try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
                 ta.remove();
                 return ok ? Promise.resolve() : Promise.reject();
             };
             const copyLink = function () {
-                const text = String($('#copy').data('copy-text') || '');
+                const text = copyButton ? (copyButton.getAttribute('data-copy-text') || '') : '';
                 if (!text) { return Promise.reject(); }
                 if (!navigator.clipboard) { return copyByCommand(text); }
                 return navigator.clipboard.writeText(text).catch(function () { return copyByCommand(text); });
             };
             const flashCopy = function (label) {
-                const button = $('#copy');
-                const original = button.data('label') || button.text();
-                button.data('label', original).text(label);
-                setTimeout(function () { button.text(original); }, 1500);
+                const original = copyButton.dataset.label || copyButton.textContent;
+                copyButton.dataset.label = original;
+                copyButton.textContent = label;
+                setTimeout(function () { copyButton.textContent = original; }, 1500);
             };
-            $('#copy').on('click', function () {
-                copyLink().then(function () { flashCopy('✔ コピーしました'); }, function () { flashCopy('コピーできませんでした'); });
-            });
+            if (copyButton) {
+                copyButton.addEventListener('click', function () {
+                    copyLink().then(function () { flashCopy('✔ コピーしました'); }, function () { flashCopy('コピーできませんでした'); });
+                });
+            }
 
             // ---- 変えた項目に印を付ける ----
             // 開いたときの値と比べる。保存前にどこを触ったかを見失わないようにするため。
             const valueOf = function (el) {
-                return el.type === 'checkbox' ? String(el.checked) : ($(el).val() || '');
+                return el.type === 'checkbox' ? String(el.checked) : (el.value || '');
             };
             const tracked = [];
-            form.find('.ed-field').each(function () {
-                const field = $(this);
-                if (field.attr('data-notrack')) { return; }
-                const trackId = field.attr('data-track');
+            form.querySelectorAll('.ed-field').forEach(function (field) {
+                if (field.getAttribute('data-notrack')) { return; }
+                const trackId = field.getAttribute('data-track');
                 const input = trackId
-                    ? $('#' + trackId)
-                    : field.find('input:not([type=hidden]):not([readonly]), select, textarea').not('[id=ReserveDate]').first();
-                if (input.length === 0) { return; }
-                const label = (field.children('label, .ed-label').first().text() || '').trim();
-                tracked.push({ field: field, input: input, label: label, initial: valueOf(input[0]) });
+                    ? byId(trackId)
+                    : field.querySelector('input:not([type=hidden]):not([readonly]):not([id=ReserveDate]), select:not([id=ReserveDate]), textarea:not([id=ReserveDate])');
+                if (!input) { return; }
+                const labelEl = field.querySelector(':scope > label, :scope > .ed-label');
+                const label = ((labelEl && labelEl.textContent) || '').trim();
+                tracked.push({ field: field, input: input, label: label, initial: valueOf(input) });
             });
 
             const changedLabels = function () {
-                return tracked.filter(function (t) { return valueOf(t.input[0]) !== t.initial; }).map(function (t) { return t.label; });
+                return tracked.filter(function (t) { return valueOf(t.input) !== t.initial; }).map(function (t) { return t.label; });
             };
+
+            const reserveDateValue = function () { const r = byId('ReserveDate'); return r ? r.value : ''; };
+            const notUpdateChecked = function () { const n = byId('NotUpdateDate'); return !!(n && n.checked); };
 
             const refresh = function () {
                 let count = 0;
                 tracked.forEach(function (t) {
-                    const dirty = valueOf(t.input[0]) !== t.initial;
-                    t.field.toggleClass('dirty', dirty);
+                    const dirty = valueOf(t.input) !== t.initial;
+                    t.field.classList.toggle('dirty', dirty);
                     if (dirty) { count++; }
                 });
 
-                const reserveDate = $('#ReserveDate').val();
-                const notUpdate = $('#NotUpdateDate').prop('checked');
-                $('#notUpdateBox').toggleClass('on', !!notUpdate);
+                const reserveDate = reserveDateValue();
+                const notUpdate = notUpdateChecked();
+                const notUpdateBox = byId('notUpdateBox');
+                if (notUpdateBox) { notUpdateBox.classList.toggle('on', notUpdate); }
 
-                const state = $('#barState');
                 const parts = [];
                 if (count > 0) { parts.push('<b>' + count + '項目</b>を変更'); } else { parts.push('変更はありません'); }
                 if (reserveDate && !isNew) { parts.push('<span class="rsv">📅 ' + reserveDate.replace(/-/g, '/') + ' に予約</span>'); }
                 else if (notUpdate && !isNew) { parts.push('履歴を作成しない'); }
-                state.html(parts.join('<br>'));
+                byId('barState').innerHTML = parts.join('<br>');
 
-                $('#store').text(reserveDate && !isNew ? '予約する' : '登録').toggleClass('reserve', !!reserveDate && !isNew);
+                const store = byId('store');
+                store.textContent = reserveDate && !isNew ? '予約する' : '登録';
+                store.classList.toggle('reserve', !!reserveDate && !isNew);
             };
-            form.on('input change', 'input, select, textarea', refresh);
+            const onFieldChange = function (e) {
+                if (e.target.matches && e.target.matches('input, select, textarea')) { refresh(); }
+            };
+            form.addEventListener('input', onFieldChange);
+            form.addEventListener('change', onFieldChange);
             refresh();
 
             // ---- 登録の前に確認する。履歴を残すか残さないかは後から気づきにくいので、どちらでも必ず出す ----
-            $('#store').on('click', function (e) {
+            const setText = function (selector, text) { storeConfirm.querySelector(selector).textContent = text; };
+            byId('store').addEventListener('click', function (e) {
                 e.preventDefault();
 
-                const notUpdate = $('#NotUpdateDate').prop('checked');
-                const reserveDate = $('#ReserveDate').val();
-                const box = storeConfirm.find('.ecf-state');
+                const notUpdate = notUpdateChecked();
+                const reserveDate = reserveDateValue();
+                const box = storeConfirm.querySelector('.ecf-state');
                 const labels = changedLabels();
 
-                const list = storeConfirm.find('.ecf-changes').empty();
-                labels.forEach(function (l) { list.append($('<li>').text(l)); });
-                if (!isNew && labels.length === 0) { list.append($('<li>').text('変えた項目はありません')); }
+                const list = storeConfirm.querySelector('.ecf-changes');
+                const item = function (text) { const li = document.createElement('li'); li.textContent = text; return li; };
+                list.replaceChildren.apply(list, labels.map(item));
+                if (!isNew && labels.length === 0) { list.appendChild(item('変えた項目はありません')); }
 
-                box.removeClass('new keep drop reserve');
-                $('#storeConfirmOk').text(reserveDate && !isNew ? '予約する' : '登録する');
+                box.classList.remove('new', 'keep', 'drop', 'reserve');
+                storeConfirmOk.textContent = reserveDate && !isNew ? '予約する' : '登録する';
                 if (reserveDate && !isNew) {
-                    box.addClass('reserve');
-                    storeConfirm.find('.ecf-badge').text('予約');
-                    storeConfirm.find('.ecf-msg').text(reserveDate.replace(/-/g, '/') + ' に反映するよう予約します。いまの機体情報は変わりません。');
-                    storeConfirm.find('.ecf-note').text('いまの内容から変えた項目だけを予約します。反映するときに'
+                    box.classList.add('reserve');
+                    setText('.ecf-badge', '予約');
+                    setText('.ecf-msg', reserveDate.replace(/-/g, '/') + ' に反映するよう予約します。いまの機体情報は変わりません。');
+                    setText('.ecf-note', 'いまの内容から変えた項目だけを予約します。反映するときに'
                         + (notUpdate ? '更新履歴は残しません（「履歴を作成しない」にチェックあり）。' : '更新前の内容を更新履歴に残します。'));
                 } else if (isNew) {
-                    box.addClass('new');
-                    storeConfirm.find('.ecf-badge').text('新規登録');
-                    storeConfirm.find('.ecf-msg').text('このレジを新しく登録します。');
-                    storeConfirm.find('.ecf-note').text('新規登録では更新履歴は積まれません。');
+                    box.classList.add('new');
+                    setText('.ecf-badge', '新規登録');
+                    setText('.ecf-msg', 'このレジを新しく登録します。');
+                    setText('.ecf-note', '新規登録では更新履歴は積まれません。');
                 } else if (notUpdate) {
-                    box.addClass('drop');
-                    storeConfirm.find('.ecf-badge').text('履歴を残さない');
-                    storeConfirm.find('.ecf-msg').text('更新履歴を残さずに、いまの内容を上書きします。');
-                    storeConfirm.find('.ecf-note').text('「履歴を作成しない」にチェックが入っています。上書き前の内容は残りません。');
+                    box.classList.add('drop');
+                    setText('.ecf-badge', '履歴を残さない');
+                    setText('.ecf-msg', '更新履歴を残さずに、いまの内容を上書きします。');
+                    setText('.ecf-note', '「履歴を作成しない」にチェックが入っています。上書き前の内容は残りません。');
                 } else {
-                    box.addClass('keep');
-                    storeConfirm.find('.ecf-badge').text('履歴を残す');
-                    storeConfirm.find('.ecf-msg').text('いまの内容を更新履歴に残してから登録します。');
-                    storeConfirm.find('.ecf-note').text('「履歴を作成しない」のチェックが外れています。機体詳細の履歴に1件増えます。');
+                    box.classList.add('keep');
+                    setText('.ecf-badge', '履歴を残す');
+                    setText('.ecf-msg', 'いまの内容を更新履歴に残してから登録します。');
+                    setText('.ecf-note', '「履歴を作成しない」のチェックが外れています。機体詳細の履歴に1件増えます。');
                 }
 
                 JfUi.modal.show(storeConfirm);
             });
 
-            storeConfirm.on('jf:modal-shown', function () { $('#storeConfirmOk').trigger('focus'); });
+            storeConfirm.addEventListener('jf:modal-shown', function () { storeConfirmOk.focus(); });
 
-            $('#storeConfirmOk').on('click', function () {
+            storeConfirmOk.addEventListener('click', function () {
                 JfUi.modal.hide(storeConfirm);
                 //登録するときだけ詳細ページのURLをクリップボードへ入れる（以前と同じ）。
                 //書き込みは非同期なので、終わってから（失敗しても）送る。返事が来ないときも 1 秒で送る
                 let submitted = false;
-                const submit = function () { if (!submitted) { submitted = true; form[0].submit(); } };
-                const copying = $('#copy').length ? copyLink() : Promise.resolve();
+                const submit = function () { if (!submitted) { submitted = true; form.submit(); } };
+                const copying = copyButton ? copyLink() : Promise.resolve();
                 copying.then(submit, submit);
                 setTimeout(submit, 1000);
             });
 
             // ---- コンフィグの選択肢は航空会社と詳細型式で絞る ----
             const recreateSeatConfigList = function () {
-                $.ajax({
-                    type: 'GET',
-                    url: '/Master/SeatConfiguration/?airline=' + $('#Aircraft_Airline').val() + '&typeDetailId=' + $('#Aircraft_TypeDetailId').val(),
-                    cache: false
-                }).done(function (data) {
-                    const select = $('select#Aircraft_SeatConfig');
-                    const current = select.val();
-                    select.find('option').remove();
-                    select.append($('<option>').text('').attr('value', ''));
-                    $.each(data, function (index, seatconfig) {
-                        select.append($('<option>').text(seatconfig.seatConfigLong).attr('value', seatconfig.configId));
+                JfHttp.get('/Master/SeatConfiguration/?airline=' + byId('Aircraft_Airline').value + '&typeDetailId=' + byId('Aircraft_TypeDetailId').value).then(function (data) {
+                    const select = byId('Aircraft_SeatConfig');
+                    const current = select.value;
+                    select.replaceChildren(new Option('', ''));
+                    data.forEach(function (seatconfig) {
+                        select.add(new Option(seatconfig.seatConfigLong, seatconfig.configId));
                     });
                     //絞り込み後も残っていれば選んだままにする
-                    if (current && select.find('option[value="' + current + '"]').length) { select.val(current); }
+                    if (current && Array.from(select.options).some(function (o) { return o.value === current; })) { select.value = current; }
                     refresh();
                 });
             };
-            $('#Aircraft_TypeDetailId, #Aircraft_Airline').on('change', recreateSeatConfigList);
+            byId('Aircraft_TypeDetailId').addEventListener('change', recreateSeatConfigList);
+            byId('Aircraft_Airline').addEventListener('change', recreateSeatConfigList);
         });
-    </script>
+</script>
 }

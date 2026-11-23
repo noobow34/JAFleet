@@ -9,12 +9,12 @@
  *
  * 使い方:
  *   const list = FleetList.create('#id', { isAdmin: true });
- *   list.load($.getJSON(url));      // 読み込み中の表示 → 結果の表示
+ *   list.load(JfHttp.get(url));     // 読み込み中の表示 → 結果の表示。返す Promise は行の配列（失敗したときは null）で解決する
  *   list.setData(rows);             // API が返す aircraft_view の配列
  *   list.clear('メッセージ');        // 空にして案内を出す
  *   list.resetSort();               // 既定の並び（display_order）に戻す
  */
-(function (window, $) {
+(function (window) {
     'use strict';
 
     // データ更新から何日以内を「最近更新」として印を付けるか
@@ -168,33 +168,35 @@
 
     // 固定ナビバーの高さに見出しの固定位置を合わせる（タブレット幅ではナビバーが折り返して高くなる）
     const syncNavbarOffset = function () {
-        const nav = $('.navbar-fixed-top');
-        if (nav.length === 0 || nav.find('.navbar-collapse').hasClass('in')) { return; }
-        const h = nav.outerHeight();
+        const nav = document.querySelector('.navbar-fixed-top');
+        if (!nav || nav.querySelector('.navbar-collapse.in')) { return; }
+        const h = nav.offsetHeight;
         document.documentElement.style.setProperty('--fl-top', h + 'px');
-        const body = $('body');
-        if (body.data('flBasePadding') == null) { body.data('flBasePadding', parseFloat(body.css('padding-top')) || 0); }
-        body.css('padding-top', Math.max(body.data('flBasePadding'), h + 8) + 'px');
+        const body = document.body;
+        if (body.dataset.flBasePadding == null) { body.dataset.flBasePadding = parseFloat(getComputedStyle(body).paddingTop) || 0; }
+        body.style.paddingTop = Math.max(parseFloat(body.dataset.flBasePadding), h + 8) + 'px';
     };
 
     let xlsxLoading = null;
     const loadXlsx = function () {
-        if (window.XLSX) { return $.Deferred().resolve().promise(); }
+        if (window.XLSX) { return Promise.resolve(); }
         if (!xlsxLoading) {
-            xlsxLoading = $.Deferred();
-            const s = document.createElement('script');
-            s.src = XLSX_URL;
-            s.crossOrigin = 'anonymous';
-            s.onload = function () { xlsxLoading.resolve(); };
-            s.onerror = function () { const d = xlsxLoading; xlsxLoading = null; d.reject(); };
-            document.head.appendChild(s);
+            xlsxLoading = new Promise(function (resolve, reject) {
+                const s = document.createElement('script');
+                s.src = XLSX_URL;
+                s.crossOrigin = 'anonymous';
+                s.onload = function () { resolve(); };
+                s.onerror = function () { xlsxLoading = null; reject(); };
+                document.head.appendChild(s);
+            });
         }
-        return xlsxLoading.promise();
+        return xlsxLoading;
     };
 
-    // 表（1 行目が見出しの 2 次元配列）を Excel に書き出す。非稼働情報の画面からも使う
+    // 表（1 行目が見出しの 2 次元配列）を Excel に書き出す。非稼働情報の画面からも使う。
+    // 返す Promise は書き出しが終わったら（失敗して案内を出したときも）解決する
     const exportXlsx = function (aoa, widths, fileName) {
-        return loadXlsx().done(function () {
+        return loadXlsx().then(function () {
             const rows = aoa.map(function (row) { return row.map(function (v) { return v == null ? '' : v; }); });
             const ws = window.XLSX.utils.aoa_to_sheet(rows);
             if (widths) { ws['!cols'] = widths.map(function (w) { return { wch: w }; }); }
@@ -202,17 +204,18 @@
             window.XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
             const name = (fileName || document.title).replace(/[\\/:*?"<>|]/g, '_');
             window.XLSX.writeFile(wb, name + '.xlsx');
-            $.ajax('/Dummy?excel');
-        }).fail(function () {
+            fetch('/Dummy?excel', { cache: 'no-store' });
+        }, function () {
             window.alert('Excel出力の準備に失敗しました。通信状況を確かめて、もう一度押してください。');
         });
     };
 
     const create = function (selector, options) {
-        const opt = $.extend({ isAdmin: false, emptyText: '該当する機体はありません', exportName: null }, options);
-        const root = $(selector).first().addClass('fl');
+        const opt = Object.assign({ isAdmin: false, emptyText: '該当する機体はありません', exportName: null }, options);
+        const root = typeof selector === 'string' ? document.querySelector(selector) : selector;
+        root.classList.add('fl');
 
-        root.html(
+        root.innerHTML = (
             '<div class="fl-bar">'
             + '<div class="fl-search"><input type="search" class="fl-filter" placeholder="レジ・機種・塗装などで絞り込み" aria-label="一覧を絞り込む" autocomplete="off" /></div>'
             + '<div class="fl-tools">'
@@ -227,13 +230,19 @@
             + '<div class="fl-msg"></div>'
         );
 
-        const body = root.find('.fl-body');
-        const head = root.find('.fl-head');
-        const msg = root.find('.fl-msg');
-        const count = root.find('.fl-count');
-        const filterBox = root.find('.fl-filter');
-        const sortSel = root.find('.fl-sortsel');
-        const resetBtn = root.find('.fl-reset');
+        const body = root.querySelector('.fl-body');
+        const head = root.querySelector('.fl-head');
+        const msg = root.querySelector('.fl-msg');
+        const count = root.querySelector('.fl-count');
+        const filterBox = root.querySelector('.fl-filter');
+        const sortSel = root.querySelector('.fl-sortsel');
+        const resetBtn = root.querySelector('.fl-reset');
+
+        const showMsg = function (text, kind) {
+            msg.textContent = text;
+            msg.setAttribute('data-kind', kind);
+            msg.style.display = '';
+        };
 
         let rows = [];       // API の行。_html と _text を持たせる
         let shown = [];      // いま表示している行（絞り込み・並べ替え後）
@@ -249,12 +258,12 @@
             // 1 社だけの一覧では航空会社の列を出さない（全行同じで場所を取るだけ）
             const airlines = {};
             rows.forEach(function (r) { airlines[r.airline] = true; });
-            root.toggleClass('fl--one-airline', Object.keys(airlines).length === 1);
+            root.classList.toggle('fl--one-airline', Object.keys(airlines).length === 1);
 
             hasDereg = rows.some(function (r) { return !!r.deregisterDate; });
-            root.toggleClass('fl--has-dereg', hasDereg);
+            root.classList.toggle('fl--has-dereg', hasDereg);
             if (sort && !isVisible(COLUMN_BY_KEY[sort.key])) { sort = null; }
-            sortSel.html(buildSortOptions(isVisible));
+            sortSel.innerHTML = buildSortOptions(isVisible);
         };
 
         const render = function () {
@@ -276,37 +285,41 @@
                 });
             }
             shown = list;
-            body.html(list.map(function (r) { return r._html; }).join(''));
+            body.innerHTML = list.map(function (r) { return r._html; }).join('');
 
-            head.find('.fl-h').removeClass('is-asc is-desc').attr('aria-sort', 'none');
+            head.querySelectorAll('.fl-h').forEach(function (h) {
+                h.classList.remove('is-asc', 'is-desc');
+                h.setAttribute('aria-sort', 'none');
+            });
             if (sort) {
-                head.find('.fl-h[data-sort="' + sort.key + '"]').addClass('is-' + sort.dir)
-                    .attr('aria-sort', sort.dir === 'asc' ? 'ascending' : 'descending');
+                const h = head.querySelector('.fl-h[data-sort="' + sort.key + '"]');
+                h.classList.add('is-' + sort.dir);
+                h.setAttribute('aria-sort', sort.dir === 'asc' ? 'ascending' : 'descending');
             }
-            sortSel.val(sort ? sort.key + ':' + sort.dir : '');
-            resetBtn.prop('hidden', !sort);
+            sortSel.value = sort ? sort.key + ':' + sort.dir : '';
+            resetBtn.hidden = !sort;
 
             if (state === 'loading') {
-                count.text('');
-                msg.text('読み込み中…').attr('data-kind', 'loading').show();
+                count.textContent = '';
+                showMsg('読み込み中…', 'loading');
             } else if (rows.length === 0) {
-                count.text('');
-                msg.text(state === 'empty' ? opt.emptyText : '該当する機体はありません').attr('data-kind', 'empty').show();
+                count.textContent = '';
+                showMsg(state === 'empty' ? opt.emptyText : '該当する機体はありません', 'empty');
             } else if (list.length === 0) {
-                count.html('<b>0</b> / ' + rows.length + ' 機');
-                msg.text('「' + filterText + '」に当てはまる機体はありません').attr('data-kind', 'empty').show();
+                count.innerHTML = '<b>0</b> / ' + rows.length + ' 機';
+                showMsg('「' + filterText + '」に当てはまる機体はありません', 'empty');
             } else {
-                count.html(filterText ? '<b>' + list.length + '</b> / ' + rows.length + ' 機' : '<b>' + rows.length + '</b> 機');
-                msg.hide();
+                count.innerHTML = filterText ? '<b>' + list.length + '</b> / ' + rows.length + ' 機' : '<b>' + rows.length + '</b> 機';
+                msg.style.display = 'none';
             }
-            root.toggleClass('is-blank', list.length === 0);
+            root.classList.toggle('is-blank', list.length === 0);
         };
 
         const api = {
             setData: function (data) {
                 const now = Date.now();
                 rows = (data || []).map(function (r, i) {
-                    const o = $.extend({}, r);
+                    const o = Object.assign({}, r);
                     o._i = i;
                     o._html = buildRowHtml(r, i, opt, now);
                     o._text = [r.registrationNumber, r.testRegistration, r.typeDetailName, r.typeName, r.airlineNameJpShort,
@@ -323,12 +336,15 @@
                 rows = [];
                 state = 'loading';
                 render();
-                return $.when(promise).done(function (data) { api.setData(data); })
-                    .fail(function () {
-                        state = 'ready';
-                        render();
-                        msg.text('一覧を読み込めませんでした。時間をおいて開き直してください').attr('data-kind', 'error').show();
-                    });
+                return Promise.resolve(promise).then(function (data) {
+                    api.setData(data);
+                    return data;
+                }, function () {
+                    state = 'ready';
+                    render();
+                    showMsg('一覧を読み込めませんでした。時間をおいて開き直してください', 'error');
+                    return null;
+                });
             },
             clear: function (text) {
                 rows = [];
@@ -346,8 +362,10 @@
         };
 
         // ---- 並べ替え ----
-        head.on('click', '.fl-h', function () {
-            const key = $(this).data('sort');
+        head.addEventListener('click', function (e) {
+            const button = e.target.closest('.fl-h');
+            if (!button) { return; }
+            const key = button.getAttribute('data-sort');
             const col = COLUMN_BY_KEY[key];
             const other = col.first === 'asc' ? 'desc' : 'asc';
             // 初めの向き → 逆向き → 標準の並び、の順に回る
@@ -356,63 +374,71 @@
             else { sort = null; }
             render();
         });
-        sortSel.on('change', function () {
-            const v = $(this).val();
+        sortSel.addEventListener('change', function () {
+            const v = sortSel.value;
             sort = v ? { key: v.split(':')[0], dir: v.split(':')[1] } : null;
             render();
         });
-        resetBtn.on('click', function () { api.resetSort(); });
+        resetBtn.addEventListener('click', function () { api.resetSort(); });
 
         // ---- 絞り込み ----
         let filterTimer = null;
-        filterBox.on('input', function () {
+        filterBox.addEventListener('input', function () {
             clearTimeout(filterTimer);
             filterTimer = setTimeout(function () {
-                filterText = $.trim(filterBox.val());
+                filterText = filterBox.value.trim();
                 render();
             }, 120);
         });
 
         // ---- 詳細を開く（行のどこを押しても開く。中のリンクはそれぞれの動きを優先） ----
         const plainClick = function (e) { return !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button > 0); };
-        body.on('click', 'a.fl-reg', function (e) {
-            if (!plainClick(e)) { return; }
-            e.preventDefault();
-            openDetail($(this).data('reg'));
-        });
-        body.on('click', 'a.fl-edit', function (e) {
-            if (!plainClick(e)) { return; }
-            e.preventDefault();
-            openPopUp('/E/' + encodeURIComponent($(this).data('reg')) + '?nohead=true');
-        });
-        body.on('click', '.fl-row', function (e) {
-            if ($(e.target).closest('a, button, input, select').length) { return; }
+        body.addEventListener('click', function (e) {
+            const regLink = e.target.closest('a.fl-reg');
+            if (regLink) {
+                if (!plainClick(e)) { return; }
+                e.preventDefault();
+                openDetail(regLink.getAttribute('data-reg'));
+                return;
+            }
+            const editLink = e.target.closest('a.fl-edit');
+            if (editLink) {
+                if (!plainClick(e)) { return; }
+                e.preventDefault();
+                openPopUp('/E/' + encodeURIComponent(editLink.getAttribute('data-reg')) + '?nohead=true');
+                return;
+            }
+            const row = e.target.closest('.fl-row');
+            if (!row || e.target.closest('a, button, input, select')) { return; }
             // 文字を選んでいるときは開かない（レジや製造番号をコピーしたいとき）
             const sel = window.getSelection ? String(window.getSelection()) : '';
             if (sel) { return; }
-            openDetail($(this).find('a.fl-reg').data('reg'));
+            openDetail(row.querySelector('a.fl-reg').getAttribute('data-reg'));
         });
 
         // ---- Excel 出力（表示中の行を、表示中の並びで） ----
-        root.find('.fl-excel').on('click', function () {
-            const btn = $(this);
+        const excelBtn = root.querySelector('.fl-excel');
+        excelBtn.addEventListener('click', function () {
+            const btn = excelBtn;
             if (shown.length === 0) { return; }
-            btn.prop('disabled', true).text('作成中…');
+            btn.disabled = true;
+            btn.textContent = '作成中…';
             const cols = COLUMNS.filter(isVisible);
             const aoa = [cols.map(function (c) { return c.label; })];
             shown.forEach(function (r) {
                 aoa.push(cols.map(function (c) { return c.xlsx(r); }));
             });
-            exportXlsx(aoa, cols.map(function (c) { return c.width; }), opt.exportName).always(function () {
-                btn.prop('disabled', false).text('Excel出力');
+            exportXlsx(aoa, cols.map(function (c) { return c.width; }), opt.exportName).then(function () {
+                btn.disabled = false;
+                btn.textContent = 'Excel出力';
             });
         });
 
         syncNavbarOffset();
-        $(window).on('resize', syncNavbarOffset);
+        window.addEventListener('resize', syncNavbarOffset);
         render();
         return api;
     };
 
     window.FleetList = { create: create, exportXlsx: exportXlsx, syncNavbarOffset: syncNavbarOffset };
-})(window, jQuery);
+})(window);

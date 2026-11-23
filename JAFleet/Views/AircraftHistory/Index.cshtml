@@ -493,74 +493,74 @@ tr.ahx-detail > td { background: #f8fafc; padding: 12px 14px; }
 <partial name="_TypeDetailPickerScript" />
 <partial name="_SeatConfigQuickAddScript" />
 <script>
-    $(function () {
+    JfDom.ready(function () {
         attachRegList(document.getElementById('reg'));
 
         // 削除と履歴作成の確認。OKのあとは同じボタンを押し直して、
         // formaction と name/value が付いたそのままの送信にする。
-        const dialog = $('#ahxConfirm');
-        const dialogOk = $('#ahxConfirmOk');
+        const dialog = document.getElementById('ahxConfirm');
+        const dialogOk = document.getElementById('ahxConfirmOk');
+        const setText = function (selector, text) { dialog.querySelector(selector).textContent = text; };
         let pending = null;
         let allowSubmit = false;
 
-        $('.ahx-confirm').on('click', function (e) {
-            if (allowSubmit) {
-                allowSubmit = false;
-                return;
-            }
-            e.preventDefault();
+        document.querySelectorAll('.ahx-confirm').forEach(function (button) {
+            button.addEventListener('click', function (e) {
+                if (allowSubmit) {
+                    allowSubmit = false;
+                    return;
+                }
+                e.preventDefault();
 
-            const button = $(this);
-            pending = this;
-            dialog.find('.ahx-dlg-title').text(button.attr('data-confirm-title'));
-            dialog.find('.ahx-dlg-msg').text(button.attr('data-confirm-msg'));
-            dialog.find('.ahx-dlg-note').text(button.attr('data-confirm-note'));
-            dialogOk.text(button.attr('data-confirm-ok'))
-                    .toggleClass('danger', button.attr('data-confirm-danger') === 'true');
-            JfUi.modal.show(dialog);
+                pending = button;
+                setText('.ahx-dlg-title', button.getAttribute('data-confirm-title'));
+                setText('.ahx-dlg-msg', button.getAttribute('data-confirm-msg'));
+                setText('.ahx-dlg-note', button.getAttribute('data-confirm-note'));
+                dialogOk.textContent = button.getAttribute('data-confirm-ok');
+                dialogOk.classList.toggle('danger', button.getAttribute('data-confirm-danger') === 'true');
+                JfUi.modal.show(dialog);
+            });
         });
 
-        dialog.on('jf:modal-shown', function () { dialogOk.trigger('focus'); });
+        dialog.addEventListener('jf:modal-shown', function () { dialogOk.focus(); });
 
-        dialogOk.on('click', function () {
+        dialogOk.addEventListener('click', function () {
             JfUi.modal.hide(dialog);
             allowSubmit = true;
             pending.click();
         });
 
         // 一覧に出していない項目の開け閉め
-        $('.ahx-toggle').on('click', function () {
-            const detail = $('#' + $(this).attr('data-target'));
-            detail.toggle(detail.css('display') === 'none');
+        document.querySelectorAll('.ahx-toggle').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const detail = document.getElementById(button.getAttribute('data-target'));
+                JfDom.toggle(detail, !JfDom.visible(detail));
+            });
         });
 
         // コンフィグはその行の航空会社と詳細型式で絞る（/E と同じ）
-        $('.ahx-row').each(function () {
-            const ahId = $(this).attr('data-ahid');
-            const airline = $('#Airline_' + ahId);
-            const typeDetail = $('#TypeDetail_' + ahId);
-            const seatConfig = $('#SeatConfig_' + ahId);
+        document.querySelectorAll('.ahx-row').forEach(function (row) {
+            const ahId = row.getAttribute('data-ahid');
+            const airline = document.getElementById('Airline_' + ahId);
+            const typeDetail = document.getElementById('TypeDetail_' + ahId);
+            const seatConfig = document.getElementById('SeatConfig_' + ahId);
+            if (!airline || !typeDetail || !seatConfig) { return; }
 
             const recreate = function () {
-                $.ajax({
-                    type: 'GET',
-                    url: '/Master/SeatConfiguration/?airline=' + airline.val()
-                         + '&typeDetailId=' + (typeDetail.val() || 0),
-                    cache: false
-                }).done(function (data) {
-                    const selected = seatConfig.val();
-                    seatConfig.find('option').remove();
-                    seatConfig.append($('<option>').text('　').attr('value', ''));
-                    $.each(data || [], function (index, config) {
-                        seatConfig.append($('<option>').text(config.seatConfigLong).attr('value', config.configId));
+                JfHttp.get('/Master/SeatConfiguration/?airline=' + airline.value
+                    + '&typeDetailId=' + (typeDetail.value || 0)).then(function (data) {
+                    const selected = seatConfig.value;
+                    seatConfig.replaceChildren(new Option('　', ''));
+                    (data || []).forEach(function (config) {
+                        seatConfig.add(new Option(config.seatConfigLong, config.configId));
                     });
                     //絞り込みに残っていれば選び直す
-                    seatConfig.val(selected);
+                    seatConfig.value = selected;
                 });
             };
 
-            airline.on('change', recreate);
-            typeDetail.on('change', recreate);
+            airline.addEventListener('change', recreate);
+            typeDetail.addEventListener('change', recreate);
         });
     });
 </script>

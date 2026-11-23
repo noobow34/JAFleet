@@ -222,8 +222,9 @@
     <partial name="_BusyOverlayScript" />
     <script>
         //取消などの押し間違いを防ぐ
-        $(document).on('click', '[data-confirm]', function (e) {
-            if (!window.confirm($(this).data('confirm'))) {
+        document.addEventListener('click', function (e) {
+            const target = e.target.closest('[data-confirm]');
+            if (target && !window.confirm(target.getAttribute('data-confirm'))) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
             }

@@ -57,24 +57,114 @@ const attachRegList = function (input) {
         .catch(function () { /* 候補が出ないだけなので黙って諦める */ });
 }
 
-const sendMessageToMe = function() {
-    $.ajax({
-        type: 'POST',
-        url: '/Message/Send',
-        data: { name: $('#uname').val(), reply: $('#replyto').val(), message: $('#message').val() },
-        cache: false
-    }).fail(function (data) {
-        $('#result').text("送信しました");
-    }).done(function (data) {
-        if (data == "OK") {
-            $('#uname').val("");
-            $('#replyto').val("");
-            $('#message').val("");
-            $('#result').text("送信しました");
+// ==================== 通信 ($.ajax の代わり) ====================
+// JfHttp.get(url, params) / JfHttp.post(url, data) / JfHttp.send(method, url, data)
+//   - data / params はふつうのオブジェクト。フォーム形式 (x-www-form-urlencoded) で送る。
+//     値が配列ならキーを繰り返す (a=1&a=2)。null / undefined は送らない
+//   - FormData や URLSearchParams はそのまま送る
+//   - 返事は Content-Type が JSON なら JSON、それ以外は文字列で返す ($.ajax と同じ)
+//   - 2xx 以外と通信の失敗は reject する。理由のオブジェクトは jqXHR と同じく
+//     status / statusText / responseText を持つので、これまでの「失敗しました (404 Not Found)」の出し方がそのまま使える
+//   - ブラウザのキャッシュは使わない ($.ajax の cache: false 相当)
+const JfHttp = (function () {
+    const toParams = function (data) {
+        if (data instanceof URLSearchParams) { return data; }
+        const params = new URLSearchParams();
+        Object.keys(data || {}).forEach(function (key) {
+            const value = data[key];
+            if (value === null || value === undefined) { return; }
+            (Array.isArray(value) ? value : [value]).forEach(function (v) { params.append(key, v); });
+        });
+        return params;
+    };
+
+    const send = function (method, url, data) {
+        method = (method || 'GET').toUpperCase();
+        const init = { method: method, cache: 'no-store', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } };
+        if (method === 'GET' || method === 'HEAD') {
+            const query = toParams(data).toString();
+            if (query) { url += (url.indexOf('?') >= 0 ? '&' : '?') + query; }
+        } else if (data instanceof FormData) {
+            init.body = data;
         } else {
-            $('#result').text("送信に失敗しました");
+            init.body = toParams(data);
         }
-    });
+        return fetch(url, init).then(function (res) {
+            const type = res.headers.get('Content-Type') || '';
+            return res.text().then(function (text) {
+                if (!res.ok) {
+                    return Promise.reject({ status: res.status, statusText: res.statusText, responseText: text });
+                }
+                return type.indexOf('json') >= 0 && text !== '' ? JSON.parse(text) : text;
+            });
+        }, function () {
+            return Promise.reject({ status: 0, statusText: 'error', responseText: '' });
+        });
+    };
+
+    return {
+        send: send,
+        get: function (url, params) { return send('GET', url, params); },
+        post: function (url, data) { return send('POST', url, data); }
+    };
+})();
+
+// ==================== DOM の小物 (jQuery の show / hide / trigger の代わり) ====================
+// el は要素か、要素の並び (NodeList / 配列)。null は何もしない
+const JfDom = (function () {
+    const each = function (el, fn) {
+        if (!el) { return; }
+        if (el.nodeType === 1) { fn(el); return; }
+        Array.prototype.forEach.call(el, fn);
+    };
+    const INLINE = /^(A|SPAN|LABEL|B|I|EM|STRONG|SMALL|CODE|IMG|ABBR)$/;
+    // .show() と同じく、style で消していればそれを外し、CSS で消えているなら既定の表示にする
+    const show = function (el) {
+        each(el, function (e) {
+            e.style.display = '';
+            if (getComputedStyle(e).display === 'none') {
+                e.style.display = INLINE.test(e.tagName) ? 'inline' : 'block';
+            }
+        });
+    };
+    const hide = function (el) { each(el, function (e) { e.style.display = 'none'; }); };
+    return {
+        // $(function () { ... }) の代わり。ページの最後のスクリプトまで読み終わってから動く
+        ready: function (fn) {
+            if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', fn); } else { fn(); }
+        },
+        show: show,
+        hide: hide,
+        toggle: function (el, on) { if (on) { show(el); } else { hide(el); } },
+        visible: function (el) { return !!el && getComputedStyle(el).display !== 'none'; },
+        // ネイティブのイベントを起こす。jQuery で付けた処理にも届く
+        trigger: function (el, type) { each(el, function (e) { e.dispatchEvent(new Event(type, { bubbles: true })); }); },
+        // HTML の文字列から要素を 1 つ作る
+        create: function (html) {
+            const t = document.createElement('template');
+            t.innerHTML = html.trim();
+            return t.content.firstElementChild;
+        }
+    };
+})();
+
+const sendMessageToMe = function () {
+    const field = function (id) { return document.getElementById(id); };
+    const result = field('result');
+    JfHttp.post('/Message/Send', { name: field('uname').value, reply: field('replyto').value, message: field('message').value })
+        .then(function (data) {
+            if (data == "OK") {
+                field('uname').value = '';
+                field('replyto').value = '';
+                field('message').value = '';
+                result.textContent = '送信しました';
+            } else {
+                result.textContent = '送信に失敗しました';
+            }
+        }, function () {
+            // 以前から通信に失敗しても「送信しました」と出している
+            result.textContent = '送信しました';
+        });
 }
 
 const ZGB = function() {

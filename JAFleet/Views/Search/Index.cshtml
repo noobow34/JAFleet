@@ -124,7 +124,10 @@
     var isDirect = @Model.IsDirect.ToString().ToLower();
     var fleet;
 
-    // 複数選択のプルダウンの共通設定（見た目は search.css の .sx-ms で揃える）
+    const byId = function (id) { return document.getElementById(id); };
+
+    // 複数選択のプルダウンは bootstrap-multiselect（jQuery のプラグイン）なので、そこだけ $ を使う。
+    // 見た目は search.css の .sx-ms で揃える
     const MS_COMMON = {
         buttonWidth: '100%',
         buttonClass: 'sx-ms',
@@ -134,17 +137,26 @@
         numberDisplayed: 2,
         maxHeight: 360
     };
-    const ms = function (opt) { return $.extend({}, MS_COMMON, opt); };
+    const ms = function (opt) { return Object.assign({}, MS_COMMON, opt); };
+    const msSelect = function (id, values) { $('#' + id).multiselect('select', values); };
+    const msClear = function (id) { $('#' + id).multiselect('deselectAll', false).multiselect('refresh'); };
+
+    // 複数選択の値は「|」でつないで送る
+    const multiValue = function (id) {
+        return Array.from(byId(id).selectedOptions).map(function (o) { return o.value; }).join('|');
+    };
 
     // 特別塗装・備考は「キーワード指定」を選んだときだけキーワード欄を使う
     const LIVERY_KEYWORD = ['3', '5'];
     const REMARKS_KEYWORD = ['3'];
     const syncKeyword = function (selectId, keywordId, codes, keyword) {
-        const on = codes.indexOf($(selectId).val()) >= 0;
-        $(keywordId).prop('disabled', !on).val(on ? (keyword != null ? keyword : $(keywordId).val()) : '');
+        const keywordBox = document.querySelector(keywordId);
+        const on = codes.indexOf(document.querySelector(selectId).value) >= 0;
+        keywordBox.disabled = !on;
+        keywordBox.value = on ? (keyword != null ? keyword : keywordBox.value) : '';
     };
 
-    $(function () {
+    JfDom.ready(function () {
         $('#Airline').multiselect(ms({ enableClickableOptGroups: true, enableCollapsibleOptGroups: true }));
         $('#TypeDetail').multiselect(ms({ enableClickableOptGroups: true, enableCollapsibleOptGroups: true, enableFiltering: true, enableCaseInsensitiveFiltering: true, filterPlaceholder: '型式名で絞り込み', collapseOptGroupsByDefault: true }));
         $('#OperationCode').multiselect(ms({ enableClickableOptGroups: true, enableCollapsibleOptGroups: true }));
@@ -153,46 +165,52 @@
 
         @if (!string.IsNullOrEmpty(Model.TypeDetail))
         {
-            @:$('#TypeDetail').multiselect('select', "@Model.TypeDetail".split("|"));
+            @:msSelect('TypeDetail', "@Model.TypeDetail".split("|"));
         }
         @if (!string.IsNullOrEmpty(Model.Airline))
         {
-            @:$('#Airline').multiselect('select', "@Model.Airline".split("|"));
+            @:msSelect('Airline', "@Model.Airline".split("|"));
         }
         @if (!string.IsNullOrEmpty(Model.OperationCode))
         {
-            @:$('#OperationCode').multiselect('select', "@Model.OperationCode".split("|"));
+            @:msSelect('OperationCode', "@Model.OperationCode".split("|"));
         }
         @if (!string.IsNullOrEmpty(Model.RegistrationSelection))
         {
-            @:$('#RegistrationSelection').val("@Model.RegistrationSelection");
+            @:byId('RegistrationSelection').value = "@Model.RegistrationSelection";
         }
         @if (!string.IsNullOrEmpty(Model.WiFiCode))
         {
-            @:$('#WiFiCode').multiselect('select', "@Model.WiFiCode".split("|"));
+            @:msSelect('WiFiCode', "@Model.WiFiCode".split("|"));
         }
         @if (!string.IsNullOrEmpty(Model.Remarks))
         {
-            @:$('#RemarksList').val("@Model.Remarks");
+            @:byId('RemarksList').value = "@Model.Remarks";
             @:syncKeyword('#RemarksList', '#RemarksKeyword', REMARKS_KEYWORD);
         }
         @if (!string.IsNullOrEmpty(Model.SpecialLivery))
         {
-            @:$('#SpecialLiveryList').val("@Model.SpecialLivery");
+            @:byId('SpecialLiveryList').value = "@Model.SpecialLivery";
             @:syncKeyword('#SpecialLiveryList', '#SpecialLiveryKeyword', LIVERY_KEYWORD);
         }
         @if (!string.IsNullOrEmpty(Model.RegistrationDate))
         {
-            @:$('#RegistrationDate').val("@Model.RegistrationDate.Replace("/","-")");
+            @:byId('RegistrationDate').value = "@Model.RegistrationDate.Replace("/","-")";
         }
         @if (!string.IsNullOrEmpty(Model.DeregistrationDate))
         {
-            @:$('#DeregistrationDate').val("@Model.DeregistrationDate.Replace("/","-")");
+            @:byId('DeregistrationDate').value = "@Model.DeregistrationDate.Replace("/","-")";
         }
         @if (!string.IsNullOrEmpty(Model.DeregistrationSelection))
         {
-            @:$('#DeregistrationSelection').val("@Model.DeregistrationSelection");
+            @:byId('DeregistrationSelection').value = "@Model.DeregistrationSelection";
         }
+
+        // multiselect は選び直したときの change を jQuery の trigger で出すので、ネイティブの
+        // addEventListener には届かない。保存済みの条件のプルダウンだけは jQuery で受ける
+        $('#PresetSearchCondition').on('change', function () {
+            byId('presetDisp').disabled = byId('PresetSearchCondition').value == "";
+        });
 
         fleet = FleetList.create('#SerachResult', {
             isAdmin: @(Model.IsAdmin ? "true" : "false"),
@@ -202,8 +220,12 @@
     });
 
     // ---- 条件の要約（スマホで畳んだときに出す） ----
-    const selectedTexts = function (selector) {
-        return $(selector).find('option:selected').map(function () { return $.trim($(this).text()); }).get().filter(Boolean);
+    const selectedTexts = function (id) {
+        return Array.from(byId(id).selectedOptions).map(function (o) { return o.text.trim(); }).filter(Boolean);
+    };
+    const selectedText = function (id) {
+        const o = byId(id).selectedOptions[0];
+        return o ? o.text : '';
     };
     const shortList = function (list) {
         return list.length <= 2 ? list.join('、') : list.slice(0, 2).join('、') + ' ほか' + (list.length - 2);
@@ -211,81 +233,87 @@
     const buildSummary = function () {
         const chips = [];
         const add = function (label, value) { if (value) { chips.push({ label: label, value: value }); } };
-        add('機体記号', $.trim($('#RegistrationNumber').val()));
-        add('航空会社', shortList(selectedTexts('#Airline')));
-        add('型式', shortList(selectedTexts('#TypeDetail')));
-        add('運用', shortList(selectedTexts('#OperationCode')));
-        add('Wi-Fi', shortList(selectedTexts('#WiFiCode')));
-        if ($('#RegistrationDate').val()) {
-            add('登録', $('#RegistrationDate').val().replace('-', '/') + ' ' + $('#RegistrationSelection option:selected').text());
+        add('機体記号', byId('RegistrationNumber').value.trim());
+        add('航空会社', shortList(selectedTexts('Airline')));
+        add('型式', shortList(selectedTexts('TypeDetail')));
+        add('運用', shortList(selectedTexts('OperationCode')));
+        add('Wi-Fi', shortList(selectedTexts('WiFiCode')));
+        if (byId('RegistrationDate').value) {
+            add('登録', byId('RegistrationDate').value.replace('-', '/') + ' ' + selectedText('RegistrationSelection'));
         }
-        if ($('#DeregistrationDate').val()) {
-            add('抹消', $('#DeregistrationDate').val().replace('-', '/') + ' ' + $('#DeregistrationSelection option:selected').text());
+        if (byId('DeregistrationDate').value) {
+            add('抹消', byId('DeregistrationDate').value.replace('-', '/') + ' ' + selectedText('DeregistrationSelection'));
         }
         const withKeyword = function (selectId, keywordId) {
-            if (!$(selectId).val()) { return ''; }
-            const k = $.trim($(keywordId).val());
-            return $(selectId + ' option:selected').text() + (k && !$(keywordId).prop('disabled') ? '「' + k + '」' : '');
+            if (!byId(selectId).value) { return ''; }
+            const keywordBox = byId(keywordId);
+            const k = keywordBox.value.trim();
+            return selectedText(selectId) + (k && !keywordBox.disabled ? '「' + k + '」' : '');
         };
-        add('特別塗装', withKeyword('#SpecialLiveryList', '#SpecialLiveryKeyword'));
-        add('備考', withKeyword('#RemarksList', '#RemarksKeyword'));
-        const esc = function (s) { return $('<span>').text(s).html(); };
-        $('#sxChips').html(chips.length
+        add('特別塗装', withKeyword('SpecialLiveryList', 'SpecialLiveryKeyword'));
+        add('備考', withKeyword('RemarksList', 'RemarksKeyword'));
+        const esc = function (s) { const span = document.createElement('span'); span.textContent = s; return span.innerHTML; };
+        byId('sxChips').innerHTML = chips.length
             ? chips.map(function (c) { return '<span class="sx-chip"><b>' + esc(c.label) + '</b>' + esc(c.value) + '</span>'; }).join('')
-            : '<span class="sx-chip empty">条件なし（すべての機体）</span>');
+            : '<span class="sx-chip empty">条件なし（すべての機体）</span>';
     };
     const isNarrow = function () { return window.matchMedia('(max-width: 767px)').matches; };
     const collapseForm = function () {
         if (!isNarrow()) { return; }
         buildSummary();
-        $('#sxCard').addClass('is-collapsed');
+        byId('sxCard').classList.add('is-collapsed');
     };
-    $('#sxEdit').on('click', function () {
-        $('#sxCard').removeClass('is-collapsed');
-        $('html, body').animate({ scrollTop: $('#sxCard').offset().top - 90 }, 150);
+    byId('sxEdit').addEventListener('click', function () {
+        const card = byId('sxCard');
+        card.classList.remove('is-collapsed');
+        window.scrollTo({ top: card.getBoundingClientRect().top + window.scrollY - 90, behavior: 'smooth' });
     });
+
+    const showMessage = function (text) {
+        byId('modalMessage').textContent = text;
+        JfUi.modal.show('#modalPart');
+    };
+
+    // 検索条件（保存・登録・検索で共通）
+    const conditionData = function () {
+        return {
+            RegistrationNumber: GetRegistrationNumber(),
+            IsLoading: GetIsLoading(),
+            isDirect: GetIsDirect(),
+            Airline: GetAirline(),
+            TypeDetail: GetType(),
+            OperationCode: GetOperationCode(),
+            RegistrationDate: GetRegistrationDate(),
+            RegistrationSelection: GetRegistrationSelection(),
+            DeregistrationDate: GetDeregistrationDate(),
+            DeregistrationSelection: GetDeregistrationSelection(),
+            WiFiCode: GetWiFiCode(),
+            Remarks: GetRemarks(),
+            RemarksKeyword: GetRemarksKeyword(),
+            SpecialLivery: GetSpecialLivery(),
+            SpecialLiveryKeyword: GetSpecialLiveryKeyword()
+        };
+    };
 
     // 検索して結果を一覧へ出す。開いた直後（isLoading）は URL の sc や直リンクの条件で検索される
     const doSearch = function () {
-        const request = $.ajax({
-            url: '/Search/DoSearch',
-            type: 'POST',
-            dataType: 'json',
-            data: {
-                RegistrationNumber: GetRegistrationNumber(),
-                IsLoading: GetIsLoading(),
-                isDirect: GetIsDirect(),
-                Airline: GetAirline(),
-                TypeDetail: GetType(),
-                OperationCode: GetOperationCode(),
-                RegistrationDate: GetRegistrationDate(),
-                RegistrationSelection: GetRegistrationSelection(),
-                DeregistrationDate: GetDeregistrationDate(),
-                DeregistrationSelection: GetDeregistrationSelection(),
-                WiFiCode: GetWiFiCode(),
-                Remarks: GetRemarks(),
-                RemarksKeyword: GetRemarksKeyword(),
-                SpecialLivery: GetSpecialLivery(),
-                SpecialLiveryKeyword: GetSpecialLiveryKeyword()
-            }
-        }).then(function (d) {
+        const request = JfHttp.post('/Search/DoSearch', conditionData()).then(function (d) {
             if (d.searchConditionKey != "" && !GetIsDirect()) {
                 history.pushState(null, null, "/Search?sc=" + d.searchConditionKey);
             }
             isDirect = false;
             if (d.errorMessage != null) {
-                $('#modalMessage').text(d.errorMessage);
-                JfUi.modal.show('#modalPart');
+                showMessage(d.errorMessage);
             }
             else if (d.resultList.length == 0 && !isLoading) {
-                $('#modalMessage').text("検索結果は0件です。");
-                JfUi.modal.show('#modalPart');
+                showMessage("検索結果は0件です。");
             }
-            $('#PresetSearchCondition').multiselect('select', d.searchConditionKey);
+            msSelect('PresetSearchCondition', d.searchConditionKey);
             return d.resultList;
         });
         const wasLoading = isLoading;
-        fleet.load(request).done(function (list) {
+        fleet.load(request).then(function (list) {
+            if (!list) { return; }
             if (wasLoading && list.length == 0) {
                 fleet.clear();
             } else if (list.length > 0) {
@@ -295,284 +323,229 @@
         });
     }
 
-    $('#serach').click(function () {
+    byId('serach').addEventListener('click', function () {
         isLoading = false;
         fleet.resetSort();
         doSearch();
     });
 
-    $('#RegistrationNumber, #SpecialLiveryKeyword, #RemarksKeyword').keypress(function (e) {
-        if (e.keyCode == 13) {
-            $('#serach').click();
-        }
+    ['RegistrationNumber', 'SpecialLiveryKeyword', 'RemarksKeyword'].forEach(function (id) {
+        byId(id).addEventListener('keydown', function (e) {
+            // 日本語入力の確定の Enter では検索しない
+            if (e.key === 'Enter' && !e.isComposing) {
+                byId('serach').click();
+            }
+        });
     });
 
-    $('#clear').click(function () {
+    byId('clear').addEventListener('click', function () {
         ConditionAllClear();
-        $('#PresetSearchCondition').multiselect('select', '');
+        msSelect('PresetSearchCondition', '');
         $('#PresetSearchCondition').multiselect('rebuild');
         fleet.clear();
         history.pushState(null, null, "/Search");
-        $('#presetDisp').prop("disabled", true);
-        $('#sxCard').removeClass('is-collapsed');
+        byId('presetDisp').disabled = true;
+        byId('sxCard').classList.remove('is-collapsed');
     });
 
-    $('#presetDisp').click(function () {
-        ReloadFromSCKey($('#PresetSearchCondition').val())
+    byId('presetDisp').addEventListener('click', function () {
+        ReloadFromSCKey(byId('PresetSearchCondition').value)
     });
 
-    $('#presetReg').click(function () {
-        $.ajax({
-            url: '/Search/ExistsSeachCondition',
-            type: 'POST',
-            data: {
-                RegistrationNumber: GetRegistrationNumber()
-                , IsLoading: GetIsLoading()
-                , isDirect: GetIsDirect()
-                , Airline: GetAirline()
-                , TypeDetail: GetType()
-                , OperationCode: GetOperationCode()
-                , RegistrationDate: GetRegistrationDate()
-                , RegistrationSelection: GetRegistrationSelection()
-                , DeregistrationDate: GetDeregistrationDate()
-                , DeregistrationSelection: GetDeregistrationSelection()
-                , WiFiCode: GetWiFiCode()
-                , Remarks: GetRemarks()
-                , RemarksKeyword: GetRemarksKeyword()
-                , SpecialLivery: GetSpecialLivery()
-                , SpecialLiveryKeyword: GetSpecialLiveryKeyword()
-            },
-            cache: false
-        }).done(function (data) {
+    const presetResult = function (className, text) {
+        const result = byId('presetResult');
+        result.className = className;
+        result.textContent = text;
+    };
+
+    byId('presetReg').addEventListener('click', function () {
+        JfHttp.post('/Search/ExistsSeachCondition', conditionData()).then(function (data) {
             if (data != "") {
-                $('#modalMessage').text('この検索条件はすでに[' + data + ']として登録されています。');
-                JfUi.modal.show('#modalPart');
+                showMessage('この検索条件はすでに[' + data + ']として登録されています。');
             } else {
-                $("#presetName").val('');
-                $('#presetResult').text('');
-                $('#presetRegModal').show();
-                $('#presetName').attr('readonly',false);
+                byId('presetName').value = '';
+                byId('presetResult').textContent = '';
+                JfDom.show(byId('presetRegModal'));
+                byId('presetName').readOnly = false;
                 JfUi.modal.show('#presetModal');
             }
-        }).fail(function () {
-           alert('検索条件登録のための通信に失敗しました。繰り返し表示される場合は管理人にご連絡ください。')
-       });
+        }, function () {
+            alert('検索条件登録のための通信に失敗しました。繰り返し表示される場合は管理人にご連絡ください。')
+        });
     });
 
-    $('#presetRegModal').click(function () {
-        if ($("#presetName").val() == "") {
-            $('#presetResult').removeClass();
-            $('#presetResult').addClass("text-danger");
-            $('#presetResult').text("名称を入力してください");
-            $("#presetName").focus();
+    byId('presetRegModal').addEventListener('click', function () {
+        if (byId('presetName').value == "") {
+            presetResult('text-danger', '名称を入力してください');
+            byId('presetName').focus();
             return;
         }
-        $.ajax({
-            url: '/Search/RegisterNamedSearchCondition',
-            type: 'POST',
-            data: {
-                RegistrationNumber: GetRegistrationNumber()
-                , IsLoading: GetIsLoading()
-                , isDirect: GetIsDirect()
-                , Airline: GetAirline()
-                , TypeDetail: GetType()
-                , OperationCode: GetOperationCode()
-                , RegistrationDate: GetRegistrationDate()
-                , RegistrationSelection: GetRegistrationSelection()
-                , DeregistrationDate: GetDeregistrationDate()
-                , DeregistrationSelection: GetDeregistrationSelection()
-                , WiFiCode: GetWiFiCode()
-                , Remarks: GetRemarks()
-                , RemarksKeyword: GetRemarksKeyword()
-                , SpecialLivery: GetSpecialLivery()
-                , SpecialLiveryKeyword: GetSpecialLiveryKeyword()
-                , SearchConditionName: $("#presetName").val()
-            },
-            cache: false
-        }).done(function (data) {
-            RefreshPresetSearchCondition(data);
-            $('#presetResult').removeClass();
-            $('#presetResult').addClass("text-primary");
-            $('#presetResult').text("登録しました");
-            $('#presetName').attr('readonly',true);
-            $('#presetRegModal').hide();
-
-        }).fail(function () {
-           alert('検索条件登録に通信に失敗しました。繰り返し表示される場合は管理人にご連絡ください。')
-       });
+        const data = conditionData();
+        data.SearchConditionName = byId('presetName').value;
+        JfHttp.post('/Search/RegisterNamedSearchCondition', data).then(function (key) {
+            RefreshPresetSearchCondition(key);
+            presetResult('text-primary', '登録しました');
+            byId('presetName').readOnly = true;
+            JfDom.hide(byId('presetRegModal'));
+        }, function () {
+            alert('検索条件登録に通信に失敗しました。繰り返し表示される場合は管理人にご連絡ください。')
+        });
     });
 
     const RefreshPresetSearchCondition = function (vKey) {
-        $.ajax({
-        type: 'GET',
-            url: '/Master/NamedSearchCondition/',
-            cache: false
-        }).done(function (data) {
-            $('select#PresetSearchCondition option').remove();
-            $('select#PresetSearchCondition').append($('<option>').text('（選んでください）').attr('value', ''));
-            $.each(data, function (index, sc) {
-                $('select#PresetSearchCondition').append($('<option>').text(sc.searchConditionName).attr('value', sc.searchConditionKey));
+        JfHttp.get('/Master/NamedSearchCondition/').then(function (data) {
+            const select = byId('PresetSearchCondition');
+            select.replaceChildren(new Option('（選んでください）', ''));
+            data.forEach(function (sc) {
+                select.add(new Option(sc.searchConditionName, sc.searchConditionKey));
             });
             $('#PresetSearchCondition').multiselect('rebuild');
-            $('#PresetSearchCondition').multiselect('select',vKey);
+            msSelect('PresetSearchCondition', vKey);
         });
     }
 
-    $(window).on('popstate', function (e) {
+    window.addEventListener('popstate', function () {
         let sc = getParam('sc');
         if (sc != null) {
             isDirect = true;
             ReloadFromSCKey(getParam('sc'));
         } else {
-            $('#clear').click();
+            byId('clear').click();
         }
     });
 
-    const GetRegistrationNumber = function ()  {
-        return $('#RegistrationNumber').val();
+    const GetRegistrationNumber = function () {
+        return byId('RegistrationNumber').value;
     }
 
-    const GetIsLoading = function ()  {
+    const GetIsLoading = function () {
         return isLoading;
     }
 
-    const GetIsDirect = function ()  {
+    const GetIsDirect = function () {
         return isDirect;
     }
 
-    const GetAirline = function ()  {
-        let airline = $('#Airline').val().toString();
-        return airline.replace(/,/g, '|');
+    const GetAirline = function () {
+        return multiValue('Airline');
     }
 
-    const GetType = function ()  {
-        let type = $('#TypeDetail').val().toString();
-        return type.replace(/,/g, '|');
+    const GetType = function () {
+        return multiValue('TypeDetail');
     }
 
-    const GetRegistrationDate = function ()  {
-        return $('#RegistrationDate').val().toString().replace('-', '/');
+    const GetRegistrationDate = function () {
+        return byId('RegistrationDate').value.replace('-', '/');
     }
 
-    const GetRegistrationSelection = function ()  {
-        return $('#RegistrationSelection').val();
+    const GetRegistrationSelection = function () {
+        return byId('RegistrationSelection').value;
     }
 
-    const GetDeregistrationDate = function ()  {
-        return $('#DeregistrationDate').val().toString().replace('-', '/');
+    const GetDeregistrationDate = function () {
+        return byId('DeregistrationDate').value.replace('-', '/');
     }
 
-    const GetDeregistrationSelection = function ()  {
-        return $('#DeregistrationSelection').val();
+    const GetDeregistrationSelection = function () {
+        return byId('DeregistrationSelection').value;
     }
 
-    const GetWiFiCode = function ()  {
-        let type = $('#WiFiCode').val().toString();
-        return type.replace(/,/g, '|');
+    const GetWiFiCode = function () {
+        return multiValue('WiFiCode');
     }
 
-    const GetRemarks = function ()  {
-        return $('#RemarksList').val();
+    const GetRemarks = function () {
+        return byId('RemarksList').value;
     }
 
-    const GetSpecialLivery = function ()  {
-        return $('#SpecialLiveryList').val();
+    const GetSpecialLivery = function () {
+        return byId('SpecialLiveryList').value;
     }
 
-    const GetRemarksKeyword = function ()  {
-        return $('#RemarksKeyword').val();
+    const GetRemarksKeyword = function () {
+        return byId('RemarksKeyword').value;
     }
 
-    const GetSpecialLiveryKeyword = function ()  {
-        return $('#SpecialLiveryKeyword').val();
+    const GetSpecialLiveryKeyword = function () {
+        return byId('SpecialLiveryKeyword').value;
     }
 
     const GetOperationCode = function () {
-        let operation = $('#OperationCode').val().toString();
-        return operation.replace(/,/g, '|');
+        return multiValue('OperationCode');
     }
 
+    // 以前は同期通信 (async: false) で取っていたが、ブラウザが非推奨にしているので Promise で返す
     const GetSearchCondition = function (sc) {
-        return $.ajax({
-            type: 'POST',
-            url: '/Search/GetSearchCondition',
-            data: { searchCondition: sc },
-            cache: false,
-            async: false
-        });
+        return JfHttp.post('/Search/GetSearchCondition', { searchCondition: sc });
     }
 
     const ConditionAllClear = function () {
-        $('#RegistrationNumber').val('');
-        $('#Airline').multiselect("deselectAll", false).multiselect("refresh");
-        $('#TypeDetail').multiselect("deselectAll", false).multiselect("refresh");
-        $('#RegistrationDate').val('');
-        $('#RegistrationSelection').val('0');
-        $('#DeregistrationDate').val('');
-        $('#DeregistrationSelection').val('0');
-        $('#OperationCode').multiselect("deselectAll", false).multiselect("refresh");
-        $('#WiFiCode').multiselect("deselectAll", false).multiselect("refresh");
-        $('#SpecialLiveryList').val('');
+        byId('RegistrationNumber').value = '';
+        msClear('Airline');
+        msClear('TypeDetail');
+        byId('RegistrationDate').value = '';
+        byId('RegistrationSelection').value = '0';
+        byId('DeregistrationDate').value = '';
+        byId('DeregistrationSelection').value = '0';
+        msClear('OperationCode');
+        msClear('WiFiCode');
+        byId('SpecialLiveryList').value = '';
         syncKeyword('#SpecialLiveryList', '#SpecialLiveryKeyword', LIVERY_KEYWORD);
-        $('#RemarksList').val('');
+        byId('RemarksList').value = '';
         syncKeyword('#RemarksList', '#RemarksKeyword', REMARKS_KEYWORD);
     }
 
     const ReloadFromSCKey = function (scKey) {
         ConditionAllClear();
-        GetSearchCondition(scKey).done(
-            function (scJson) {
-                if ('RegistrationNumber' in scJson && scJson.RegistrationNumber != null) {
-                    $('#RegistrationNumber').val(scJson.RegistrationNumber);
-                }
-                if (scJson.Airline != null) {
-                    $('#Airline').multiselect('select', scJson.Airline.split("|"));
-                }
-                if (scJson.TypeDetail != null) {
-                    $('#TypeDetail').multiselect('select', scJson.TypeDetail.split("|"));
-                }
-                if (scJson.RegistrationDate != null) {
-                    $('#RegistrationDate').val(scJson.RegistrationDate.replace("/", "-"));
-                }
-                if (scJson.RegistrationSelection != null) {
-                    $('#RegistrationSelection').val(scJson.RegistrationSelection);
-                }
-                if (scJson.DeregistrationDate != null) {
-                    $('#DeregistrationDate').val(scJson.DeregistrationDate.replace("/", "-"));
-                }
-                if (scJson.DeregistrationSelection != null) {
-                    $('#DeregistrationSelection').val(scJson.DeregistrationSelection);
-                }
-                if (scJson.OperationCode != null) {
-                    $('#OperationCode').multiselect('select', scJson.OperationCode.split("|"));
-                }
-                if (scJson.WiFiCode != null) {
-                    $('#WiFiCode').multiselect('select', scJson.WiFiCode.split("|"));
-                }
-                if (scJson.SpecialLivery != null) {
-                    $('#SpecialLiveryList').val(scJson.SpecialLivery);
-                    syncKeyword('#SpecialLiveryList', '#SpecialLiveryKeyword', LIVERY_KEYWORD, scJson.SpecialLiveryKeyword);
-                }
-                if (scJson.Remarks != null) {
-                    $('#RemarksList').val(scJson.Remarks);
-                    syncKeyword('#RemarksList', '#RemarksKeyword', REMARKS_KEYWORD, scJson.RemarksKeyword);
-                }
-                $('#serach').click();
+        GetSearchCondition(scKey).then(function (scJson) {
+            if (typeof scJson === 'string') { scJson = JSON.parse(scJson); }
+            if ('RegistrationNumber' in scJson && scJson.RegistrationNumber != null) {
+                byId('RegistrationNumber').value = scJson.RegistrationNumber;
+            }
+            if (scJson.Airline != null) {
+                msSelect('Airline', scJson.Airline.split("|"));
+            }
+            if (scJson.TypeDetail != null) {
+                msSelect('TypeDetail', scJson.TypeDetail.split("|"));
+            }
+            if (scJson.RegistrationDate != null) {
+                byId('RegistrationDate').value = scJson.RegistrationDate.replace("/", "-");
+            }
+            if (scJson.RegistrationSelection != null) {
+                byId('RegistrationSelection').value = scJson.RegistrationSelection;
+            }
+            if (scJson.DeregistrationDate != null) {
+                byId('DeregistrationDate').value = scJson.DeregistrationDate.replace("/", "-");
+            }
+            if (scJson.DeregistrationSelection != null) {
+                byId('DeregistrationSelection').value = scJson.DeregistrationSelection;
+            }
+            if (scJson.OperationCode != null) {
+                msSelect('OperationCode', scJson.OperationCode.split("|"));
+            }
+            if (scJson.WiFiCode != null) {
+                msSelect('WiFiCode', scJson.WiFiCode.split("|"));
+            }
+            if (scJson.SpecialLivery != null) {
+                byId('SpecialLiveryList').value = scJson.SpecialLivery;
+                syncKeyword('#SpecialLiveryList', '#SpecialLiveryKeyword', LIVERY_KEYWORD, scJson.SpecialLiveryKeyword);
+            }
+            if (scJson.Remarks != null) {
+                byId('RemarksList').value = scJson.Remarks;
+                syncKeyword('#RemarksList', '#RemarksKeyword', REMARKS_KEYWORD, scJson.RemarksKeyword);
+            }
+            byId('serach').click();
         });
     }
 
-    $('#PresetSearchCondition').change(function () {
-        $('#presetDisp').prop("disabled", $('#PresetSearchCondition').val() == "");
-    });
-
-    $('#RemarksList').change(function () {
+    byId('RemarksList').addEventListener('change', function () {
         syncKeyword('#RemarksList', '#RemarksKeyword', REMARKS_KEYWORD);
-        if (!$('#RemarksKeyword').prop('disabled')) { $('#RemarksKeyword').focus(); }
+        if (!byId('RemarksKeyword').disabled) { byId('RemarksKeyword').focus(); }
     });
 
-    $('#SpecialLiveryList').change(function () {
+    byId('SpecialLiveryList').addEventListener('change', function () {
         syncKeyword('#SpecialLiveryList', '#SpecialLiveryKeyword', LIVERY_KEYWORD);
-        if (!$('#SpecialLiveryKeyword').prop('disabled')) { $('#SpecialLiveryKeyword').focus(); }
+        if (!byId('SpecialLiveryKeyword').disabled) { byId('SpecialLiveryKeyword').focus(); }
     });
-    </script>
+</script>
 }

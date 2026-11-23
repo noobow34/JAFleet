@@ -597,11 +597,14 @@
 @section ScriptsPartial{
 <partial name="_BusyOverlayScript" />
 <script>
-    $(function () {
+    JfDom.ready(function () {
+        const byId = function (id) { return document.getElementById(id); };
+        const all = function (selector, root) { return Array.from((root || document).querySelectorAll(selector)); };
+
         // ---- セレクトの選択肢をテンプレートから配る ----
         const templates = {};
-        $('template[data-options]').each(function () {
-            templates[$(this).data('options')] = this.content;
+        all('template[data-options]').forEach(function (t) {
+            templates[t.getAttribute('data-options')] = t.content;
         });
 
         const fillSelect = function (select) {
@@ -612,19 +615,19 @@
             if (selected) { select.value = selected; }
         };
 
-        $('select[data-options]').each(function () { fillSelect(this); });
+        all('select[data-options]').forEach(fillSelect);
 
         // 新しく登録したマスタは、テンプレートと画面内の同じ種類のセレクトすべてに配る
         const addOptionToAll = function (kind, value, text) {
             const optionValue = String(value);
             const selector = 'option[value="' + optionValue.replace(/"/g, '\\"') + '"]';
 
-            $('select[data-options="' + kind + '"]').each(function () {
-                if (this.querySelector(selector)) { return; }
+            all('select[data-options="' + kind + '"]').forEach(function (select) {
+                if (select.querySelector(selector)) { return; }
                 //選択肢を足しただけで選択中の値が変わらないようにしておく
-                const current = this.value;
-                this.add(new Option(text, optionValue));
-                this.value = current;
+                const current = select.value;
+                select.add(new Option(text, optionValue));
+                select.value = current;
             });
 
             const template = templates[kind];
@@ -635,32 +638,40 @@
 
         // ---- 選択件数 ----
         const refreshCount = function () {
-            $('#selectedCount').text($('.imp-select:checked').length);
+            byId('selectedCount').textContent = all('.imp-select:checked').length;
         };
 
         const refreshSectionCounts = function () {
-            $('.imp-section').each(function () {
-                const count = $(this).find('.imp-item').length;
-                $('[data-count-for="' + this.id + '"]').text(count);
-                $(this).find('.imp-section-empty').toggle(count === 0);
+            all('.imp-section').forEach(function (section) {
+                const count = section.querySelectorAll('.imp-item').length;
+                all('[data-count-for="' + section.id + '"]').forEach(function (c) { c.textContent = count; });
+                JfDom.toggle(section.querySelectorAll('.imp-section-empty'), count === 0);
             });
         };
 
-        $('[data-toggle-target]').on('click', function () {
-            const target = $('#' + $(this).data('toggle-target'));
-            target.toggle();
-            $(this).text(target.is(':visible') ? '隠す' : '表示');
+        all('[data-toggle-target]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const target = byId(button.getAttribute('data-toggle-target'));
+                JfDom.toggle(target, !JfDom.visible(target));
+                button.textContent = JfDom.visible(target) ? '隠す' : '表示';
+            });
         });
 
-        $('[data-select-target]').on('click', function () {
-            const target = $('#' + $(this).data('select-target'));
-            target.find('.imp-select').prop('checked', $(this).data('select-value') === 1);
-            refreshCount();
+        all('[data-select-target]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const target = byId(button.getAttribute('data-select-target'));
+                const on = button.getAttribute('data-select-value') === '1';
+                target.querySelectorAll('.imp-select').forEach(function (c) { c.checked = on; });
+                refreshCount();
+            });
         });
 
-        $('#noHistoryAll').on('change', function () {
-            $('.imp-nohistory').prop('checked', $(this).prop('checked'));
-        });
+        const noHistoryAll = byId('noHistoryAll');
+        if (noHistoryAll) {
+            noHistoryAll.addEventListener('change', function () {
+                all('.imp-nohistory').forEach(function (c) { c.checked = noHistoryAll.checked; });
+            });
+        }
 
         // ---- グループの後ろの行へ反映 ----
         // レジの形・Excelの型式・所有者が同じ行（サーバ側でdata-groupを付けてある）は同じ機材のまとまりと
@@ -669,188 +680,209 @@
         // 変わり目の行で選び直せばそこから後ろだけが変わる（Excelのフィルダウンと同じ考え方）。
         // 「対象外」へ外した行は、外した意図を優先して触らない（元の行も対象外なら反映する）。
         // レジの形が同じなら桁数も同じなので、前後は文字列の比較で決まる。
+        const categoryOf = function (row) {
+            const c = row.querySelector('.imp-category');
+            return c ? c.value : '';
+        };
         const followersOf = function (row) {
-            const group = row.attr('data-group');
-            if (!group) { return $(); }
-            const reg = row.attr('data-reg');
-            const sourceOut = row.find('.imp-category').val() === 'OutOfScope';
-            return $('.imp-item').filter(function () {
-                const other = $(this);
-                return other.attr('data-group') === group
-                    && other.attr('data-reg') > reg
-                    && (sourceOut || other.find('.imp-category').val() !== 'OutOfScope');
+            const group = row.getAttribute('data-group');
+            if (!group) { return []; }
+            const reg = row.getAttribute('data-reg');
+            const sourceOut = categoryOf(row) === 'OutOfScope';
+            return all('.imp-item').filter(function (other) {
+                return other.getAttribute('data-group') === group
+                    && other.getAttribute('data-reg') > reg
+                    && (sourceOut || categoryOf(other) !== 'OutOfScope');
             });
         };
 
+        // 数秒出して、ふわっと消す
         const showGroupMessage = function (row, text) {
-            const message = row.find('.imp-group-msg');
-            clearTimeout(message.data('timer'));
-            message.stop(true, true).text(text).show();
-            message.data('timer', setTimeout(function () { message.fadeOut(400); }, 4000));
+            const message = row.querySelector('.imp-group-msg');
+            if (!message) { return; }
+            clearTimeout(message._jfTimer);
+            message.style.transition = '';
+            message.style.opacity = '';
+            message.textContent = text;
+            JfDom.show(message);
+            message._jfTimer = setTimeout(function () {
+                message.style.transition = 'opacity .4s';
+                message.style.opacity = '0';
+                message._jfTimer = setTimeout(function () {
+                    JfDom.hide(message);
+                    message.style.transition = '';
+                    message.style.opacity = '';
+                }, 400);
+            }, 4000);
         };
 
         // 値の書き込みはchangeを発火させないので、ここから先へ連鎖することはない
+        const typeDetailSelectOf = function (row) { return row.querySelector('select[name$=".TypeDetailId"]'); };
         const propagateTypeDetail = function (row) {
-            const value = row.find('select[name$=".TypeDetailId"]').val();
+            const value = typeDetailSelectOf(row).value;
             const followers = followersOf(row);
-            followers.each(function () {
-                const other = $(this);
-                other.find('select[name$=".TypeDetailId"]').val(value);
+            followers.forEach(function (other) {
+                const select = typeDetailSelectOf(other);
+                if (select) { select.value = value; }
                 // 型式が決まった行には、もう新規登録の案内は要らない
-                if (value) { other.find('.imp-addtype').remove(); }
+                if (value) { other.querySelectorAll('.imp-addtype').forEach(function (b) { b.remove(); }); }
             });
             return followers.length;
         };
 
         const propagateSelected = function (row) {
             const followers = followersOf(row);
-            followers.find('.imp-select').prop('checked', row.find('.imp-select').prop('checked'));
+            const checked = row.querySelector('.imp-select').checked;
+            followers.forEach(function (other) {
+                other.querySelectorAll('.imp-select').forEach(function (c) { c.checked = checked; });
+            });
             return followers.length;
         };
 
-        $(document).on('change', 'select[name$=".TypeDetailId"]', function () {
-            const row = $(this).closest('.imp-item');
-            const count = propagateTypeDetail(row);
-            if (count > 0) {
-                showGroupMessage(row, '→ 後ろの ' + count + ' 機にも詳細型式を反映しました');
+        document.addEventListener('change', function (e) {
+            const target = e.target;
+            if (target.matches('select[name$=".TypeDetailId"]')) {
+                const row = target.closest('.imp-item');
+                const count = propagateTypeDetail(row);
+                if (count > 0) {
+                    showGroupMessage(row, '→ 後ろの ' + count + ' 機にも詳細型式を反映しました');
+                }
+            } else if (target.matches('.imp-select')) {
+                const row = target.closest('.imp-item');
+                const count = propagateSelected(row);
+                if (count > 0) {
+                    showGroupMessage(row, '→ 後ろの ' + count + ' 機の選択も' + (target.checked ? '入れました' : '外しました'));
+                }
+                refreshCount();
             }
-        });
-
-        $(document).on('change', '.imp-select', function () {
-            const row = $(this).closest('.imp-item');
-            const count = propagateSelected(row);
-            if (count > 0) {
-                showGroupMessage(row, '→ 後ろの ' + count + ' 機の選択も' + ($(this).prop('checked') ? '入れました' : '外しました'));
-            }
-            refreshCount();
         });
 
         // ---- セクション間の移動 ----
         const sectionIdOf = { 'Ready': 'group-ready', 'Transfer': 'group-transfer', 'NeedsReview': 'group-review', 'OutOfScope': 'group-outofscope' };
-
-        $(document).on('click', '.imp-move', function () {
-            const button = $(this);
-            const row = button.closest('.imp-item');
-            const to = button.data('move-to');
-
-            row.find('.imp-category').val(to);
-            row.removeClass('review outofscope');
-
-            if (to === 'OutOfScope') {
-                row.addClass('outofscope');
-                row.find('.imp-select').prop('checked', false);
-                button.data('move-to', 'NeedsReview').text('→ 要確認に戻す');
-            } else {
-                row.addClass('review');
-                button.data('move-to', 'OutOfScope').text('→ 対象外にする');
-            }
-
-            const target = $('#' + sectionIdOf[to]);
-            target.append(row);
-            if (!target.is(':visible')) {
-                target.show();
-                $('[data-toggle-target="' + target.attr('id') + '"]').text('隠す');
-            }
-
-            refreshSectionCounts();
-            refreshCount();
-        });
 
         // ---- 詳細型式の新規登録モーダル ----
         let targetSelectName = null;
 
         // 詳細型式／型式の2ページを1つのモーダルで切り替える
         const showTypePage = function (isType) {
-            $('#tdPageDetail, #tdFootDetail').toggle(!isType);
-            $('#tdPageType, #tdFootType').toggle(isType);
-            $('#tdTitle').text(isType ? '型式の新規登録' : '詳細型式の新規登録');
+            JfDom.toggle([byId('tdPageDetail'), byId('tdFootDetail')], !isType);
+            JfDom.toggle([byId('tdPageType'), byId('tdFootType')], isType);
+            byId('tdTitle').textContent = isType ? '型式の新規登録' : '詳細型式の新規登録';
         };
 
-        $(document).on('click', '.imp-addtype', function () {
-            targetSelectName = $(this).data('select');
-            $('#tdSource, #tdTypeSource').text($(this).data('source') || '');
-            $('#tdName').val($(this).data('name') || '');
-            $('#tdCode').val($(this).data('name') || '');
-            $('#tdTypeCode').val('');
-            $('#tdError').hide().text('');
-            showTypePage(false);
-            JfUi.modal.show('#typeDetailModal');
+        const showError = function (id, text) { const el = byId(id); el.textContent = text; JfDom.show(el); };
+        const clearError = function (id) { const el = byId(id); JfDom.hide(el); el.textContent = ''; };
+
+        document.addEventListener('click', function (e) {
+            const move = e.target.closest('.imp-move');
+            if (move) {
+                const row = move.closest('.imp-item');
+                const to = move.getAttribute('data-move-to');
+
+                row.querySelector('.imp-category').value = to;
+                row.classList.remove('review', 'outofscope');
+
+                if (to === 'OutOfScope') {
+                    row.classList.add('outofscope');
+                    row.querySelectorAll('.imp-select').forEach(function (c) { c.checked = false; });
+                    move.setAttribute('data-move-to', 'NeedsReview');
+                    move.textContent = '→ 要確認に戻す';
+                } else {
+                    row.classList.add('review');
+                    move.setAttribute('data-move-to', 'OutOfScope');
+                    move.textContent = '→ 対象外にする';
+                }
+
+                const target = byId(sectionIdOf[to]);
+                target.appendChild(row);
+                if (!JfDom.visible(target)) {
+                    JfDom.show(target);
+                    all('[data-toggle-target="' + target.id + '"]').forEach(function (b) { b.textContent = '隠す'; });
+                }
+
+                refreshSectionCounts();
+                refreshCount();
+                return;
+            }
+
+            const add = e.target.closest('.imp-addtype');
+            if (add) {
+                targetSelectName = add.getAttribute('data-select');
+                byId('tdSource').textContent = add.getAttribute('data-source') || '';
+                byId('tdTypeSource').textContent = add.getAttribute('data-source') || '';
+                byId('tdName').value = add.getAttribute('data-name') || '';
+                byId('tdCode').value = add.getAttribute('data-name') || '';
+                byId('tdTypeCode').value = '';
+                clearError('tdError');
+                showTypePage(false);
+                JfUi.modal.show('#typeDetailModal');
+            }
         });
 
         // ---- 型式の新規登録 ----
-        $('#tdAddType').on('click', function () {
-            $('#tdTypeError').hide().text('');
-            $('#tdTypeNewCode').val('');
-            $('#tdTypeNewName').val('');
-            $('#tdTypeNewMaker').val('');
-            $('#tdTypeNewOrder').val('');
+        byId('tdAddType').addEventListener('click', function () {
+            clearError('tdTypeError');
+            ['tdTypeNewCode', 'tdTypeNewName', 'tdTypeNewMaker', 'tdTypeNewOrder'].forEach(function (id) { byId(id).value = ''; });
             showTypePage(true);
         });
 
-        $('#tdTypeBack').on('click', function () { showTypePage(false); });
+        byId('tdTypeBack').addEventListener('click', function () { showTypePage(false); });
 
-        $('#tdTypeSubmit').on('click', function () {
-            const button = $(this);
-            button.prop('disabled', true);
+        const typeSubmit = byId('tdTypeSubmit');
+        typeSubmit.addEventListener('click', function () {
+            typeSubmit.disabled = true;
 
-            $.ajax({
-                url: '/JcabImport/CreateType',
-                type: 'POST',
-                data: {
-                    typeCode: $('#tdTypeNewCode').val(),
-                    typeName: $('#tdTypeNewName').val(),
-                    makerCode: $('#tdTypeNewMaker').val(),
-                    displayOrder: $('#tdTypeNewOrder').val()
-                }
-            }).done(function (data) {
+            JfHttp.post('/JcabImport/CreateType', {
+                typeCode: byId('tdTypeNewCode').value,
+                typeName: byId('tdTypeNewName').value,
+                makerCode: byId('tdTypeNewMaker').value,
+                displayOrder: byId('tdTypeNewOrder').value
+            }).then(function (data) {
                 if (data.error) {
-                    $('#tdTypeError').text(data.error).show();
+                    showError('tdTypeError', data.error);
                     return;
                 }
 
                 // 登録した型式を詳細型式側の選択肢に足して選ばせる
-                const select = $('#tdTypeCode');
-                if (select.find('option[value="' + data.code + '"]').length === 0) {
-                    select.append($('<option>').attr('value', data.code).text(data.name));
+                const select = byId('tdTypeCode');
+                const code = String(data.code);
+                if (!Array.from(select.options).some(function (o) { return o.value === code; })) {
+                    select.add(new Option(data.name, code));
                 }
-                select.val(data.code);
+                select.value = code;
 
                 showTypePage(false);
-            }).fail(function (xhr) {
-                $('#tdTypeError').text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
-            }).always(function () {
-                button.prop('disabled', false);
+            }, function (xhr) {
+                showError('tdTypeError', '登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')');
+            }).then(function () {
+                typeSubmit.disabled = false;
             });
         });
 
-        $('#tdSubmit').on('click', function () {
-            const button = $(this);
-            button.prop('disabled', true);
+        const detailSubmit = byId('tdSubmit');
+        detailSubmit.addEventListener('click', function () {
+            detailSubmit.disabled = true;
 
-            $.ajax({
-                url: '/JcabImport/CreateTypeDetail',
-                type: 'POST',
-                data: {
-                    typeCode: $('#tdTypeCode').val(),
-                    typeDetailCode: $('#tdCode').val(),
-                    typeDetailName: $('#tdName').val()
-                }
-            }).done(function (data) {
+            JfHttp.post('/JcabImport/CreateTypeDetail', {
+                typeCode: byId('tdTypeCode').value,
+                typeDetailCode: byId('tdCode').value,
+                typeDetailName: byId('tdName').value
+            }).then(function (data) {
                 if (data.error) {
-                    $('#tdError').text(data.error).show();
+                    showError('tdError', data.error);
                     return;
                 }
 
                 // 追加した詳細型式は、登録した行だけでなく画面内すべての行から選べるようにする
                 addOptionToAll('typeDetail', data.id, data.name);
 
-                const target = $('select[name="' + targetSelectName + '"]');
-                target.val(data.id);
+                const target = document.querySelector('select[name="' + targetSelectName + '"]');
+                target.value = String(data.id);
 
                 // 型式が決まったので、その行を取込対象にしておく
                 const row = target.closest('.imp-item');
-                row.find('.imp-select').prop('checked', true);
-                row.find('.imp-addtype').remove();
+                row.querySelectorAll('.imp-select').forEach(function (c) { c.checked = true; });
+                row.querySelectorAll('.imp-addtype').forEach(function (b) { b.remove(); });
 
                 // ここはchangeを経由しないので、グループの後ろへの反映もここで行う
                 const count = propagateTypeDetail(row);
@@ -861,10 +893,10 @@
                 refreshCount();
 
                 JfUi.modal.hide('#typeDetailModal');
-            }).fail(function (xhr) {
-                $('#tdError').text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
-            }).always(function () {
-                button.prop('disabled', false);
+            }, function (xhr) {
+                showError('tdError', '登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')');
+            }).then(function () {
+                detailSubmit.disabled = false;
             });
         });
 

@@ -73,7 +73,7 @@
             // "Chicago (ORD)" → { code: "ORD", city: "Chicago" }
             const airport = function (s) {
                 const m = /^(.*)\s*\(([A-Z0-9]{3,4})\)\s*$/.exec(s || '');
-                return m ? { code: m[2], city: $.trim(m[1]) } : { code: '', city: s || '' };
+                return m ? { code: m[2], city: m[1].trim() } : { code: '', city: s || '' };
             };
             const apHtml = function (a) {
                 if (!a.code && !a.city) { return '<span class="nw-none">—</span>'; }
@@ -100,23 +100,33 @@
                 return h + '</div>';
             };
 
+            const byId = function (id) { return document.getElementById(id); };
+            const table = document.querySelectorAll('.nw-table');
+            const body = byId('nwBody');
+            const msg = byId('nwMsg');
+            const count = byId('nwCount');
+            const filter = byId('nwFilter');
+            const fromDate = byId('fromDate');
+            const showMsg = function (text) { msg.textContent = text; JfDom.show(msg); };
+
             const render = function () {
-                const words = $.trim($('#nwFilter').val()).toLowerCase().split(/\s+/).filter(Boolean);
+                const words = filter.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
                 shown = words.length === 0 ? rows : rows.filter(function (r) {
                     return words.every(function (w) { return r._text.indexOf(w) >= 0; });
                 });
-                $('#nwBody').html(shown.map(function (r) { return r._html; }).join(''));
-                $('#nwCount').html(words.length ? '<b>' + shown.length + '</b> / ' + rows.length + ' 機' : '<b>' + rows.length + '</b> 機');
+                body.innerHTML = shown.map(function (r) { return r._html; }).join('');
+                count.innerHTML = words.length ? '<b>' + shown.length + '</b> / ' + rows.length + ' 機' : '<b>' + rows.length + '</b> 機';
                 const empty = shown.length === 0;
-                $('.nw-table').toggle(!empty);
-                $('#nwMsg').toggle(empty).text(rows.length === 0 ? '該当する機体はありません' : '当てはまる機体はありません');
+                JfDom.toggle(table, !empty);
+                JfDom.toggle(msg, empty);
+                msg.textContent = rows.length === 0 ? '該当する機体はありません' : '当てはまる機体はありません';
             };
 
             const load = function () {
-                $('.nw-table').hide();
-                $('#nwMsg').show().text('読み込み中…');
-                $('#nwCount').text('');
-                $.getJSON('/NotWorkingInfo/GetInfo', { fromDate: $('#fromDate').val() }).done(function (data) {
+                JfDom.hide(table);
+                showMsg('読み込み中…');
+                count.textContent = '';
+                JfHttp.get('/NotWorkingInfo/GetInfo', { fromDate: fromDate.value }).then(function (data) {
                     const now = Date.now();
                     rows = data.map(function (r) {
                         r._html = buildRow(r, now);
@@ -125,40 +135,47 @@
                         return r;
                     });
                     render();
-                }).fail(function () {
-                    $('#nwMsg').show().text('読み込めませんでした。時間をおいて開き直してください');
+                }, function () {
+                    showMsg('読み込めませんでした。時間をおいて開き直してください');
                 });
             };
 
-            $('#fromDate').on('change', load);
+            fromDate.addEventListener('change', load);
             let timer = null;
-            $('#nwFilter').on('input', function () { clearTimeout(timer); timer = setTimeout(render, 120); });
+            filter.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(render, 120); });
 
             // 行のどこを押しても機体詳細を開く（FR24 のリンクと、別タブで開くときのレジのリンクはそのまま）
-            $('#nwBody').on('click', 'a.nw-reg', function (e) {
-                if (e.ctrlKey || e.metaKey || e.shiftKey || e.button > 0) { return; }
-                e.preventDefault();
-                openDetail($(this).data('reg'));
-            });
-            $('#nwBody').on('click', '.nw-row', function (e) {
-                if ($(e.target).closest('a').length || String(window.getSelection())) { return; }
-                openDetail($(this).find('a.nw-reg').data('reg'));
+            body.addEventListener('click', function (e) {
+                const regLink = e.target.closest('a.nw-reg');
+                if (regLink) {
+                    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button > 0) { return; }
+                    e.preventDefault();
+                    openDetail(regLink.getAttribute('data-reg'));
+                    return;
+                }
+                const row = e.target.closest('.nw-row');
+                if (!row || e.target.closest('a') || String(window.getSelection())) { return; }
+                openDetail(row.querySelector('a.nw-reg').getAttribute('data-reg'));
             });
 
-            $('#nwExcel').on('click', function () {
+            const excel = byId('nwExcel');
+            excel.addEventListener('click', function () {
                 if (shown.length === 0) { return; }
-                const btn = $(this).prop('disabled', true).text('作成中…');
+                const btn = excel;
+                btn.disabled = true;
+                btn.textContent = '作成中…';
                 const aoa = [['最終稼働日時', '機体記号', '機種', '航空会社', 'From', 'To', '便名', 'ステータス']];
                 shown.forEach(function (r) {
                     aoa.push([r.flightDate, r.registrationNumber, r.typeDetailName, r.airlineNameJpShort, r.fromAp, r.toAp, r.flightNumber, r.status]);
                 });
-                FleetList.exportXlsx(aoa, [20, 10, 16, 14, 24, 24, 10, 26]).always(function () {
-                    btn.prop('disabled', false).text('Excel出力');
+                FleetList.exportXlsx(aoa, [20, 10, 16, 14, 24, 24, 10, 26]).then(function () {
+                    btn.disabled = false;
+                    btn.textContent = 'Excel出力';
                 });
             });
 
             FleetList.syncNavbarOffset();
-            $(window).on('resize', FleetList.syncNavbarOffset);
+            window.addEventListener('resize', FleetList.syncNavbarOffset);
             load();
         })();
     </script>

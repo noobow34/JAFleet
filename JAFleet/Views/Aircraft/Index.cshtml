@@ -29,18 +29,19 @@
 @section ScriptsPartial{
     <script src="~/js/fleet-list.js" asp-append-version="true"></script>
     <script>
-        $(function () {
+        JfDom.ready(function () {
             const api = '@(Model.api)';
             const fleet = FleetList.create('#fleetList', { isAdmin: @(Model.IsAdmin ? "true" : "false") });
+            const includeRetire = document.getElementById('IncludeRetire');
 
             const getIncludeRetire = function () {
-                return $('#IncludeRetire').prop('checked');
+                return includeRetire.checked;
             };
             const load = function () {
-                fleet.load($.getJSON(api + '?includeRetire=' + getIncludeRetire()));
+                fleet.load(JfHttp.get(api + '?includeRetire=' + getIncludeRetire()));
             };
 
-            $('#IncludeRetire').on('change', function () {
+            includeRetire.addEventListener('change', function () {
                 history.pushState(null, null, "?includeRetire=" + getIncludeRetire());
                 load();
             });

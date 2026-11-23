@@ -227,15 +227,18 @@
 
 @section ScriptsPartial {
 <script>
-    $(function () {
+    JfDom.ready(function () {
         //枠はDBに触らず返ってくる。中身だけを取りに行き、届くまでスピナーを出しておく。
         //期間やボットの切り替えは普通のリンクのまま。枠が軽いので読み直しても待たされない
-        $.get('/AccessStats/Data' + location.search)
-            .done(function (html) { $('#stats').html(html); })
-            .fail(function (xhr) {
-                $('#stats').html($('<div class="as-error">')
-                    .text('集計に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')'));
-            });
+        const stats = document.getElementById('stats');
+        JfHttp.get('/AccessStats/Data' + location.search).then(function (html) {
+            stats.innerHTML = html;
+        }, function (xhr) {
+            const error = document.createElement('div');
+            error.className = 'as-error';
+            error.textContent = '集計に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')';
+            stats.replaceChildren(error);
+        });
     });
 </script>
 }

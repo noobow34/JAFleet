@@ -245,34 +245,45 @@
 @section ScriptsPartial{
 <partial name="_BusyOverlayScript" />
 <script>
-    $(function () {
+    JfDom.ready(function () {
+        const byId = function (id) { return document.getElementById(id); };
+
         //Gmailは「探す」を押したときだけ読む。画面を開くたびに叩くと、
         //アップロードで取り込みたいだけのときや開き直すたびに無駄にAPIを呼ぶため
+        const gmailList = byId('gmailList');
+        const gmailQuery = byId('gmailQuery');
         const loadGmail = function () {
-            $('#gmailList').html('<div class="imp-spin">Gmailを見ています…</div>');
-            $.get('@Url.Action("GmailList", "JcabImport")', {
-                query: $('#gmailQuery').val() || '',
+            gmailList.innerHTML = '<div class="imp-spin">Gmailを見ています…</div>';
+            JfHttp.get('@Url.Action("GmailList", "JcabImport")', {
+                query: gmailQuery.value || '',
                 fromAdmin: '@Model.FromAdmin.ToString().ToLowerInvariant()'
-            })
-                .done(function (html) { $('#gmailList').html(html); })
-                .fail(function (xhr) {
-                    $('#gmailList').html($('<div class="imp-mail-error">')
-                        .text('Gmailの一覧を取得できませんでした (' + xhr.status + ' ' + xhr.statusText + ')'));
-                });
+            }).then(function (html) {
+                gmailList.innerHTML = html;
+            }, function (xhr) {
+                const error = document.createElement('div');
+                error.className = 'imp-mail-error';
+                error.textContent = 'Gmailの一覧を取得できませんでした (' + xhr.status + ' ' + xhr.statusText + ')';
+                gmailList.replaceChildren(error);
+            });
         };
 
-        if ($('#gmailQuery').length) {
-            $('#gmailSearch').on('click', loadGmail);
-            $('#gmailQuery').on('keydown', function (e) {
+        if (gmailQuery) {
+            byId('gmailSearch').addEventListener('click', loadGmail);
+            gmailQuery.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') { e.preventDefault(); loadGmail(); }
             });
         }
 
         let shown = false;
+        const sendDate = byId('SendDate');
+        const extension = byId('Extension');
+        const preview = byId('pwPreview');
+        const toggle = byId('pwToggle');
+        if (!sendDate || !extension || !preview || !toggle) { return; }
 
         const buildPassword = function () {
-            const date = ($('#SendDate').val() || '').replace(/-/g, '');
-            const ext = ($('#Extension').val() || '').trim();
+            const date = (sendDate.value || '').replace(/-/g, '');
+            const ext = (extension.value || '').trim();
             if (!date || !ext) { return ''; }
             return date + '_' + ext;
         };
@@ -280,19 +291,22 @@
         const render = function () {
             const pw = buildPassword();
             if (!pw) {
-                $('#pwPreview').text('送信年月日と内線番号を入力してください');
+                preview.textContent = '送信年月日と内線番号を入力してください';
                 return;
             }
-            $('#pwPreview').text(shown ? pw : '*'.repeat(pw.length));
+            preview.textContent = shown ? pw : '*'.repeat(pw.length);
         };
 
-        $('#pwToggle').on('click', function () {
+        toggle.addEventListener('click', function () {
             shown = !shown;
-            $(this).text(shown ? '隠す' : '表示');
+            toggle.textContent = shown ? '隠す' : '表示';
             render();
         });
 
-        $('#SendDate, #Extension').on('input change', render);
+        [sendDate, extension].forEach(function (input) {
+            input.addEventListener('input', render);
+            input.addEventListener('change', render);
+        });
         render();
     });
 </script>

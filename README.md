@@ -624,7 +624,13 @@ IP は携帯回線などで共有されるため、訪問者数は Cookie で数
 - Bootstrap 3 は CSS だけ使う。JS（modal / collapse / dropdown）は `wwwroot/js/jf-ui.js` で置き換えてあり、
   マークアップと `data-toggle` / `data-dismiss` はそのまま動く。スクリプトから開け閉めするときは `JfUi.modal.show(...)` / `hide(...)`、
   開いたあとの処理は `jf:modal-shown` などのイベントで受ける（`site.min.js` に `site.js` と一緒にまとめている）
-- jQuery / bootstrap-multiselect（検索画面）。jQuery は段階的に外している途中
+- 画面のスクリプトは jQuery を使わずに書く。共通の小物は `site.js` にある
+  - 通信は `JfHttp.get(url, params)` / `JfHttp.post(url, data)`（fetch。フォーム形式で送り、JSON なら JSON で返す。
+    失敗時は `status` / `statusText` を持つオブジェクトで reject するので、エラー表示はこれまでと同じ形で書ける）
+  - `JfDom.ready` / `show` / `hide` / `toggle` / `trigger`。値を書き換えたあと change を飛ばすときは
+    `JfDom.trigger(el, 'change')`（ネイティブのイベントなので、どの書き方の処理にも届く）
+- jQuery が残っているのは検索画面の bootstrap-multiselect（jQuery のプラグイン）のためだけ。
+  multiselect は選び直したときの change を jQuery の trigger で出すので、受ける側も jQuery の `.on('change')` で書く必要がある
   - 機体詳細のポップアップは `site.js` の `openPopUp` が `<dialog>` と iframe で開く（magnific-popup は使っていない）
   - 管理画面・更新履歴のレジ補完は `site.js` の `attachRegList` が付ける `<datalist>`（jQuery UI は使っていない）
 - 表はすべて自前の部品（`fleet-list.js` など）で描いており、DataTables・dayjs・clipboard.js は使っていない

@@ -133,18 +133,22 @@
 
 @section ScriptsPartial{
 <script>
-    $(function () {
+    JfDom.ready(function () {
         const copy = function (selector, button) {
-            const text = $(selector).text().trim();
+            const text = document.querySelector(selector).textContent.trim();
             navigator.clipboard.writeText(text).then(function () {
-                const original = $(button).text();
-                $(button).text('コピーしました');
-                setTimeout(function () { $(button).text(original); }, 1500);
+                const original = button.textContent;
+                button.textContent = 'コピーしました';
+                setTimeout(function () { button.textContent = original; }, 1500);
             });
         };
 
-        $('#copyToken').on('click', function () { copy('#token', this); });
-        $('#copyRedirect').on('click', function () { copy('#redirectUri', this); });
+        const bind = function (id, selector) {
+            const button = document.getElementById(id);
+            if (button) { button.addEventListener('click', function () { copy(selector, button); }); }
+        };
+        bind('copyToken', '#token');
+        bind('copyRedirect', '#redirectUri');
     });
 </script>
 }

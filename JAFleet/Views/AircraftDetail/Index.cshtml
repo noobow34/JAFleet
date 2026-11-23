@@ -286,10 +286,11 @@
                 return h + '</tbody></table></div></details>';
             };
 
-            $.getJSON('@(Model.api)').done(function (list) {
-                $('#adHistory').html(list.length ? renderTimeline(list) + renderTable(list) : '<p class="ad-muted">更新履歴はありません</p>');
-            }).fail(function () {
-                $('#adHistory').html('<p class="ad-error">更新履歴を読み込めませんでした。時間をおいて開き直してください</p>');
+            const historyBox = document.getElementById('adHistory');
+            JfHttp.get('@(Model.api)').then(function (list) {
+                historyBox.innerHTML = list.length ? renderTimeline(list) + renderTable(list) : '<p class="ad-muted">更新履歴はありません</p>';
+            }, function () {
+                historyBox.innerHTML = '<p class="ad-error">更新履歴を読み込めませんでした。時間をおいて開き直してください</p>';
             });
 
             // 写真は見えてから読み込む。JetPhotos のページは読み込むと中の要素へフォーカスを当てるため、
@@ -307,17 +308,17 @@
             })();
 
             // 固定ナビバーが折り返して高くなったときに見出しが隠れないよう余白を合わせる（単票編集・一覧と同じ）
-            const nav = $('.navbar-fixed-top');
-            if (nav.length) {
-                const base = parseFloat($('body').css('padding-top')) || 0;
+            const nav = document.querySelector('.navbar-fixed-top');
+            if (nav) {
+                const base = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
                 const sync = function () {
-                    if (nav.find('.navbar-collapse').hasClass('in')) { return; }
-                    const h = nav.outerHeight();
+                    if (nav.querySelector('.navbar-collapse.in')) { return; }
+                    const h = nav.offsetHeight;
                     document.documentElement.style.setProperty('--ad-top', (h + 12) + 'px');
-                    $('body').css('padding-top', Math.max(base, h + 8) + 'px');
+                    document.body.style.paddingTop = Math.max(base, h + 8) + 'px';
                 };
                 sync();
-                $(window).on('resize', sync);
+                window.addEventListener('resize', sync);
             }
         })();
     </script>

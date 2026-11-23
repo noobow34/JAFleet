@@ -470,56 +470,70 @@ JA805A,,65003</div>
 <partial name="_TypeDetailPickerScript" />
 <partial name="_SeatConfigQuickAddScript" />
 <script>
-    $(function () {
-        // ---- 行数の表示 ----
-        const refreshLineCount = function () {
-            const text = $('#InputText').val() || '';
-            const lines = text.split(/\r\n|\r|\n/).filter(function (line) { return line.trim() !== ''; });
-            $('#lineCount').text(lines.length);
+    JfDom.ready(function () {
+        const byId = function (id) { return document.getElementById(id); };
+        const onInputOrChange = function (el, fn) {
+            el.addEventListener('input', fn);
+            el.addEventListener('change', fn);
         };
 
-        $('#InputText').on('input change', refreshLineCount);
+        // ---- 行数の表示 ----
+        const inputText = byId('InputText');
+        const refreshLineCount = function () {
+            const text = inputText.value || '';
+            const lines = text.split(/\r\n|\r|\n/).filter(function (line) { return line.trim() !== ''; });
+            byId('lineCount').textContent = lines.length;
+        };
+
+        onInputOrChange(inputText, refreshLineCount);
         refreshLineCount();
 
         // ---- 選択件数 ----
+        const selectedCount = byId('blkSelectedCount');
         const refreshSelectedCount = function () {
-            $('#blkSelectedCount').text($('.blk-select:checked').length);
+            if (selectedCount) { selectedCount.textContent = document.querySelectorAll('.blk-select:checked').length; }
         };
 
-        $(document).on('change', '.blk-select', refreshSelectedCount);
-
-        $('#blkSelectAll').on('change', function () {
-            $('.blk-select').prop('checked', $(this).prop('checked'));
-            refreshSelectedCount();
+        document.addEventListener('change', function (e) {
+            if (e.target.matches('.blk-select')) { refreshSelectedCount(); }
         });
+
+        const selectAll = byId('blkSelectAll');
+        if (selectAll) {
+            selectAll.addEventListener('change', function () {
+                document.querySelectorAll('.blk-select').forEach(function (c) { c.checked = selectAll.checked; });
+                refreshSelectedCount();
+            });
+        }
 
         refreshSelectedCount();
 
         // ---- 確認した後で入力を触ったら、実行させずに確認し直してもらう ----
         // 確認結果は入力欄を解釈したものなので、ずれたまま実行すると意図しない内容が入る
-        $('#blkForm').find('input, select, textarea').not('.blk-select, #blkSelectAll').on('input change', function () {
-            $('#blkStale').show();
-            $('#blkPreview').css('opacity', .5);
-            $('#blkExecute').prop('disabled', true);
+        byId('blkForm').querySelectorAll('input, select, textarea').forEach(function (field) {
+            if (field.matches('.blk-select, #blkSelectAll')) { return; }
+            onInputOrChange(field, function () {
+                JfDom.show(byId('blkStale'));
+                const preview = byId('blkPreview');
+                if (preview) { preview.style.opacity = .5; }
+                const execute = byId('blkExecute');
+                if (execute) { execute.disabled = true; }
+            });
         });
 
         // ---- コンフィグは航空会社と詳細型式で絞る（/E と同じ） ----
         const recreateSeatConfigList = function () {
-            $.ajax({
-                type: 'GET',
-                url: '/Master/SeatConfiguration/?airline=' + $('#Airline').val() + '&typeDetailId=' + ($('#TypeDetailId').val() || 0),
-                cache: false
-            }).done(function (data) {
-                const select = $('#SeatConfig');
-                select.find('option').remove();
-                select.append($('<option>').text('').attr('value', ''));
-                $.each(data || [], function (index, config) {
-                    select.append($('<option>').text(config.seatConfigLong).attr('value', config.configId));
+            JfHttp.get('/Master/SeatConfiguration/?airline=' + byId('Airline').value + '&typeDetailId=' + (byId('TypeDetailId').value || 0)).then(function (data) {
+                const select = byId('SeatConfig');
+                select.replaceChildren(new Option('', ''));
+                (data || []).forEach(function (config) {
+                    select.add(new Option(config.seatConfigLong, config.configId));
                 });
             });
         };
 
-        $('#Airline, #TypeDetailId').on('change', recreateSeatConfigList);
+        byId('Airline').addEventListener('change', recreateSeatConfigList);
+        byId('TypeDetailId').addEventListener('change', recreateSeatConfigList);
     });
 </script>
 }

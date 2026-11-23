@@ -288,23 +288,32 @@
 
 @section ScriptsPartial{
 <script>
-    $(function () {
+    JfDom.ready(function () {
         // 席数を直したら合計もその場で合わせる。保存前でも見比べられるように。
         const recalc = function (form) {
             let sum = 0;
-            $(form).find('input.seat').each(function () {
-                const value = parseInt($(this).val(), 10);
+            form.querySelectorAll('input.seat').forEach(function (input) {
+                const value = parseInt(input.value, 10);
                 if (!isNaN(value)) { sum += value; }
             });
-            $(form).find('.scm-sum').text(sum === 0 ? '―' : sum);
+            form.querySelectorAll('.scm-sum').forEach(function (s) { s.textContent = sum === 0 ? '―' : sum; });
         };
 
-        $('.scm-row').on('input change', 'input.seat', function () {
-            recalc($(this).closest('form'));
+        document.querySelectorAll('.scm-row').forEach(function (row) {
+            const onSeat = function (e) {
+                if (e.target.matches('input.seat')) { recalc(e.target.closest('form')); }
+            };
+            row.addEventListener('input', onSeat);
+            row.addEventListener('change', onSeat);
         });
 
-        $('.scm-btn.danger').on('click', function () {
-            return confirm('このコンフィグを削除します。よろしいですか？');
+        document.querySelectorAll('.scm-btn.danger').forEach(function (button) {
+            button.addEventListener('click', function (e) {
+                if (!confirm('このコンフィグを削除します。よろしいですか？')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            });
         });
     });
 </script>

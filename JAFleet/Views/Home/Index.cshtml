@@ -150,54 +150,63 @@
 @section ScriptsPartial{
     <script src="~/js/a.js" asp-append-version="true"></script>
     <script>
-        $(function () {
-            recreateTypeList();
-            if (location.hash == "#donate") {
-                JfUi.modal.show('#donate');
-            }
-        });
+        (function () {
+            const quick = document.getElementById('quick');
+            const airline = document.getElementById('Airline');
+            const type = document.getElementById('Type');
 
-        $('#quick').click(function () {
-            $.ajax('/Dummy?quick');
-            let dest = '/Aircraft/Airline/' + $('#Airline').val() + '/' + $('#Type').val();
-            window.location = dest;
-        });
-
-        $('#Airline').change(function () {
-            recreateTypeList();
-        });
-
-        const recreateTypeList = function () {
-            $("#quick").prop("disabled", true);
-            $.ajax({
-            type: 'GET',
-                url: '/Master/AirlineType/' + $('#Airline').val(),
-                cache: false
-            }).done(function (data) {
-                $('select#Type option').remove();
-                $.each(data, function (index, typeList) {
-                    $('select#Type').append($('<option>').text(typeList.typeName).attr('value', typeList.typeCode));
+            const recreateTypeList = function () {
+                quick.disabled = true;
+                JfHttp.get('/Master/AirlineType/' + airline.value).then(function (data) {
+                    type.replaceChildren();
+                    data.forEach(function (typeList) {
+                        type.add(new Option(typeList.typeName, typeList.typeCode));
+                    });
+                    quick.disabled = false;
                 });
-                $("#quick").prop("disabled", false);
-            });
-        };
+            };
 
-        // 機体記号で開く。存在を確かめてから詳細へ（無いレジで 404 の画面を出さないため）
-        $('#regForm').on('submit', function (e) {
-            e.preventDefault();
-            let reg = $.trim($('#regInput').val()).toUpperCase().replace(/\s+/g, '');
-            if (!reg) { $('#regInput').focus(); return; }
-            if (/^[0-9]/.test(reg)) { reg = 'JA' + reg; }
-            const msg = $('#regMsg').removeClass('ng').text('確認しています…');
-            $.getJSON('/api/Reg/' + encodeURIComponent(reg)).done(function (list) {
-                if (list.length > 0) {
-                    window.location = '/AD/' + encodeURIComponent(list[0].registrationNumber);
-                } else {
-                    msg.addClass('ng').html('「' + $('<span>').text(reg).html() + '」は見つかりませんでした。<a href="/Search">検索</a>では正規表現でも探せます');
+            JfDom.ready(function () {
+                recreateTypeList();
+                if (location.hash == "#donate") {
+                    JfUi.modal.show('#donate');
                 }
-            }).fail(function () {
-                msg.addClass('ng').text('確認できませんでした。時間をおいてもう一度お試しください');
             });
-        });
+
+            quick.addEventListener('click', function () {
+                fetch('/Dummy?quick', { cache: 'no-store' });
+                let dest = '/Aircraft/Airline/' + airline.value + '/' + type.value;
+                window.location = dest;
+            });
+
+            airline.addEventListener('change', function () {
+                recreateTypeList();
+            });
+
+            // 機体記号で開く。存在を確かめてから詳細へ（無いレジで 404 の画面を出さないため）
+            const regInput = document.getElementById('regInput');
+            const msg = document.getElementById('regMsg');
+            document.getElementById('regForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                let reg = regInput.value.trim().toUpperCase().replace(/\s+/g, '');
+                if (!reg) { regInput.focus(); return; }
+                if (/^[0-9]/.test(reg)) { reg = 'JA' + reg; }
+                msg.classList.remove('ng');
+                msg.textContent = '確認しています…';
+                JfHttp.get('/api/Reg/' + encodeURIComponent(reg)).then(function (list) {
+                    if (list.length > 0) {
+                        window.location = '/AD/' + encodeURIComponent(list[0].registrationNumber);
+                    } else {
+                        const name = document.createElement('span');
+                        name.textContent = reg;
+                        msg.classList.add('ng');
+                        msg.innerHTML = '「' + name.innerHTML + '」は見つかりませんでした。<a href="/Search">検索</a>では正規表現でも探せます';
+                    }
+                }, function () {
+                    msg.classList.add('ng');
+                    msg.textContent = '確認できませんでした。時間をおいてもう一度お試しください';
+                });
+            });
+        })();
     </script>
 }

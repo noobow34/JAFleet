@@ -520,7 +520,7 @@
 @section ScriptsPartial {
 <partial name="_BusyOverlayScript" />
 <script>
-    $(function () {
+    JfDom.ready(function () {
         //却下や削除は押し間違いで戻せないので確認する。
         //取り消したらぐるぐる（data-busy）まで届かないよう伝播も止める
         //運航開始日が明日以降なら、承認ボタンを「予約」にして押したら何が起きるかを分かるようにする
@@ -529,19 +529,25 @@
             return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         })();
         const refreshStart = function (input) {
-            const row = $(input).closest('.lvn-row');
-            const value = $(input).val();
+            const row = input.closest('.lvn-row');
+            const value = input.value;
             const reserve = value && value >= tomorrow;
-            row.find('.lvn-approve').text(reserve ? '承認（予約）' : '承認');
-            row.find('.lvn-start-note').text(reserve ? value.replace(/-/g, '/') + ' に反映するよう予約します' : '');
+            row.querySelectorAll('.lvn-approve').forEach(function (b) { b.textContent = reserve ? '承認（予約）' : '承認'; });
+            row.querySelectorAll('.lvn-start-note').forEach(function (n) { n.textContent = reserve ? value.replace(/-/g, '/') + ' に反映するよう予約します' : ''; });
         };
-        $('.lvn-start-date').each(function () { refreshStart(this); }).on('change input', function () { refreshStart(this); });
+        document.querySelectorAll('.lvn-start-date').forEach(function (input) {
+            refreshStart(input);
+            input.addEventListener('change', function () { refreshStart(input); });
+            input.addEventListener('input', function () { refreshStart(input); });
+        });
 
-        $('[data-confirm]').on('click', function (e) {
-            if (!confirm($(this).data('confirm'))) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
+        document.querySelectorAll('[data-confirm]').forEach(function (button) {
+            button.addEventListener('click', function (e) {
+                if (!confirm(button.getAttribute('data-confirm'))) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            });
         });
 
         //お試し欄は一番下にあるので、送ったあと（開いた状態で返ってきたとき）はそこまで送る

@@ -268,51 +268,61 @@
 
 @section ScriptsPartial{
 <script>
-    $(function () {
+    JfDom.ready(function () {
+        const reg = document.getElementById('reg');
         const registration = function () {
-            const value = ($('#reg').val() || '').trim().toUpperCase();
+            const value = (reg.value || '').trim().toUpperCase();
             return value === '' ? '' : 'JA' + value;
         };
 
-        $('#editBtn').on('click', function () {
+        document.getElementById('editBtn').addEventListener('click', function () {
             if (registration() !== '') { location.href = '/E/' + registration() + '?fromAdmin=true'; }
         });
 
-        $('#detailBtn').on('click', function () {
+        document.getElementById('detailBtn').addEventListener('click', function () {
             if (registration() !== '') { location.href = '/AD/' + registration() + '?fromAdmin=true'; }
         });
 
         // レジ未入力でも、履歴はレジ検索から始められるので開く
-        $('#historyBtn').on('click', function () {
+        document.getElementById('historyBtn').addEventListener('click', function () {
             location.href = '/AircraftHistory?reg=' + registration() + '&fromAdmin=true';
         });
 
-        $('#reg').on('keydown', function (e) {
-            if (e.key === 'Enter') { $('#editBtn').click(); }
+        reg.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { document.getElementById('editBtn').click(); }
         });
 
-        attachRegList(document.getElementById('reg'));
+        attachRegList(reg);
 
         // タイルからの実行系。結果は対応する枠に出す。
-        $('.adm-tile[data-url]').on('click', function () {
-            const tile = $(this);
-            const result = $(tile.data('result'));
-            const prefix = tile.data('prefix');
-            const payload = tile.data('mode') === undefined ? {} : { mode: tile.data('mode') };
+        document.querySelectorAll('.adm-tile[data-url]').forEach(function (tile) {
+            tile.addEventListener('click', function () {
+                const result = document.querySelector(tile.getAttribute('data-result'));
+                const prefix = tile.getAttribute('data-prefix');
+                const mode = tile.getAttribute('data-mode');
+                const payload = mode === null ? {} : { mode: mode };
 
-            result.removeClass('ok ng').addClass('ok').text('実行中…');
+                result.classList.remove('ok', 'ng');
+                result.classList.add('ok');
+                result.textContent = '実行中…';
 
-            $.ajax({ url: tile.data('url'), type: tile.data('method'), data: payload })
-                .done(function (data) {
+                JfHttp.send(tile.getAttribute('data-method'), tile.getAttribute('data-url'), payload).then(function (data) {
                     const at = new Date().toLocaleTimeString('ja-JP');
                     const text = prefix ? prefix + ': ' + data : data;
-                    result.removeClass('ng').addClass('ok')
-                          .html($('<span>').text(text)).append($('<span class="at">').text(at));
-                })
-                .fail(function (xhr) {
-                    result.removeClass('ok').addClass('ng')
-                          .text('失敗しました (' + xhr.status + ' ' + xhr.statusText + ')');
+                    const body = document.createElement('span');
+                    body.textContent = text;
+                    const time = document.createElement('span');
+                    time.className = 'at';
+                    time.textContent = at;
+                    result.classList.remove('ng');
+                    result.classList.add('ok');
+                    result.replaceChildren(body, time);
+                }, function (xhr) {
+                    result.classList.remove('ok');
+                    result.classList.add('ng');
+                    result.textContent = '失敗しました (' + xhr.status + ' ' + xhr.statusText + ')';
                 });
+            });
         });
     });
 </script>
