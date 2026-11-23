@@ -598,13 +598,13 @@ textarea.ed-input { height: auto; min-height: 76px; resize: vertical; line-heigh
                     storeConfirm.find('.ecf-note').text('「履歴を作成しない」のチェックが外れています。機体詳細の履歴に1件増えます。');
                 }
 
-                storeConfirm.modal('show');
+                JfUi.modal.show(storeConfirm);
             });
 
-            storeConfirm.on('shown.bs.modal', function () { $('#storeConfirmOk').trigger('focus'); });
+            storeConfirm.on('jf:modal-shown', function () { $('#storeConfirmOk').trigger('focus'); });
 
             $('#storeConfirmOk').on('click', function () {
-                storeConfirm.modal('hide');
+                JfUi.modal.hide(storeConfirm);
                 //登録するときだけ詳細ページのURLをクリップボードへ入れる（以前と同じ）。
                 //書き込みは非同期なので、終わってから（失敗しても）送る。返事が来ないときも 1 秒で送る
                 let submitted = false;

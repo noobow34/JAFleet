@@ -71,7 +71,7 @@
 
                 //セレクトだった頃と同じようにchangeを見ている処理があるので飛ばす
                 field.trigger('change');
-                modal.modal('hide');
+                JfUi.modal.hide(modal);
             };
 
             modal.on('click', '.tdp-detail', function () {
@@ -125,7 +125,7 @@
             opener.on('click', function () {
                 showPage('select');
                 refresh();
-                modal.modal('show');
+                JfUi.modal.show(modal);
             });
 
             // ---- 新規登録 ----

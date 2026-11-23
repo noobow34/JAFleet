@@ -36,38 +36,45 @@
     </div>
 
     <script src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-3.4.1.min.js" integrity="sha384-vk5WoKIaW/vJyUAd9n/wmopsmNhiy+L2Z+SBxGYnUkunIxVxAv/UtMOhba/xskxh" crossorigin="anonymous"></script>
-    <script src="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/bootstrap.min.js" crossorigin="anonymous" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"></script>
     <script src="~/js/site.min.js" asp-append-version="true"></script>
     <script>
-        $(function () {
+        (function () {
             // ナビバーのメニュー（スマホ・タブレット）: 開いているあいだは本文を暗くしてスクロールを止め、外を押したら閉じる
-            $('#jfMenu').on('show.bs.collapse', function () { $('body').addClass('jf-menu-open'); })
-                .on('hide.bs.collapse', function () { $('body').removeClass('jf-menu-open'); });
-            $('#jfBackdrop').on('click', function () { $('#jfMenu').collapse('hide'); });
+            const menu = document.getElementById('jfMenu');
+            menu.addEventListener('jf:collapse-show', function () { document.body.classList.add('jf-menu-open'); });
+            menu.addEventListener('jf:collapse-hide', function () { document.body.classList.remove('jf-menu-open'); });
+            document.getElementById('jfBackdrop').addEventListener('click', function () { JfUi.collapse.hide(menu); });
             // メニューからお問い合わせ・LINE を開いたときはメニューを閉じる
-            $('#jfMenu [data-toggle="modal"]').on('click', function () { if ($('#jfMenu').hasClass('in')) { $('#jfMenu').collapse('hide'); } });
+            menu.querySelectorAll('[data-toggle="modal"]').forEach(function (a) {
+                a.addEventListener('click', function () { JfUi.collapse.hide(menu); });
+            });
 
-            $('.modal').on('show.bs.modal', function (e) {
-                let id = $(e.target).attr('id');
-                if ($(e.target).data('loaded') == "") {
-                    let loadtarget = $(e.target).data('loadtarget');
-                    $(e.target).load(loadtarget, function () {
-                        if (id == "sendMessage") {
-                            $('#sendButton').on('click', function () {
-                                sendMessageToMe();
-                            });
-                        }
-                        if (id == "donate") {
-                            $('#mlbl').text(ZGB());
-                        }
-                        $(e.target).data('loaded', '1');
-                    });
+            // LINE・お問い合わせ・寄付のモーダルは、初めて開くときに中身を読み込む
+            document.addEventListener('jf:modal-show', function (e) {
+                const modal = e.target;
+                const id = modal.id;
+                if (modal.dataset.loadtarget && modal.dataset.loaded === '') {
+                    modal.dataset.loaded = 'loading';
+                    fetch(modal.dataset.loadtarget)
+                        .then(function (res) { return res.text(); })
+                        .then(function (html) {
+                            modal.innerHTML = html;
+                            if (id === 'sendMessage') {
+                                document.getElementById('sendButton').addEventListener('click', function () { sendMessageToMe(); });
+                            }
+                            if (id === 'donate') {
+                                document.getElementById('mlbl').textContent = ZGB();
+                            }
+                            modal.dataset.loaded = '1';
+                        })
+                        .catch(function () { modal.dataset.loaded = ''; });
                 }
-                if (id == "sendMessage") {
-                    $('#result').text("");
+                if (id === 'sendMessage') {
+                    const result = document.getElementById('result');
+                    if (result) { result.textContent = ''; }
                 }
             });
-        });
+        })();
     </script>
     @RenderSection("ScriptsPartial", required: false)
 

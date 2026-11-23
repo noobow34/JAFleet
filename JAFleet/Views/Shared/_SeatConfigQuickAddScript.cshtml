@@ -81,7 +81,7 @@
                     error.text('航空会社と詳細型式を先に選んでください。').show();
                 }
 
-                modal.modal('show');
+                JfUi.modal.show(modal);
             });
 
             // ---- 登録 ----
@@ -114,7 +114,7 @@
                     }
                     select.val(String(data.id)).trigger('change');
 
-                    modal.modal('hide');
+                    JfUi.modal.hide(modal);
                 }).fail(function (xhr) {
                     error.text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
                 }).always(function () {

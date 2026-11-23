@@ -8,7 +8,6 @@
 }
 @section CssPartial{
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/0.9.15/css/bootstrap-multiselect.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/magnific-popup.min.css" integrity="sha256-PZLhE6wwMbg4AB3d35ZdBF9HD/dI/y4RazA3iRDurss=" crossorigin="anonymous" />
     <link rel="stylesheet" href="~/css/fleet-list.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/search.css" asp-append-version="true" />
 }
@@ -118,7 +117,6 @@
     </div>
 </div>
 @section ScriptsPartial{
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/jquery.magnific-popup.min.js" integrity="sha256-P93G0oq6PBPWTP1IR8Mz/0jHHUpaWL0aBJTKauisG7Q=" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/0.9.15/js/bootstrap-multiselect.min.js" integrity="sha256-qoj3D1oB1r2TAdqKTYuWObh01rIVC1Gmw9vWp1+q5xw=" crossorigin="anonymous"></script>
     <script src="~/js/fleet-list.js" asp-append-version="true"></script>
     <script>
@@ -277,11 +275,11 @@
             isDirect = false;
             if (d.errorMessage != null) {
                 $('#modalMessage').text(d.errorMessage);
-                $("#modalPart").modal();
+                JfUi.modal.show('#modalPart');
             }
             else if (d.resultList.length == 0 && !isLoading) {
                 $('#modalMessage').text("検索結果は0件です。");
-                $("#modalPart").modal();
+                JfUi.modal.show('#modalPart');
             }
             $('#PresetSearchCondition').multiselect('select', d.searchConditionKey);
             return d.resultList;
@@ -348,13 +346,13 @@
         }).done(function (data) {
             if (data != "") {
                 $('#modalMessage').text('この検索条件はすでに[' + data + ']として登録されています。');
-                $("#modalPart").modal();
+                JfUi.modal.show('#modalPart');
             } else {
                 $("#presetName").val('');
                 $('#presetResult').text('');
                 $('#presetRegModal').show();
                 $('#presetName').attr('readonly',false);
-                $("#presetModal").modal();
+                JfUi.modal.show('#presetModal');
             }
         }).fail(function () {
            alert('検索条件登録のための通信に失敗しました。繰り返し表示される場合は管理人にご連絡ください。')

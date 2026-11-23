@@ -56,7 +56,7 @@
 - バーの幅は Bootstrap の `.container` と同じにして、ロゴの左端を本文の左端に揃えている
 - `body` の上の余白は 64px（バー 56px ＋ 8px）。開いたメニューはバーの外（`position: absolute`）に出すので、
   一覧や詳細がナビバーの高さを測って位置を合わせる処理（`.navbar-fixed-top` を見る）には影響しない
-- 開閉は Bootstrap 3 の collapse / dropdown をそのまま使う。メニューを足すときは 992px で 1 段に収まるかを確かめること
+- 開閉は `wwwroot/js/jf-ui.js`（Bootstrap 3 の collapse / dropdown の代わり。`data-toggle` の書き方はそのまま）で行う。メニューを足すときは 992px で 1 段に収まるかを確かめること
 
 #### 機体一覧の画面
 
@@ -75,7 +75,7 @@
   登録年月日・コンフィグ（席数の合計）・Wi-Fi は新しい・多い順から始まる。値の無い機体は常に後ろ
 - 絞り込み欄は、レジ・試験飛行用レジ・機種・航空会社・製造番号・登録年月日・運用・コンフィグ・特別塗装・備考を
   部分一致で探す（空白区切りで AND）。サーバには問い合わせない
-- 行のどこを押しても機体詳細が開く（中のリンクはそれぞれの動き）。レジは `/AD/{レジ}` への普通のリンクなので、
+- 行のどこを押しても機体詳細が開く（中のリンクはそれぞれの動き）。幅 700px 以上は画面の上に重ねて開き、Esc・背景・右上の × で閉じる。レジは `/AD/{レジ}` への普通のリンクなので、
   Ctrl＋クリックや中クリックで別タブにも開ける。管理者には製造番号が単票編集へのリンクになる
 - データ更新から 1 週間以内の機体は、ピンクの背景と左の線で印を付ける。退役済の機体は文字を薄くする
 - **一覧に抹消済みの機体が 1 機でもあるときだけ「抹消年月日」の列を出す**（退役機を含めた一覧や検索結果など）。
@@ -621,7 +621,12 @@ IP は携帯回線などで共有されるため、訪問者数は Cookie で数
 - Gemini API（特別塗装ニュースの判定。`generateContent` を 1 つ叩くだけなので SDK は入れず `HttpClient` で直接叩く）
 - Gmail API（航空局 Excel の取込元。使うのは 3 つのエンドポイントだけなので SDK は入れず `HttpClient` で直接叩く）
 - AutoMapper、Crc32.NET、BuildBundlerMinifier、WebEssentials.AspNetCore.PWA
-- Bootstrap 3 / jQuery / jQuery UI（管理画面のレジ補完）
+- Bootstrap 3 は CSS だけ使う。JS（modal / collapse / dropdown）は `wwwroot/js/jf-ui.js` で置き換えてあり、
+  マークアップと `data-toggle` / `data-dismiss` はそのまま動く。スクリプトから開け閉めするときは `JfUi.modal.show(...)` / `hide(...)`、
+  開いたあとの処理は `jf:modal-shown` などのイベントで受ける（`site.min.js` に `site.js` と一緒にまとめている）
+- jQuery / bootstrap-multiselect（検索画面）。jQuery は段階的に外している途中
+  - 機体詳細のポップアップは `site.js` の `openPopUp` が `<dialog>` と iframe で開く（magnific-popup は使っていない）
+  - 管理画面・更新履歴のレジ補完は `site.js` の `attachRegList` が付ける `<datalist>`（jQuery UI は使っていない）
 - 表はすべて自前の部品（`fleet-list.js` など）で描いており、DataTables・dayjs・clipboard.js は使っていない
 - SheetJS（一覧・非稼働情報の Excel 出力。押したときだけ cdnjs から読み込む）
 - テストは MSTest

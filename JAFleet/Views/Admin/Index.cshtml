@@ -6,7 +6,6 @@
 }
 
 @section CssPartial {
-<link rel="stylesheet" href="~/lib/jquery-ui/jquery-ui.min.css">
 <style>
 /* ===== 管理コンソール =====
    注意: Bootstrap3 が html{font-size:10px} を設定しているため
@@ -96,7 +95,7 @@
         <div class="adm-reg">
             <div class="adm-reg-input">
                 <span class="adm-prefix">JA</span>
-                <input type="text" id="reg" autocomplete="off" placeholder="226P" />
+                <input type="text" id="reg" placeholder="226P" />
             </div>
             <button type="button" class="adm-btn primary" id="editBtn">編集</button>
             <button type="button" class="adm-btn" id="detailBtn">詳細</button>
@@ -268,7 +267,6 @@
 </div>
 
 @section ScriptsPartial{
-<script src="/lib/jquery-ui/jquery-ui.min.js"></script>
 <script>
     $(function () {
         const registration = function () {
@@ -293,8 +291,7 @@
             if (e.key === 'Enter') { $('#editBtn').click(); }
         });
 
-        $.ajax({ url: '/Master/GetAllReg', dataType: 'json', cache: false })
-            .done(function (data) { $('#reg').autocomplete({ source: data }); });
+        attachRegList(document.getElementById('reg'));
 
         // タイルからの実行系。結果は対応する枠に出す。
         $('.adm-tile[data-url]').on('click', function () {

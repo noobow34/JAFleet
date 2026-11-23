@@ -774,7 +774,7 @@
             $('#tdTypeCode').val('');
             $('#tdError').hide().text('');
             showTypePage(false);
-            $('#typeDetailModal').modal('show');
+            JfUi.modal.show('#typeDetailModal');
         });
 
         // ---- 型式の新規登録 ----
@@ -860,7 +860,7 @@
                 }
                 refreshCount();
 
-                $('#typeDetailModal').modal('hide');
+                JfUi.modal.hide('#typeDetailModal');
             }).fail(function (xhr) {
                 $('#tdError').text('登録に失敗しました (' + xhr.status + ' ' + xhr.statusText + ')').show();
             }).always(function () {

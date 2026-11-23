@@ -34,7 +34,6 @@
 }
 
 @section CssPartial {
-<link rel="stylesheet" href="~/lib/jquery-ui/jquery-ui.min.css">
 <style>
 /* ===== 更新履歴の編集 =====
    注意: Bootstrap3 が html{font-size:10px} を設定しているため
@@ -191,7 +190,7 @@ tr.ahx-detail > td { background: #f8fafc; padding: 12px 14px; }
             <input type="hidden" name="fromAdmin" value="@fromAdmin" />
             <div class="ahx-reg-input">
                 <span class="ahx-prefix">JA</span>
-                <input type="text" id="reg" name="reg" value="@regInput" autocomplete="off" placeholder="226P" />
+                <input type="text" id="reg" name="reg" value="@regInput" placeholder="226P" />
             </div>
             <button type="submit" class="ahx-btn primary tall">履歴を見る</button>
             @if (Model.Reg != null)
@@ -491,13 +490,11 @@ tr.ahx-detail > td { background: #f8fafc; padding: 12px 14px; }
 </div>
 
 @section ScriptsPartial{
-<script src="/lib/jquery-ui/jquery-ui.min.js"></script>
 <partial name="_TypeDetailPickerScript" />
 <partial name="_SeatConfigQuickAddScript" />
 <script>
     $(function () {
-        $.ajax({ url: '/Master/GetAllReg', dataType: 'json', cache: false })
-            .done(function (data) { $('#reg').autocomplete({ source: data }); });
+        attachRegList(document.getElementById('reg'));
 
         // 削除と履歴作成の確認。OKのあとは同じボタンを押し直して、
         // formaction と name/value が付いたそのままの送信にする。
@@ -520,13 +517,13 @@ tr.ahx-detail > td { background: #f8fafc; padding: 12px 14px; }
             dialog.find('.ahx-dlg-note').text(button.attr('data-confirm-note'));
             dialogOk.text(button.attr('data-confirm-ok'))
                     .toggleClass('danger', button.attr('data-confirm-danger') === 'true');
-            dialog.modal('show');
+            JfUi.modal.show(dialog);
         });
 
-        dialog.on('shown.bs.modal', function () { dialogOk.trigger('focus'); });
+        dialog.on('jf:modal-shown', function () { dialogOk.trigger('focus'); });
 
         dialogOk.on('click', function () {
-            dialog.modal('hide');
+            JfUi.modal.hide(dialog);
             allowSubmit = true;
             pending.click();
         });
