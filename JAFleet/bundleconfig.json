@@ -16,5 +16,16 @@
       "renameLocals": true
     },
     "sourceMap": false
+  },
+  {
+    "outputFileName": "wwwroot/js/jf-multiselect.min.js",
+    "inputFiles": [
+      "wwwroot/js/jf-multiselect.js"
+    ],
+    "minify": {
+      "enabled": true,
+      "renameLocals": true
+    },
+    "sourceMap": false
   }
 ]

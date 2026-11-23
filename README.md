@@ -120,8 +120,16 @@
 | タブレット（600〜991px） | 条件を 2 列 |
 | PC（992px〜） | 条件を 3 列（3 段に収まる） |
 
-- 複数選べる項目（航空会社・型式・運用状況・Wi-Fi・保存済みの条件）は bootstrap-multiselect のまま、見た目だけ揃えている。
-  型式と保存済みの条件は名前で絞り込める
+- 複数選べる項目（航空会社・型式・運用状況・Wi-Fi）と保存済みの条件は自前の部品 `wwwroot/js/jf-multiselect.js`
+  （以前の bootstrap-multiselect の代わり。`jf-multiselect.min.js` は BuildBundlerMinifier が作る）。
+  作る DOM は bootstrap-multiselect と同じクラス名なので、`search.css` の `.sx-ms` / `.multiselect-container` がそのまま効く
+  - ボタンは「指定しない」→ 2 つまでは名前 →「N 件を選択」→ 全部なら「すべて」
+  - 航空会社・運用状況・型式はグループ名を押すとまとめて選べ（もう一度押すと外れる）、右の ▼ で畳める（型式は最初から畳んである）
+  - 型式と保存済みの条件は名前で絞り込める。絞り込み中は畳んだグループの中も出す。
+    PC では開くと絞り込み欄にフォーカスし、スマホではしない（キーボードで一覧が隠れないように）
+  - 開け閉めは `jf-ui.js` のドロップダウンに任せている（外を押す・Esc で閉じる）
+  - 選んだ値は元の `<select>` に入れ、人が選び直したときだけネイティブの change を起こす（スクリプトからの `setSelected` では起こさない）。
+    送る値や要約は `<select>` から読む
 - 1 つだけ選ぶ項目（登録年月の範囲・特別塗装・備考）は素の `select` にした（スマホでは OS の選択画面が出る）
 - 特別塗装・備考のキーワード欄は「キーワード指定」を選んだときだけ出る。キーワード欄で Enter を押しても検索する
 - 「登録年月」「抹消年月」は日付の範囲で絞る。「と等しい」はその月、「以前」「以降」はどちらもその月を含む。
@@ -629,8 +637,7 @@ IP は携帯回線などで共有されるため、訪問者数は Cookie で数
     失敗時は `status` / `statusText` を持つオブジェクトで reject するので、エラー表示はこれまでと同じ形で書ける）
   - `JfDom.ready` / `show` / `hide` / `toggle` / `trigger`。値を書き換えたあと change を飛ばすときは
     `JfDom.trigger(el, 'change')`（ネイティブのイベントなので、どの書き方の処理にも届く）
-- jQuery が残っているのは検索画面の bootstrap-multiselect（jQuery のプラグイン）のためだけ。
-  multiselect は選び直したときの change を jQuery の trigger で出すので、受ける側も jQuery の `.on('change')` で書く必要がある
+- jQuery は読み込んでいない（jQuery UI・magnific-popup・Bootstrap の JS・bootstrap-multiselect も外した）
   - 機体詳細のポップアップは `site.js` の `openPopUp` が `<dialog>` と iframe で開く（magnific-popup は使っていない）
   - 管理画面・更新履歴のレジ補完は `site.js` の `attachRegList` が付ける `<datalist>`（jQuery UI は使っていない）
 - 表はすべて自前の部品（`fleet-list.js` など）で描いており、DataTables・dayjs・clipboard.js は使っていない

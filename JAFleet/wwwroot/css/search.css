@@ -2,7 +2,7 @@
  * 検索画面（/Search）の条件フォーム。結果の一覧は fleet-list.css。
  * 注意: Bootstrap3 が html{font-size:10px} を設定しているため rem は使わず px で指定すること。
  * 条件の並びは スマホ（〜599px）1 列、タブレット（600〜991px）2 列、PC（992px〜）3 列。
- * 複数選択は bootstrap-multiselect（ボタンに .sx-ms を付けて見た目を合わせる）、単一選択は素の select。
+ * 複数選択と保存済みの条件は jf-multiselect.js（ボタンに .sx-ms を付けて見た目を合わせる）、ほかの単一選択は素の select。
  */
 .sx { color: #1e293b; padding-top: 4px; }
 .sx-title { margin: 4px 0 12px; font-size: 24px; font-weight: 700; color: #0f172a; }
@@ -38,7 +38,25 @@
 .sx-keyword { margin-top: 6px; }
 .sx-keyword:disabled { display: none; }
 
-/* ---- 複数選択（bootstrap-multiselect）の見た目 ---- */
+/* ---- 複数選択（jf-multiselect.js）の見た目 ----
+   部品が作る DOM は以前の bootstrap-multiselect と同じなので、当時の CSS をそのまま使う。
+   下の「土台」は bootstrap-multiselect.css にあった分のうち使っているもの */
+.multiselect-container { position: absolute; list-style-type: none; margin: 0; padding: 0; }
+.multiselect-container .input-group { margin: 5px; }
+.multiselect-container > li { padding: 0; }
+.multiselect-container > li > a { padding: 0; }
+.multiselect-container > li > a > label { margin: 0; height: 100%; cursor: pointer; font-weight: 400; padding: 3px 20px 3px 40px; }
+.multiselect-container > li > a > label > input[type="checkbox"] { margin-bottom: 5px; }
+.multiselect-container > li.multiselect-group label { margin: 0; padding: 3px 20px; height: 100%; font-weight: 700; }
+.multiselect-container > li.multiselect-group-clickable label { cursor: pointer; }
+.multiselect-container > li.disabled > a > label { cursor: not-allowed; opacity: .5; }
+/* グループ名の右の ▼（畳む／開く）。畳んでいるときは右向き */
+.multiselect-container > li.multiselect-group > a { display: flex; align-items: center; }
+.multiselect-container > li.multiselect-group > a > label { flex: 1; min-width: 0; }
+.multiselect-container .caret-container { flex: 0 0 auto; padding: 6px 12px; cursor: pointer; color: #94a3b8; }
+.multiselect-container .caret-container:hover { color: #1d4ed8; }
+.multiselect-container > li.multiselect-group.is-collapsed .caret { transform: rotate(-90deg); }
+/* 部品が付けた分の上書き（ここから下は以前と同じ） */
 .sx .btn-group { display: block; width: 100%; box-shadow: none; } /* テーマが btn-group に影を付けている */
 .sx-ms {
     position: relative; text-align: left; padding-right: 30px;
@@ -60,6 +78,8 @@
 .sx .multiselect-container > li.active > a > label { color: #1d4ed8; font-weight: 700; }
 .sx .multiselect-container > li.multiselect-group > a > label { padding-left: 12px; font-size: 12px; color: #64748b; }
 .sx .multiselect-container > li.multiselect-group.active > a > label { color: #1d4ed8; }
+/* グループのチェックボックスは見せず、グループ名を押して選ぶ（以前もマイナスの余白で枠の外に出していた）。選んだ状態は文字の色で出す */
+.sx .multiselect-container > li.multiselect-group > a > label > input[type="checkbox"] { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
 .sx .multiselect-container > li.multiselect-filter { padding: 6px 8px 8px; }
 .sx .multiselect-container .input-group { display: flex; width: 100%; }
 .sx .multiselect-container .input-group-addon { display: none; }

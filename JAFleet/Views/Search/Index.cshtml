@@ -7,7 +7,7 @@
     <meta name="description" content="航空会社・型式・運用状況・WiFi搭載状況などの条件で機材（飛行機）を検索するページです。">
 }
 @section CssPartial{
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/0.9.15/css/bootstrap-multiselect.css" />
+
     <link rel="stylesheet" href="~/css/fleet-list.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/search.css" asp-append-version="true" />
 }
@@ -117,7 +117,7 @@
     </div>
 </div>
 @section ScriptsPartial{
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/0.9.15/js/bootstrap-multiselect.min.js" integrity="sha256-qoj3D1oB1r2TAdqKTYuWObh01rIVC1Gmw9vWp1+q5xw=" crossorigin="anonymous"></script>
+    <script src="~/js/jf-multiselect.min.js" asp-append-version="true"></script>
     <script src="~/js/fleet-list.js" asp-append-version="true"></script>
     <script>
     var isLoading = true;
@@ -126,10 +126,10 @@
 
     const byId = function (id) { return document.getElementById(id); };
 
-    // 複数選択のプルダウンは bootstrap-multiselect（jQuery のプラグイン）なので、そこだけ $ を使う。
-    // 見た目は search.css の .sx-ms で揃える
+    // 複数選択のプルダウンは自前の部品（jf-multiselect.js）。選んだ値は元の <select> に入るので、
+    // 送る値や要約は <select> から読む。見た目は search.css の .sx-ms と .multiselect-container で揃える
+    const pickers = {};
     const MS_COMMON = {
-        buttonWidth: '100%',
         buttonClass: 'sx-ms',
         nonSelectedText: '指定しない',
         nSelectedText: ' 件を選択',
@@ -137,9 +137,11 @@
         numberDisplayed: 2,
         maxHeight: 360
     };
-    const ms = function (opt) { return Object.assign({}, MS_COMMON, opt); };
-    const msSelect = function (id, values) { $('#' + id).multiselect('select', values); };
-    const msClear = function (id) { $('#' + id).multiselect('deselectAll', false).multiselect('refresh'); };
+    const createMs = function (id, opt) {
+        pickers[id] = JfMultiSelect.create(byId(id), Object.assign({}, MS_COMMON, opt));
+    };
+    const msSelect = function (id, values) { pickers[id].setSelected(values); };
+    const msClear = function (id) { pickers[id].setSelected([]); };
 
     // 複数選択の値は「|」でつないで送る
     const multiValue = function (id) {
@@ -157,11 +159,11 @@
     };
 
     JfDom.ready(function () {
-        $('#Airline').multiselect(ms({ enableClickableOptGroups: true, enableCollapsibleOptGroups: true }));
-        $('#TypeDetail').multiselect(ms({ enableClickableOptGroups: true, enableCollapsibleOptGroups: true, enableFiltering: true, enableCaseInsensitiveFiltering: true, filterPlaceholder: '型式名で絞り込み', collapseOptGroupsByDefault: true }));
-        $('#OperationCode').multiselect(ms({ enableClickableOptGroups: true, enableCollapsibleOptGroups: true }));
-        $('#WiFiCode').multiselect(ms({}));
-        $('#PresetSearchCondition').multiselect(ms({ enableFiltering: true, enableCaseInsensitiveFiltering: true, filterPlaceholder: '名前で絞り込み', nonSelectedText: '選んでください' }));
+        createMs('Airline', { clickableGroups: true, collapsibleGroups: true });
+        createMs('TypeDetail', { clickableGroups: true, collapsibleGroups: true, collapseGroupsByDefault: true, filter: true, filterPlaceholder: '型式名で絞り込み' });
+        createMs('OperationCode', { clickableGroups: true, collapsibleGroups: true });
+        createMs('WiFiCode', {});
+        createMs('PresetSearchCondition', { filter: true, filterPlaceholder: '名前で絞り込み', nonSelectedText: '選んでください' });
 
         @if (!string.IsNullOrEmpty(Model.TypeDetail))
         {
@@ -206,9 +208,7 @@
             @:byId('DeregistrationSelection').value = "@Model.DeregistrationSelection";
         }
 
-        // multiselect は選び直したときの change を jQuery の trigger で出すので、ネイティブの
-        // addEventListener には届かない。保存済みの条件のプルダウンだけは jQuery で受ける
-        $('#PresetSearchCondition').on('change', function () {
+        byId('PresetSearchCondition').addEventListener('change', function () {
             byId('presetDisp').disabled = byId('PresetSearchCondition').value == "";
         });
 
@@ -341,7 +341,6 @@
     byId('clear').addEventListener('click', function () {
         ConditionAllClear();
         msSelect('PresetSearchCondition', '');
-        $('#PresetSearchCondition').multiselect('rebuild');
         fleet.clear();
         history.pushState(null, null, "/Search");
         byId('presetDisp').disabled = true;
@@ -399,7 +398,7 @@
             data.forEach(function (sc) {
                 select.add(new Option(sc.searchConditionName, sc.searchConditionKey));
             });
-            $('#PresetSearchCondition').multiselect('rebuild');
+            pickers.PresetSearchCondition.rebuild();
             msSelect('PresetSearchCondition', vKey);
         });
     }

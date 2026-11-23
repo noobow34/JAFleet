@@ -3,7 +3,7 @@
 //
 //   JfUi.modal.show(target) / JfUi.modal.hide(target)
 //   JfUi.collapse.show(target) / hide(target) / toggle(target)
-//   target は要素・セレクタ文字列・jQuery オブジェクトのどれでもよい
+//   target は要素かセレクタ文字列
 //
 // 発生するイベント (要素に対して、bubbles):
 //   jf:modal-show (preventDefault で止められる) / jf:modal-shown / jf:modal-hide / jf:modal-hidden
@@ -21,7 +21,6 @@
 
     const resolve = function (target) {
         if (typeof target === 'string') { return document.querySelector(target); }
-        if (target && target.jquery) { return target[0]; }
         return target || null;
     };
 
@@ -276,7 +275,7 @@
         }
 
         // ほかの所を押したら開いているドロップダウンを閉じる (Bootstrap 3 と同じく click で見る)。
-        // 中の入力欄を押したときだけは閉じない。bootstrap-multiselect は中の項目の click を自分で止めている
+        // 中の入力欄を押したときだけは閉じない
         const openParent = e.target.closest('.open');
         const typing = openParent && /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
         closeDropdowns(typing ? openParent : null);
