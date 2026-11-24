@@ -36,7 +36,9 @@ namespace JAFleet.Batch
         {
             var sections = string.Concat(notify.Sections.Select(s => $"{s.Title}:{s.Regs.Count}件\n"));
             return $"RefreshWorkingStatus正常終了:{notify.FinishedAt}\n" +
-                   $"処理時間: {notify.Elapsed},待機秒数: {notify.WaitSeconds}\n" +
+                   (notify.Source == null
+                       ? $"処理時間: {notify.Elapsed},待機秒数: {notify.WaitSeconds}\n"
+                       : $"処理時間: {notify.Elapsed},データ: {notify.Source}\n") +
                    sections +
                    $"<{LogUrl(notify)}|リンク>";
         }
@@ -51,7 +53,9 @@ namespace JAFleet.Batch
                 {
                     Elements = new List<IContextElement>
                     {
-                        new Markdown($"*完了* {notify.FinishedAt}　*処理時間* {notify.Elapsed}　*待機* {notify.WaitSeconds}秒")
+                        new Markdown(notify.Source == null
+                            ? $"*完了* {notify.FinishedAt}　*処理時間* {notify.Elapsed}　*待機* {notify.WaitSeconds}秒"
+                            : $"*完了* {notify.FinishedAt}　*処理時間* {notify.Elapsed}　*データ* {notify.Source}")
                     }
                 }
             };

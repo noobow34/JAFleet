@@ -19,7 +19,8 @@ namespace JAFleet.Batch
         private IEnumerable<AircraftView> _targetRegistrationNumber;
         private int _interval;
         private readonly static TimeSpan CompareTargetTimeSpan = new(2, 0, 0, 0);
-        private static readonly string[] MAINTE_PLACE = ["TPE", "MNL", "XSP", "QPG", "XMN", "SIN", "TNA", "HKG", "OKA", "TNN"];
+        /// <summary>整備拠点の空港（IATA）。到着地がここで非稼働に落ちたら整備入りとみる。adsb.lol 側の判定でも使う</summary>
+        public static readonly string[] MAINTE_PLACE = ["TPE", "MNL", "XSP", "QPG", "XMN", "SIN", "TNA", "HKG", "OKA", "TNN"];
         public static DbContextOptionsBuilder<JAFleetContext>? Options { get; set; }
         public static bool Processing { get; set; } = false;
 
@@ -390,8 +391,8 @@ namespace JAFleet.Batch
             Processing = false;
         }
 
-        /// <summary>空でないセクションだけリスト化するヘルパー</summary>
-        private static List<WorkingCheckLogSectionJson> BuildSections(
+        /// <summary>空でないセクションだけリスト化するヘルパー（adsb.lol 側の判定でも使う）</summary>
+        internal static List<WorkingCheckLogSectionJson> BuildSections(
             params (string title, SortedDictionary<string, WorkingCheckLogEntryJson> dict)[] sections)
         {
             var result = new List<WorkingCheckLogSectionJson>();
@@ -408,7 +409,7 @@ namespace JAFleet.Batch
         }
 
         /// <summary>Slack通知用に空でない区分だけをレジ一覧付きでリスト化するヘルパー</summary>
-        private static List<WorkingStatusNotifySectionJson> BuildNotifySections(
+        internal static List<WorkingStatusNotifySectionJson> BuildNotifySections(
             params (string title, SortedDictionary<string, WorkingCheckLogEntryJson> dict)[] sections)
         {
             var result = new List<WorkingStatusNotifySectionJson>();

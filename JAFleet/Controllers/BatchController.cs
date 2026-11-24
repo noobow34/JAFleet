@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Constants;
 using Noobow.Commons.Utils;
 using JAFleet.Batch;
+using JAFleet.Jobs;
+using JAFleet.Services;
 
 namespace JAFleet.Controllers
 {
@@ -23,6 +25,18 @@ namespace JAFleet.Controllers
             if (!AdminAuth.IsAdmin(HttpContext))
             {
                 return NotFound();
+            }
+
+            //取得元が adsb.lol なら、前日（UTC）分のダンプの取り込みと稼働状況の更新を手動で起動する
+            if (SiteSettings.WorkingStatusSource == WorkingStatusSource.Adsb)
+            {
+                if (RefreshAdsbFlight.Processing)
+                {
+                    return Content("Now Processing!!");
+                }
+                var dataDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+                _ = Task.Run(() => RefreshAdsbFlightJob.RunAsync(dataDate, waitForDump: false));
+                return Content($"RefreshAdsbFlight Launch!（adsb.lol {dataDate:yyyy-MM-dd} UTC。ダンプの取得に10分ほどかかります）");
             }
 
             if (JAFleet.Batch.RefreshWorkingStatusAndPhoto.Processing)

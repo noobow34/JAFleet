@@ -32,7 +32,7 @@ namespace JAFleet.Batch
                 {
                     collector.Add(TraceFile.Parse(hex, content));
                     return Task.CompletedTask;
-                }, ct);
+                }, ct, collector.TestHexes);
                 await SaveAsync(collector, result, dataDate, now, ct);
                 return result;
             }
@@ -63,14 +63,59 @@ namespace JAFleet.Batch
             using var context = new JAFleetContext(options);
             var registrations = (await context.Aircrafts.AsNoTracking().Select(a => a.RegistrationNumber!).ToListAsync(ct))
                 .ToHashSet(StringComparer.Ordinal);
-            var hexToReg = (await context.AircraftHexes.AsNoTracking().ToListAsync(ct))
+            var hexes = await context.AircraftHexes.AsNoTracking().ToListAsync(ct);
+            var hexToReg = hexes
+                .Where(h => registrations.Contains(h.RegistrationNumber))
                 .GroupBy(h => h.IcaoHex, StringComparer.Ordinal)
                 .Where(g => g.Count() == 1) //同じ hex を2機が持っていたら決められないので使わない
                 .ToDictionary(g => g.Key, g => g.Single().RegistrationNumber, StringComparer.Ordinal);
             var resolver = new AirportResolver(
                 await context.Airports.AsNoTracking().ToListAsync(ct),
                 await context.FlightRoutes.AsNoTracking().ToListAsync(ct));
-            return new FlightCollector(registrations, hexToReg, new DailyFlightAnalyzer(resolver), dataDate, now);
+            var testHexToReg = await FindTestHexesAsync(context, hexes, now, ct);
+            return new FlightCollector(registrations, hexToReg, testHexToReg, new DailyFlightAnalyzer(resolver), dataDate, now);
+        }
+
+        /// <summary>
+        /// テストレジ（JA 登録前に使う外国レジ）の hex → 機体記号。aircraft_hex にテストレジの行が無ければ ADSBdb で引いて足す。
+        /// テストレジで飛んでも稼働にはせず、FR24 のときと同じく「テストレジが稼働」として知らせるだけ。
+        /// </summary>
+        private async Task<Dictionary<string, string>> FindTestHexesAsync(JAFleetContext context, List<AircraftHex> hexes,
+            DateTime now, CancellationToken ct)
+        {
+            var tests = await context.Aircrafts.AsNoTracking()
+                .Where(a => a.TestRegistration != null && a.TestRegistration != "")
+                .Select(a => new { Reg = a.RegistrationNumber!, Test = a.TestRegistration! })
+                .ToListAsync(ct);
+            var byReg = hexes.ToDictionary(h => h.RegistrationNumber, StringComparer.Ordinal);
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var t in tests)
+            {
+                string test = t.Test.Trim().ToUpperInvariant();
+                string? hex = byReg.GetValueOrDefault(test)?.IcaoHex;
+                if (hex == null)
+                {
+                    try
+                    {
+                        hex = await AdsbdbClient.FindHexAsync(http, test, ct, japanOnly: false);
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        this.JournalWriteLine($"{t.Reg} のテストレジ {test} を ADSBdb で引けなかった（{ex.StatusCode}）");
+                        continue;
+                    }
+                    if (hex == null)
+                    {
+                        continue;
+                    }
+                    var row = new AircraftHex { RegistrationNumber = test, IcaoHex = hex, Source = AircraftHex.SOURCE_ADSBDB, UpdatedAt = now };
+                    context.AircraftHexes.Add(row);
+                    await context.SaveChangesAsync(ct);
+                    byReg[test] = row;
+                }
+                result[hex] = t.Reg;
+            }
+            return result;
         }
 
         private async Task SaveAsync(FlightCollector collector, AdsbFlightResult result, DateOnly dataDate, DateTime now, CancellationToken ct)
@@ -93,13 +138,18 @@ namespace JAFleet.Batch
             result.FlightCount = collector.Rows.Count;
             result.MatchedByHex = collector.MatchedByHex;
             result.Unmatched = collector.Unmatched;
+            result.TestFlights = collector.TestFlights;
             this.JournalWriteLine(result.ToSummary());
         }
 
         /// <summary>軌跡を1本ずつ受け取り、機体に結び付けてフライトの行にする（軌跡そのものは持ち続けない）</summary>
         public class FlightCollector(ISet<string> registrations, IReadOnlyDictionary<string, string> hexToReg,
-            DailyFlightAnalyzer analyzer, DateOnly dataDate, DateTime now)
+            IReadOnlyDictionary<string, string> testHexToReg, DailyFlightAnalyzer analyzer, DateOnly dataDate, DateTime now)
         {
+            /// <summary>テストレジの hex（日本の範囲の外でもダンプから取り出す）</summary>
+            public IReadOnlySet<string> TestHexes { get; } = testHexToReg.Keys.ToHashSet(StringComparer.Ordinal);
+            /// <summary>テストレジで飛んだ機体（JA の機体記号）→ 最後の離陸時刻（日本時間）</summary>
+            public Dictionary<string, DateTime> TestFlights { get; } = new(StringComparer.Ordinal);
             public ISet<string> Registrations { get; } = registrations;
             public List<AdsbFlight> Rows { get; } = [];
             public List<HexObservation> Observations { get; } = [];
@@ -111,6 +161,15 @@ namespace JAFleet.Batch
 
             public void Add(TraceFile trace)
             {
+                if (testHexToReg.TryGetValue(trace.Hex, out var testOf))
+                {
+                    var legs = FlightLegSplitter.Split(trace.Points);
+                    if (legs.Count > 0)
+                    {
+                        TestFlights[testOf] = DailyFlightAnalyzer.ToJst(legs.Max(l => l.AirborneFrom));
+                    }
+                    return;
+                }
                 if (trace.Registration != null)
                 {
                     Observations.Add(new HexObservation(trace.Hex, trace.Registration));
@@ -148,6 +207,7 @@ namespace JAFleet.Batch
         public int MatchedByHex { get; set; }
         public int Unmatched { get; set; }
         public HexLearnResult? Learned { get; set; }
+        public IReadOnlyDictionary<string, DateTime> TestFlights { get; set; } = new Dictionary<string, DateTime>();
 
         public string ToSummary()
         {

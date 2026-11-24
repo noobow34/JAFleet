@@ -30,5 +30,7 @@ namespace JAFleet.Models
         /// <summary>稼働チェックログ画面へのリンク用（yyyyMMdd）</summary>
         [JsonPropertyName("logDate")]     public string?                             LogDate     { get; init; }
         [JsonPropertyName("sections")]    public List<WorkingStatusNotifySectionJson> Sections   { get; init; } = new();
+        /// <summary>どのデータから作ったか（例「adsb.lol 2026-11-23 UTC」）。FR24 の巡回では入れない</summary>
+        [JsonPropertyName("source")]      public string?                             Source     { get; init; }
     }
 }

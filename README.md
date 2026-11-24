@@ -188,7 +188,7 @@ DB では `date` 型ですが、文字列だったころの API と同じ形を�
 | 特別塗装ニュース | `/LiveryNews` | Aviation Wire の RSS から Gemini が作った特別塗装の更新候補を承認・却下する |
 | マスタ再読込 | `/ReloadMaster` | 航空会社・型式などのマスタとサイト設定をメモリへ読み直す |
 | 定期実行ジョブ | `/Scheduler` | Quartz のジョブの有効・無効と cron 式を変更する |
-| サイト設定 | `/SiteSetting` | 公開メニューの「非稼働情報」の表示・非表示を切り替える（`site_setting` テーブル）。保存するとその場で反映される |
+| サイト設定 | `/SiteSetting` | 稼働状況の取得元（adsb.lol / Flightradar24）と、公開メニューの「非稼働情報」の表示・非表示を切り替える（`site_setting` テーブル）。保存するとその場で反映される |
 | バッチ手動実行 | `/Batch/RefreshWorkingStatusAndPhoto`<br>`/Batch/RefreshPhoto` | 定期ジョブと同じ処理を手動で起動 |
 | アクセスログ | `/log`（本日）、`/logy`（昨日） | 閲覧・検索の記録 |
 | アクセス集計 | `/AccessStats` | `access_log` を集計して PV・訪問者・人気ページなどを表示 |
@@ -718,14 +718,14 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 
 | ジョブ | 内容 |
 | --- | --- |
-| `RefreshWorkingStatusAndPhotoJob` | 退役以外の全機体について Flightradar24 を巡回し、稼働状況と写真を更新。変化を稼働チェックログと Slack 通知用テキストとして記録 |
+| `RefreshWorkingStatusAndPhotoJob` | 退役以外の全機体について Flightradar24 を巡回し、稼働状況と写真を更新。変化を稼働チェックログと Slack 通知用テキストとして記録。**取得元が FR24 のときだけ動く** |
 | `RefreshRetiredAircraftPhotoJob` | 退役・抹消済み機体の写真のみ更新 |
-| `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する |
+| `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する。**取得元が FR24 のときだけ動く**（adsb.lol のときは `RefreshAdsbFlightJob` が投稿する） |
 | `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
 | `ApplyAircraftReservationJob` | 反映日が今日以前の機体更新の予約を反映し、Slack へ知らせる（[機体更新の予約](#機体更新の予約)）。DDL で毎日 0:05 に登録される |
 | `RefreshAircraftHexJob` | adsb.lol の履歴ダンプで機体の hex（ICAO 24bit アドレス）を覚え、残りを ADSBdb で引いて `aircraft_hex` に入れる。結果を Slack へ（[機体の hex](#機体の-hexaircraft_hex)） |
 | `RefreshFlightRouteJob` | VRS standing-data で路線（callsign→空港）と空港の一覧を丸ごと入れ替え、結果を Slack へ。週1回で足りる（[路線と空港](#路線と空港flight_routeairport)） |
-| `RefreshAdsbFlightJob` | adsb.lol の履歴ダンプの前日（UTC）分から日本の機体のフライトを切り出し、`adsb_flight` に入れる。**試運転中で稼働状況（`working_status`）はまだ変えない**。ダンプが無かったときだけ Slack へ（[ダンプからのフライト](#ダンプからのフライトadsb_flight)） |
+| `RefreshAdsbFlightJob` | adsb.lol の履歴ダンプの前日（UTC）分から日本の機体のフライトを切り出して `adsb_flight` に入れ、取得元が adsb.lol なら稼働状況を更新して Slack へ投稿する。ダンプがまだ無ければ 17:00 まで30分おきに待つ（[稼働状況の取得元](#稼働状況の取得元)・[ダンプからのフライト](#ダンプからのフライトadsb_flight)） |
 
 Flightradar24 を巡回する処理（`RefreshWorkingStatusAndPhotoJob`・`RefreshRetiredAircraftPhotoJob` と、管理コンソールからの手動実行）は、**最初の1機で 403 が返ったら
 何も保存せずに中止し、Slack へ通知します**。FR24 は Cloudflare のボット対策でサーバーからのリクエストに
@@ -976,11 +976,45 @@ adsb.lol の履歴ダンプへ移す予定です。ダンプは機体ごとの�
 - 開発DBで流した結果: 路線 6,074 件（`SJO` を足す前。足したあとは 6,176 件。ANA 2,096、JAL 1,810、APJ 519、SKY 340…）、空港 34,128 件。
   路線に出てくる空港コードはすべて空港の表にあった。所要は10秒ほど
 
+### 稼働状況の取得元
+
+Flightradar24（FR24）がサーバーからの自動アクセスを止めた（Cloudflare の 403。規約でも API 以外の自動アクセスは禁止）ので、
+稼働状況は adsb.lol の履歴ダンプから作るように切り替えました。FR24 が使えるようになったときのために、FR24 の巡回は
+消さずに残してあり、`/SiteSetting` の「稼働状況の取得元」で戻せます（`site_setting` の `working_status_source`。
+行が無ければ adsb.lol）。保存すればその場で効き、再起動は要りません。
+
+| | adsb.lol（既定） | FR24 |
+| --- | --- | --- |
+| 稼働状況と稼働チェックログを作る | `RefreshAdsbFlightJob`（毎日 13:00 の想定） | `RefreshWorkingStatusAndPhotoJob`（毎朝） |
+| Slack の稼働通知 | `RefreshAdsbFlightJob` が更新のすぐあと | `NotifyWorkingStatusJob`（毎朝） |
+| もう一方のジョブ | FR24 の2つは何もせずに終わる | `RefreshAdsbFlightJob` は `adsb_flight` の記録だけ続ける |
+| 管理コンソールの「ステータス・写真更新」 | 前日（UTC）分のダンプを取り込み、稼働状況を更新して通知 | FR24 を巡回（いままでどおり） |
+| 写真 | （Step 5 で取得先を決める） | FR24 の巡回のついでに更新 |
+
+FR24 の巡回で使っているのは master の古い HTML の読み方なので、FR24 を戻すときは `fr24-inertia-json` ブランチ
+（いまの FR24 の画面の JSON を読む修正）を取り込んでから切り替えてください。
+
+**adsb.lol での決め方**（`Batch/AdsbWorkingStatus.cs`）。区分・稼働チェックログ・通知の形は FR24 のときと同じです。
+
+- **最後に飛んだ便**: データ日に飛んだ便のうち一番遅いものの出発時刻・出発地・到着地・便名・状態を `working_status` に
+  入れる（流し直しで古い日を入れたときは、新しい便を上書きしない）。飛んでいなければ前の値のまま
+- **稼働**: 最後に飛んだ日が、データの締め（翌日 9:00）の日付から2日以内なら稼働（FR24 のときと同じ日数）。
+  ダンプが1日遅れなので、FR24 のときより変化に気づくのが1日ほど遅い
+- **整備入り**: 稼働から非稼働に落ちたとき、最後の便の到着地が整備拠点（`MAINTE_PLACE` の10空港）なら整備入り。
+  到着地が決まらなかった便は、最後の位置が拠点から150km以内・10,000ft 以下なら整備入りとみる
+- **整備終了**: 整備中の機体がまた稼働になったとき
+- **テストレジ**: JA 登録前の外国レジ（`aircraft.test_registration`）の hex を ADSBdb で引いて `aircraft_hex` に入れ、
+  ダンプから日本の範囲の外でもその hex の軌跡を取り出す。飛んでいたら「テストレジが稼働」に出す（稼働にはしない）
+- **ダンプが遅れたとき**: 17:00 まで30分おきに待ち、それでも無ければ Slack に知らせて稼働状況は書き換えない
+- 通知には「データ adsb.lol 2026-11-23 UTC」のようにどの日のダンプかを出す
+- 非稼働情報（`/NotWorkingInfo`）と稼働チェックログの画面には、ODbL の出典表示（Data: adsb.lol (ODbL 1.0)）を出す
+- 切り替えた日の最初の通知は、FR24 が壊れていたあいだ非稼働に落ちていた機体がまとめて「運用中非稼働が稼働」に出る
+
 ### ダンプからのフライト（`adsb_flight`）
 
 adsb.lol の履歴ダンプ1日（UTC。日本時間ではその日の 9:00〜翌 9:00）分の軌跡を、1機・1本ずつのフライトにした記録です。
-稼働状況（`working_status`）はこのあと、この記録から作るように切り替えます。いまは試運転で、`working_status` と Slack の
-稼働通知には触りません。同じ日を流し直すと、その日の行は入れ替わります。ダンプのレジで `aircraft_hex` も覚えます。
+取得元が adsb.lol のときは、稼働状況（`working_status`）をこの記録から作ります（[稼働状況の取得元](#稼働状況の取得元)）。
+同じ日を流し直すと、その日の行は入れ替わります。ダンプのレジで `aircraft_hex` も覚えます。
 
 - **機体の当て方**: 軌跡のレジ（`r`）が JAFleet にあればそれ。レジが無い・合わないときは `aircraft_hex` の hex で当てる
 - **フライトの区切り**（`Adsb/FlightLegSplitter.cs`）: readsb が付ける「新しい区間」のフラグ、地上から空中に出た所、

@@ -29,6 +29,8 @@
     font-size: 14px; font-weight: 600; color: #334155; cursor: pointer;
 }
 .set-check input { width: 16px; height: 16px; margin: 0; }
+.set-radios { flex-direction: column; align-items: flex-start; gap: 4px; }
+.set-sub { margin-top: 18px; }
 
 .set-btn {
     display: inline-flex; align-items: center; height: 34px; padding: 0 18px;
@@ -73,7 +75,26 @@
     <form class="set-card" method="post" asp-controller="SiteSetting" asp-action="Save">
         <input type="hidden" name="fromAdmin" value="@Model.FromAdmin.ToString().ToLowerInvariant()" />
 
-        <div class="set-name">公開メニュー</div>
+        <div class="set-name">稼働状況の取得元</div>
+        <div class="set-desc">
+            adsb.lol なら <code>RefreshAdsbFlightJob</code> が取り込みのあと稼働状況を更新して Slack に知らせ、
+            FR24 の巡回（<code>RefreshWorkingStatusAndPhotoJob</code>）と朝の通知（<code>NotifyWorkingStatusJob</code>）は何もしません。
+            FR24 にすると逆になります（adsb.lol のフライトの記録だけは続けます）。<br />
+            FR24 はサーバーからの自動アクセスを 403 で止めているので、FR24 に戻すのは FR24 が使えるようになってからにしてください。
+        </div>
+        <div class="set-body set-radios">
+            <label class="set-check">
+                <input type="radio" name="workingStatusSource" value="adsb" checked="@(Model.WorkingStatusSource == JAFleet.Services.WorkingStatusSource.Adsb)" />
+                adsb.lol の履歴ダンプ（毎日 13:00 ごろ、前日分）
+            </label>
+            <label class="set-check">
+                <input type="radio" name="workingStatusSource" value="fr24" checked="@(Model.WorkingStatusSource == JAFleet.Services.WorkingStatusSource.Fr24)" />
+                Flightradar24 の巡回（毎朝、旧方式）
+            </label>
+        </div>
+
+        <div class="set-name set-sub">公開メニュー</div>
+
         <div class="set-desc">
             外しても <code>/NotWorkingInfo</code> のページ自体は開けます（管理コンソールの「非稼働情報」から）。<br />
             稼働状況の取得が止まっているあいだ、正しくない一覧を公開メニューから隠すのに使います。

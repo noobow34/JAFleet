@@ -68,14 +68,19 @@ namespace JAFleet.Adsb
         /// </summary>
         public static string? JapanHexFromEntryName(string entryName)
         {
-            var m = TraceFileName().Match(entryName);
-            if (!m.Success)
+            if (HexFromEntryName(entryName) is not string hex)
             {
                 return null;
             }
-            string hex = m.Groups[1].Value.ToLowerInvariant();
             int value = int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
             return value is >= JAPAN_HEX_FROM and <= JAPAN_HEX_TO ? hex : null;
+        }
+
+        /// <summary>軌跡ファイルなら hex（小文字6桁）を返す。範囲は問わない</summary>
+        public static string? HexFromEntryName(string entryName)
+        {
+            var m = TraceFileName().Match(entryName);
+            return m.Success ? m.Groups[1].Value.ToLowerInvariant() : null;
         }
 
         [GeneratedRegex(@"(?:^|/)trace_full_([0-9a-fA-F]{6})\.json$")]
@@ -86,14 +91,16 @@ namespace JAFleet.Adsb
         /// 中身は gzip のままのバイト列（TraceFile.Parse に渡す）。返り値は読んだ日本の機体の数。
         /// </summary>
         public static async Task<int> ReadJapanTracesAsync(HttpClient http, IReadOnlyList<string> partUrls,
-            Func<string, byte[], Task> onTrace, CancellationToken ct = default)
+            Func<string, byte[], Task> onTrace, CancellationToken ct = default, IReadOnlySet<string>? extraHexes = null)
         {
             using var stream = new ConcatenatedStream(HttpPartOpener(http, partUrls));
-            return await ReadJapanTracesAsync(stream, onTrace, ct);
+            return await ReadJapanTracesAsync(stream, onTrace, ct, extraHexes);
         }
 
         /// <summary>tar のストリームから日本の機体の軌跡ファイルを取り出す（テストではこちらを直接使う）</summary>
-        public static async Task<int> ReadJapanTracesAsync(Stream tarStream, Func<string, byte[], Task> onTrace, CancellationToken ct = default)
+        /// <remarks>extraHexes に入れた hex（テストレジの外国の hex など）も、日本の範囲の外でも取り出す</remarks>
+        public static async Task<int> ReadJapanTracesAsync(Stream tarStream, Func<string, byte[], Task> onTrace, CancellationToken ct = default,
+            IReadOnlySet<string>? extraHexes = null)
         {
             int count = 0;
             using var reader = new TarReader(tarStream, leaveOpen: true);
@@ -104,7 +111,8 @@ namespace JAFleet.Adsb
                 {
                     continue;
                 }
-                string? hex = JapanHexFromEntryName(entry.Name);
+                string? hex = JapanHexFromEntryName(entry.Name)
+                    ?? (extraHexes is { Count: > 0 } && HexFromEntryName(entry.Name) is string any && extraHexes.Contains(any) ? any : null);
                 if (hex == null)
                 {
                     continue; //読み飛ばせば TarReader が次のエントリまで進める

@@ -44,6 +44,14 @@
         <div class="nw-body" id="nwBody" role="rowgroup"></div>
     </div>
     <div class="nw-msg" id="nwMsg">読み込み中…</div>
+    @if (JAFleet.Services.SiteSettings.WorkingStatusSource == JAFleet.Services.WorkingStatusSource.Adsb)
+    {
+        @* adsb.lol の履歴ダンプは ODbL 1.0。使った画面には出典を出す *@
+        <div class="adsb-credit" style="margin:12px 0 0;font-size:12px;color:#94a3b8;">
+            Data: <a href="https://github.com/adsblol/globe_history_2026" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">adsb.lol</a>
+            (<a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">ODbL 1.0</a>)
+        </div>
+    }
 </div>
 
 @section ScriptsPartial{

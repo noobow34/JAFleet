@@ -1,6 +1,8 @@
 ﻿using System.ComponentModel;
 using EnumStringValues;
 using JAFleet.Batch;
+using JAFleet.Services;
+using Noobow.Commons.Extensions;
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
 using Microsoft.EntityFrameworkCore;
@@ -10,11 +12,17 @@ using Quartz;
 
 namespace JAFleet.Jobs
 {
-    [Description("その日の稼働状況の変化をSlackへ投稿する")]
+    [Description("その日の稼働状況の変化をSlackへ投稿する（取得元が FR24 のときだけ。adsb.lol のときは RefreshAdsbFlightJob が投稿する）")]
     public class NotifyWorkingStatusJob : IJob
     {
         public async Task Execute(IJobExecutionContext context)
         {
+            //取得元が adsb.lol のときは、RefreshAdsbFlightJob が取り込みのあとすぐ通知する
+            if (SiteSettings.WorkingStatusSource != WorkingStatusSource.Fr24)
+            {
+                this.JournalWriteLine("稼働状況の取得元が adsb.lol のため、ここでは通知しない（RefreshAdsbFlightJob が通知する）");
+                return;
+            }
             DbContextOptionsBuilder<JAFleetContext>? Options = new();
             Options.UseNpgsql(Environment.GetEnvironmentVariable("JAFLEET_CONNECTION_STRING") ?? "");
             using JAFleetContext jc = new (Options!.Options);
