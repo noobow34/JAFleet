@@ -454,7 +454,6 @@ export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_toke
   ジョブと画面の反映が重ならないよう `AircraftReservationStore.Processing` で見張る。
   反映ジョブがスケジューラに載っていなければ画面に警告が出る
 - 単票編集の画面には、その機体の予約中の更新が上に並び、そこからも取り消せる
-- 反映した機体は写真も取り直す（単票編集と同じ）
 
 #### 型式・詳細型式のその場登録
 
@@ -558,7 +557,7 @@ export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_toke
 - **本文の貼り付けだけでも判定できる**ので、架空のニュースを書いて挙動を確かめられる
   （候補を作るほうは一覧から記事を開けるようにしたいので URL 必須）
 - 「候補を手で作る」は Gemini を通さない。レート制限も課金も気にせず、承認 → `aircraft` の更新 →
-  更新履歴 → 写真の取り直しだけを何度でも試せる。記事欄は「（手動で作った候補）」になり、
+  更新履歴だけを何度でも試せる。記事欄は「（手動で作った候補）」になり、
   URL が `manual:` で始まるため画面ではリンクにしない
 - 試したものは「判定した記事」の**削除**で片付ける。記事と未処理の候補が消え、同じ記事をもう一度
   判定できるようになる（プロンプトを直したあとの再判定にも使う）。
@@ -737,7 +736,7 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | ジョブ | 内容 |
 | --- | --- |
 | `RefreshWorkingStatusAndPhotoJob` | 退役以外の全機体について Flightradar24 を巡回し、稼働状況と写真を更新。変化を稼働チェックログと Slack 通知用テキストとして記録。**取得元が FR24 のときだけ動く** |
-| `RefreshRetiredAircraftPhotoJob` | 退役・抹消済み機体の写真のみ更新 |
+| `RefreshRetiredAircraftPhotoJob` | 退役・抹消済み機体の写真のみ FR24 から更新。**取得元が FR24 のときだけ動く** |
 | `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する。**取得元が FR24 のときだけ動く**（adsb.lol のときは `RefreshAdsbFlightJob` が投稿する） |
 | `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
 | `ApplyAircraftReservationJob` | 反映日が今日以前の機体更新の予約を反映し、Slack へ知らせる（[機体更新の予約](#機体更新の予約)）。DDL で毎日 0:05 に登録される |
@@ -1007,7 +1006,7 @@ Flightradar24（FR24）がサーバーからの自動アクセスを止めた（
 | Slack の稼働通知 | `RefreshAdsbFlightJob` が更新のすぐあと | `NotifyWorkingStatusJob`（毎朝） |
 | もう一方のジョブ | FR24 の2つは何もせずに終わる | `RefreshAdsbFlightJob` は `adsb_flight` の記録だけ続ける |
 | 管理コンソールの「ステータス・写真更新」 | 前日（UTC）分のダンプを取り込み、稼働状況を更新して通知 | FR24 を巡回（いままでどおり） |
-| 写真 | 機体詳細は FR24 の機体ページを埋め込む（DB の写真は使わない） | FR24 の巡回のついでに DB の写真も更新 |
+| 写真（`aircraft_photo`） | 更新しない（写真の更新ジョブと管理コンソールの「写真更新」は何もせず終わる）。DB の写真はどこにも出していない（機体詳細は FR24 の埋め込み、LINE はリンク、OGP は自前のカード画像） | FR24 の巡回のついでに更新 |
 
 FR24 の巡回で使っているのは master の古い HTML の読み方なので、FR24 を戻すときは `fr24-inertia-json` ブランチ
 （いまの FR24 の画面の JSON を読む修正）を取り込んでから切り替えてください。

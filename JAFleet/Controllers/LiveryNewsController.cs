@@ -67,16 +67,6 @@ namespace JAFleet.Controllers
             model.ErrorMessage = result.Error;
             model.ErrorCandidateId = result.ErrorCandidateId;
 
-            //反映した機体の写真も取り直す（単票編集と同じ）
-            if (result.Error == null && !result.Reserved && !string.IsNullOrEmpty(registration))
-            {
-                string? reg = LiveryNewsChecker.NormalizeRegistration(registration);
-                if (reg != null)
-                {
-                    _ = HttpClientManager.GetInstance().GetStringAsync($"http://localhost:5000/Aircraft/Photo/{reg}?force=true");
-                }
-            }
-
             return View("Index", model);
         }
 

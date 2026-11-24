@@ -65,6 +65,12 @@ namespace JAFleet.Controllers
                 return NotFound();
             }
 
+            //写真は FR24 の巡回で取っている。取得元が FR24 でなければ FR24 へ取りに行かない
+            if (SiteSettings.WorkingStatusSource != WorkingStatusSource.Fr24)
+            {
+                return Content("稼働状況の取得元が adsb.lol のため、FR24 からの写真の更新は行いません（サイト設定で FR24 にしたときだけ動きます）");
+            }
+
             if (JAFleet.Batch.RefreshPhoto.Processing)
             {
                 await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), "RefreshPhoto 二重起動を検出");

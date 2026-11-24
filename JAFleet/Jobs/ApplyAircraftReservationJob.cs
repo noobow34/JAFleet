@@ -45,15 +45,6 @@ namespace JAFleet.Jobs
                 }
             }
 
-            //特別塗装などは見た目が変わるので、単票編集と同じく写真も取り直す
-            foreach (string reg in outcomes
-                .Where(o => o.Reservation.Status == Commons.Constants.AircraftReservationStatus.APPLIED)
-                .Select(o => o.Reservation.RegistrationNumber)
-                .Distinct())
-            {
-                _ = Infrastructure.HttpClientManager.GetInstance().GetStringAsync($"http://localhost:5000/Aircraft/Photo/{reg}?force=true");
-            }
-
             return outcomes;
         }
     }

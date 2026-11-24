@@ -120,10 +120,7 @@ namespace JAFleet.Controllers
             model.WiFiList = MasterManager.Wifi!;
             string noheadString = QueryString(model);
 
-            //写真を更新
-            _ = HttpClientManager.GetInstance().GetStringAsync($"http://localhost:5000/Aircraft/Photo/{model.Aircraft!.RegistrationNumber}?force=true");
-
-            return Redirect("/E/" + model.Aircraft.RegistrationNumber + noheadString);
+            return Redirect("/E/" + model.Aircraft!.RegistrationNumber + noheadString);
         }
 
         private static string QueryString(EditModel model)
