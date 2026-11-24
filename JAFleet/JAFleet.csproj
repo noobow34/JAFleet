@@ -70,6 +70,6 @@
   </ItemGroup>
   <ItemGroup>
     <!-- OGP のカード画像（OgCardRenderer）で使うフォント。SIL OFL 1.1 -->
-    <None Update="Fonts\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fonts\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
