@@ -69,8 +69,8 @@ namespace JAFleet.Test
             });
 
             Assert.AreEqual(2, count);
-            Assert.AreEqual(new TraceFile("86dcbc", "JA841A", "DH8D"), read[0]);
-            Assert.AreEqual(new TraceFile("850002", null, null), read[1]);
+            Assert.AreEqual(("86dcbc", "JA841A", "DH8D"), (read[0].Hex, read[0].Registration, read[0].TypeCode));
+            Assert.AreEqual(("850002", (string?)null, (string?)null), (read[1].Hex, read[1].Registration, read[1].TypeCode));
         }
 
         [TestMethod]

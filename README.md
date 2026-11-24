@@ -725,6 +725,7 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | `ApplyAircraftReservationJob` | 反映日が今日以前の機体更新の予約を反映し、Slack へ知らせる（[機体更新の予約](#機体更新の予約)）。DDL で毎日 0:05 に登録される |
 | `RefreshAircraftHexJob` | adsb.lol の履歴ダンプで機体の hex（ICAO 24bit アドレス）を覚え、残りを ADSBdb で引いて `aircraft_hex` に入れる。結果を Slack へ（[機体の hex](#機体の-hexaircraft_hex)） |
 | `RefreshFlightRouteJob` | VRS standing-data で路線（callsign→空港）と空港の一覧を丸ごと入れ替え、結果を Slack へ。週1回で足りる（[路線と空港](#路線と空港flight_routeairport)） |
+| `RefreshAdsbFlightJob` | adsb.lol の履歴ダンプの前日（UTC）分から日本の機体のフライトを切り出し、`adsb_flight` に入れる。**試運転中で稼働状況（`working_status`）はまだ変えない**。ダンプが無かったときだけ Slack へ（[ダンプからのフライト](#ダンプからのフライトadsb_flight)） |
 
 Flightradar24 を巡回する処理（`RefreshWorkingStatusAndPhotoJob`・`RefreshRetiredAircraftPhotoJob` と、管理コンソールからの手動実行）は、**最初の1機で 403 が返ったら
 何も保存せずに中止し、Slack へ通知します**。FR24 は Cloudflare のボット対策でサーバーからのリクエストに
@@ -925,6 +926,9 @@ DB と両方のアプリを同時に切り替える。
 `create_flight_route_airport.sql`（路線と空港の `flight_route`・`airport`）も**デプロイ前**に実行してください。
 テーブルが無いと `RefreshFlightRouteJob` が落ちます（ほかの画面は使わないので影響しません）。
 
+`create_adsb_flight.sql`（ダンプからのフライトの `adsb_flight`）も**デプロイ前**に実行してください。
+テーブルが無いと `RefreshAdsbFlightJob` が落ちます（ほかの画面は使わないので影響しません）。
+
 `create_site_setting.sql`（サイト設定の `site_setting`）は、デプロイの前後どちらでも構いません。
 テーブルが無いあいだは既定値（非稼働情報のメニューは表示）で動き、`/SiteSetting` で保存しようと
 したときだけエラーになります。全ページのレイアウトが読む値なので、起動時とマスタ再読込でメモリへ
@@ -960,7 +964,7 @@ adsb.lol の履歴ダンプへ移す予定です。ダンプは機体ごとの�
 - **元データ**: VRS standing-data（https://github.com/vradarserver/standing-data 、CC0）。リポジトリの tarball
   （約6MB）を1回取って流し、`airports/schema-01/*/*.csv` と `routes/schema-01/*/<航空会社>-all.csv` を拾う
   （`StandingData/VrsStandingData.cs`）。CC0 なので出典の表示は要らない
-- **路線**: JA 機が使う callsign の航空会社（`JAPANESE_CALLSIGN_AIRLINES` の24社）だけ。`airport_codes` は ICAO を
+- **路線**: JA 機が使う callsign の航空会社（`JAPANESE_CALLSIGN_AIRLINES` の25社。春秋航空日本の `SJO` はあとから足した）だけ。`airport_codes` は ICAO を
   飛ぶ順に `-` でつないだもの（経由便は3つ以上）。JAC・NTH（HAC）・CUK は VRS に無い。HAC の `JAL2761` なども
   JAL のファイルに無かったので、こうした便は軌跡の端に一番近い空港で代わりにする想定
 - **空港**: 全世界（約3.4万件、ヘリポートも含む）。都市名は英語で、FR24 と違うことがある（小松は Kanazawa）。
@@ -969,8 +973,41 @@ adsb.lol の履歴ダンプへ移す予定です。ダンプは機体ごとの�
   おかしいとみて入れ替えずに止める
 - VRS の航空会社の表（`airlines.csv`）は日本の会社に誤りがある（`RAC` が Icar Air など）ので使わない
 - `scheduler_def` の行は無いので、`/Scheduler` から有効にする（例 毎週月曜 3:00 は `0 0 3 ? * MON`）
-- 開発DBで流した結果: 路線 6,074 件（ANA 2,096、JAL 1,810、APJ 519、SKY 340…）、空港 34,128 件。
+- 開発DBで流した結果: 路線 6,074 件（`SJO` を足す前。足したあとは 6,176 件。ANA 2,096、JAL 1,810、APJ 519、SKY 340…）、空港 34,128 件。
   路線に出てくる空港コードはすべて空港の表にあった。所要は10秒ほど
+
+### ダンプからのフライト（`adsb_flight`）
+
+adsb.lol の履歴ダンプ1日（UTC。日本時間ではその日の 9:00〜翌 9:00）分の軌跡を、1機・1本ずつのフライトにした記録です。
+稼働状況（`working_status`）はこのあと、この記録から作るように切り替えます。いまは試運転で、`working_status` と Slack の
+稼働通知には触りません。同じ日を流し直すと、その日の行は入れ替わります。ダンプのレジで `aircraft_hex` も覚えます。
+
+- **機体の当て方**: 軌跡のレジ（`r`）が JAFleet にあればそれ。レジが無い・合わないときは `aircraft_hex` の hex で当てる
+- **フライトの区切り**（`Adsb/FlightLegSplitter.cs`）: readsb が付ける「新しい区間」のフラグ、地上から空中に出た所、
+  callsign が別の便に変わった所、低い高度（10,000ft 以下）のまま30分以上途切れた所。空中の点が3つ未満の区間と、
+  地上の点しか無い区間は捨てる。callsign は空中で一番多く出たもの（`@@@@@@@@` のような受信のゴミは無視）
+- **便名**（`Adsb/CallsignConverter.cs`）: callsign の会社3文字を FR24 と同じ2文字にする（`JAL201`→`JL201`、
+  ANA ウイングスの `AKX`→`EH`）。トキエアは FR24 では `CG` だったが、正しい `BV` にする。表に無い会社やレジの
+  callsign はそのまま。JAC のように IATA の形（`JL3724`）で出す機体は、路線を引くときだけ `JAL3724` にする
+- **出発地・到着地**（`Adsb/AirportResolver.cs`）:
+  1. callsign の路線（`flight_route`）の空港が軌跡の端の近くにあればそれ（`route`）。地上・3,000ft 以下の端なら30km、
+     10,000ft 以下なら150km以内。経由便は、隣り合う2空港の組で両端に一番よく合うものを選ぶ
+  2. 端が巡航中（10,000ft より上）で切れていて確かめられなければ、路線どおり（`route_unverified`）
+  3. 路線が無い・合わないときは、端が低ければ一番近い空港（`nearest`。IATA のある空港だけ、地上なら15km・空中なら40km以内）
+  4. それでもだめなら決めない（`none`）
+
+  空中で切れた端は、出発側なら降下中でないこと、到着側なら上昇中でないことも確かめる（空港の近くを降りていく
+  途中から受信が始まった便を、その空港から出たことにしないため）
+- **状態**: 着陸まで追えたら `Landed HH:MM`（日本時間）。接地まで受信できない空港が多いので、到着地を `route`・`nearest` で
+  決められたものも着陸とみる。それ以外は `Last seen HH:MM`
+- 表示は FR24 と同じ「都市名 (IATA)」。`DepartureTime` は最初に空中にいた時刻なので、FR24 の出発時刻（予定）とは
+  数十分ずれる
+- **FR24 との突き合わせ**（開発DB、2026-11-18・19 の UTC 分）: FR24 が壊れる直前に記録していた各機の最後の便
+  558 便のうち、同じ機体・同じ便名の便がダンプにあったのは 504 便。そのうち出発地は 494（98.0%）、到着地は 496（98.4%）が
+  一致した。外れの多くは巡航中に受信が切れて決められなかった便（`none`）。便名が合わなかった 45 便は、その便がダンプに
+  映っていなかったもの・callsign が空のもの・ANA ウイングス（そのあと `EH` に直した）・トキエア（`BV`）
+- 1日分（約800機・約3,000便）の解析と保存は10秒ほど。時間のほとんどはダンプ（約3GiB）の取得
+- `scheduler_def` の行は無いので、`/Scheduler` から有効にする（例 毎日 13:00 は `0 0 13 * * ?`）
 
 主なテーブル・ビューは `JAFleet.Commons` の `JAFleetContext` を参照してください
 （`aircraft`、`aircraft_view`、`aircraft_history`、`aircraft_photo`、`working_status`、

@@ -18,6 +18,7 @@ namespace JAFleet.Test
             CollectionAssert.Contains(names, nameof(CheckSpecialLiveryNewsJob));
             CollectionAssert.Contains(names, nameof(RefreshAircraftHexJob));
             CollectionAssert.Contains(names, nameof(RefreshFlightRouteJob));
+            CollectionAssert.Contains(names, nameof(RefreshAdsbFlightJob));
             Assert.IsTrue(JobCatalog.All.All(j => !string.IsNullOrEmpty(j.Description)), "説明の無いジョブがある");
         }
 

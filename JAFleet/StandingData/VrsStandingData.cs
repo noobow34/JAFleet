@@ -17,14 +17,14 @@ namespace JAFleet.StandingData
         public const string TARBALL_URL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/refs/heads/main";
 
         /// <summary>
-        /// 路線を取り込む callsign の航空会社（ICAO 3文字）。JA 機が使うものだけ。
+        /// 路線を取り込む callsign の航空会社（ICAO 3文字）。JA 機が使うものだけ（25社）。
         /// HAC（NTH）・J-AIR の一部など、自社の callsign を使わない会社は JAL・ANA のファイルに入っている。
         /// VRS に無い会社（JAC・NTH・CUK など）は 0 件のまま。
         /// </summary>
         public static readonly IReadOnlySet<string> JAPANESE_CALLSIGN_AIRLINES = new HashSet<string>(StringComparer.Ordinal)
         {
             "JAL", "ANA", "APJ", "JJP", "SKY", "ADO", "SNJ", "SFJ", "JTA", "RAC", "IBX", "FDA",
-            "JAC", "NTH", "CUK", "AHX", "ORC", "AKX", "JLJ", "NCA", "TZP", "AJX", "TOK", "WAJ",
+            "JAC", "NTH", "CUK", "AHX", "ORC", "AKX", "JLJ", "NCA", "TZP", "AJX", "TOK", "WAJ", "SJO",
         };
 
         /// <summary>読んだ結果</summary>
