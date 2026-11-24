@@ -5,6 +5,7 @@ using JAFleet.Commons.Scraping;
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
 using JAFleet.Models;
+using JAFleet.Services;
 using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Constants;
 using Noobow.Commons.Extensions;
@@ -351,7 +352,8 @@ namespace JAFleet.Batch
             var logJson = new WorkingCheckLogJson
             {
                 FinishedAt = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss"),
-                Sections   = BuildSections(sectionSources)
+                Sections   = BuildSections(sectionSources),
+                Source     = WorkingStatusUpdateInfo.SOURCE_FR24,
             };
 
             var workingCheckLog = new Log

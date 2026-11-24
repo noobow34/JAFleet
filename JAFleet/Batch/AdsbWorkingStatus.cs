@@ -3,6 +3,7 @@ using JAFleet.Adsb;
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
 using JAFleet.Models;
+using JAFleet.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace JAFleet.Batch
@@ -83,6 +84,8 @@ namespace JAFleet.Batch
                 {
                     FinishedAt = now.ToString("yyyy/MM/dd HH:mm:ss"),
                     Sections = RefreshWorkingStatusAndPhoto.BuildSections(sources),
+                    Source = WorkingStatusUpdateInfo.SOURCE_ADSB,
+                    DataDate = dataDate.ToString("yyyy-MM-dd"),
                 }),
             });
             var notify = new WorkingStatusNotifyJson

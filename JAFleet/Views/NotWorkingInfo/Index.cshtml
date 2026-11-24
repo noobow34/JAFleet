@@ -16,7 +16,29 @@
 }
 <div class="nw">
     <h2 class="nw-title">非稼働情報</h2>
-    <p class="nw-lead">運用中なのに、しばらく飛んでいない機体です。毎日朝 6 時ごろに Flightradar24 から取った情報をそのまま出しています。</p>
+    <p class="nw-lead">
+        運用中なのに、しばらく飛んでいない機体です。
+        @{ var last = Model.LastUpdate; }
+        @if (last == null)
+        {
+            <text>稼働状況はまだ一度も更新されていません。</text>
+        }
+        else if (last.IsAdsb && last.CoveredPeriod is { } period)
+        {
+            @* adsb.lol の履歴ダンプは1日遅れ。いつの飛行までを見ているかを出す *@
+            <text>最終更新は <strong>@last.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</strong> で、
+            <a href="https://github.com/adsblol/globe_history_2026" target="_blank" rel="noopener">adsb.lol</a> の履歴ダンプ
+            （@period.From.ToString("M/d H:mm")〜@period.To.ToString("M/d H:mm") の飛行まで）から作っています。</text>
+        }
+        else if (last.IsAdsb)
+        {
+            <text>最終更新は <strong>@last.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</strong> で、adsb.lol の履歴ダンプから作っています。</text>
+        }
+        else
+        {
+            <text>最終更新は <strong>@last.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</strong> で、Flightradar24 から取った情報をそのまま出しています。</text>
+        }
+    </p>
 
     <div class="nw-bar">
         <label class="nw-date">

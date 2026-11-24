@@ -1,6 +1,7 @@
 ﻿using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
 using JAFleet.Models;
+using JAFleet.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JAFleet.Controllers
@@ -14,6 +15,7 @@ namespace JAFleet.Controllers
         public IActionResult Index(NotWorkingInfoModel model)
         {
             model.Title = "非稼働情報";
+            model.LastUpdate = WorkingStatusUpdateInfo.Latest(_context);
 
             return View(model);
         }

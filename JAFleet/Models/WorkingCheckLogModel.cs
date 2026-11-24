@@ -32,6 +32,10 @@ namespace JAFleet.Models
     {
         [JsonPropertyName("finishedAt")] public string?                          FinishedAt { get; init; }
         [JsonPropertyName("sections")]   public List<WorkingCheckLogSectionJson> Sections   { get; init; } = new();
+        /// <summary>どこから作ったか（"adsb" / "fr24"）。この項目が入る前のログは FR24 の巡回で作ったもの</summary>
+        [JsonPropertyName("source")]     public string?                          Source     { get; init; }
+        /// <summary>adsb.lol の履歴ダンプのデータ日（UTC、yyyy-MM-dd）。日本時間ではその日の 9:00〜翌 9:00 の飛行</summary>
+        [JsonPropertyName("dataDate")]   public string?                          DataDate   { get; init; }
     }
 
     // ============================================================
