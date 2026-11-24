@@ -38,6 +38,42 @@ namespace JAFleet.Test
         }
 
         [TestMethod]
+        public void リリースの分割tarは大きさも読む_進み具合は人が読める形で出す()
+        {
+            const string json = """
+                {"assets":[
+                  {"name":"v2026.11.22-planes-readsb-prod-0.tar.ab","browser_download_url":"https://example/ab","size":1281858048},
+                  {"name":"v2026.11.22-planes-readsb-prod-0.tar.aa","browser_download_url":"https://example/aa","size":2000000000}
+                ]}
+                """;
+            var parts = AdsbDump.ParseParts(json, AdsbDump.TagName(DataDate))!;
+            Assert.AreEqual(3281858048, parts.Sum(p => p.Size));
+            Assert.AreEqual("https://example/aa", parts[0].Url);
+
+            var progress = new DumpProgress(1610612736, 3281858048, 1, 2, 312, TimeSpan.FromSeconds(150));
+            Assert.AreEqual("取得中 1.50 / 3.06 GiB（49%）、分割 1/2、日本の機体 312 件、経過 2分30秒", progress.ToString());
+        }
+
+        [TestMethod]
+        public async Task 読んでいる途中で進み具合を知らせる()
+        {
+            using var tar = new MemoryStream();
+            using (var writer = new TarWriter(tar, TarEntryFormat.Gnu, leaveOpen: true))
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    AddEntry(writer, $"./traces/{i:x2}/trace_full_86{i:x4}.json", Gzip("""{"trace":[]}"""));
+                }
+            }
+            tar.Position = 0;
+            var counts = new List<int>();
+
+            await AdsbDump.ReadJapanTracesAsync(tar, (_, _) => Task.CompletedTask, onCount: counts.Add, progressInterval: TimeSpan.Zero);
+
+            CollectionAssert.AreEqual(new[] { 0, 1, 2, 3, 4 }, counts, "間隔 0 ならエントリごとに、それまでの件数を知らせる");
+        }
+
+        [TestMethod]
         public void 日本のhexの軌跡ファイルだけを拾う()
         {
             Assert.AreEqual("86dcbc", AdsbDump.JapanHexFromEntryName("./traces/bc/trace_full_86DCBC.json"));

@@ -20,19 +20,29 @@ namespace JAFleet.Batch
             try
             {
                 var result = new AdsbFlightResult { DataDate = dataDate };
-                var parts = await AdsbDump.FindPartUrlsAsync(http, dataDate, ct);
+                var parts = await AdsbDump.FindPartsAsync(http, dataDate, ct);
                 if (parts == null)
                 {
                     result.DumpMissing = true;
+                    this.JournalWriteLine($"{AdsbDump.TagName(dataDate)} はまだ公開されていない");
                     return result;
                 }
+                const double GiB = 1024d * 1024 * 1024;
+                this.JournalWriteLine($"{AdsbDump.TagName(dataDate)} を取得開始（分割 {parts.Count} 個、計 {parts.Sum(p => p.Size) / GiB:0.00} GiB）");
                 var now = DateTime.Now;
                 var collector = await CreateCollectorAsync(dataDate, now, ct);
+                if (collector.TestHexes.Count > 0)
+                {
+                    this.JournalWriteLine($"テストレジの hex {collector.TestHexes.Count} 件もダンプから拾う");
+                }
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 result.JapanTraceCount = await AdsbDump.ReadJapanTracesAsync(http, parts, (hex, content) =>
                 {
                     collector.Add(TraceFile.Parse(hex, content));
                     return Task.CompletedTask;
-                }, ct, collector.TestHexes);
+                }, ct, collector.TestHexes, progress => this.JournalWriteLine(progress.ToString()));
+                this.JournalWriteLine($"取得完了（{(int)sw.Elapsed.TotalMinutes}分{sw.Elapsed.Seconds:00}秒）。日本の機体 {result.JapanTraceCount} 件、" +
+                    $"切り出したフライト {collector.Rows.Count} 便。DB に保存する");
                 await SaveAsync(collector, result, dataDate, now, ct);
                 return result;
             }

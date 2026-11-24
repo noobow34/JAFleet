@@ -29,9 +29,9 @@ namespace JAFleet.Adsb
             => $"https://api.github.com/repos/adsblol/globe_history_{dataDate.Year}/releases/tags/{TagName(dataDate)}";
 
         /// <summary>
-        /// リリースに付いている分割 tar の URL を、つなぐ順（名前順）に返す。リリースがまだ無ければ null。
+        /// リリースに付いている分割 tar を、つなぐ順（名前順）に返す。リリースがまだ無ければ null。
         /// </summary>
-        public static async Task<IReadOnlyList<string>?> FindPartUrlsAsync(HttpClient http, DateOnly dataDate, CancellationToken ct = default)
+        public static async Task<IReadOnlyList<DumpPart>?> FindPartsAsync(HttpClient http, DateOnly dataDate, CancellationToken ct = default)
         {
             using var req = new HttpRequestMessage(HttpMethod.Get, ReleaseApiUrl(dataDate));
             req.Headers.UserAgent.ParseAdd(USER_AGENT);
@@ -43,11 +43,15 @@ namespace JAFleet.Adsb
             }
             res.EnsureSuccessStatusCode();
             string json = await res.Content.ReadAsStringAsync(ct);
-            return ParsePartUrls(json, TagName(dataDate));
+            return ParseParts(json, TagName(dataDate));
         }
 
         /// <summary>リリース情報の JSON から分割 tar（タグ名.tar.xx）の URL を名前順に抜く。無ければ null</summary>
         public static IReadOnlyList<string>? ParsePartUrls(string releaseJson, string tagName)
+            => ParseParts(releaseJson, tagName)?.Select(p => p.Url).ToList();
+
+        /// <summary>リリース情報の JSON から分割 tar（タグ名.tar.xx）を名前順に抜く。無ければ null</summary>
+        public static IReadOnlyList<DumpPart>? ParseParts(string releaseJson, string tagName)
         {
             using var doc = JsonDocument.Parse(releaseJson);
             if (!doc.RootElement.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
@@ -55,10 +59,12 @@ namespace JAFleet.Adsb
                 return null;
             }
             var parts = assets.EnumerateArray()
-                .Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? ""))
+                .Select(a => new DumpPart(
+                    a.GetProperty("name").GetString() ?? "",
+                    a.GetProperty("browser_download_url").GetString() ?? "",
+                    a.TryGetProperty("size", out var size) && size.ValueKind == JsonValueKind.Number ? size.GetInt64() : 0))
                 .Where(a => a.Name.StartsWith(tagName + ".tar.", StringComparison.Ordinal))
                 .OrderBy(a => a.Name, StringComparer.Ordinal)
-                .Select(a => a.Url)
                 .ToList();
             return parts.Count == 0 ? null : parts;
         }
@@ -90,23 +96,37 @@ namespace JAFleet.Adsb
         /// 分割 tar をつないで流し、日本の機体の軌跡ファイルごとに onTrace(hex, 中身) を呼ぶ。
         /// 中身は gzip のままのバイト列（TraceFile.Parse に渡す）。返り値は読んだ日本の機体の数。
         /// </summary>
-        public static async Task<int> ReadJapanTracesAsync(HttpClient http, IReadOnlyList<string> partUrls,
-            Func<string, byte[], Task> onTrace, CancellationToken ct = default, IReadOnlySet<string>? extraHexes = null)
+        /// <remarks>onProgress があれば、progressInterval（既定30秒）ごとに取得の進み具合を渡す</remarks>
+        public static async Task<int> ReadJapanTracesAsync(HttpClient http, IReadOnlyList<DumpPart> parts,
+            Func<string, byte[], Task> onTrace, CancellationToken ct = default, IReadOnlySet<string>? extraHexes = null,
+            Action<DumpProgress>? onProgress = null, TimeSpan? progressInterval = null)
         {
-            using var stream = new ConcatenatedStream(HttpPartOpener(http, partUrls));
-            return await ReadJapanTracesAsync(stream, onTrace, ct, extraHexes);
+            using var stream = new ConcatenatedStream(HttpPartOpener(http, parts.Select(p => p.Url).ToList()));
+            long total = parts.Sum(p => p.Size);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            Action<int>? onCount = onProgress == null ? null
+                : count => onProgress(new DumpProgress(stream.BytesRead, total, Math.Max(stream.PartIndex, 0) + 1, parts.Count, count, sw.Elapsed));
+            return await ReadJapanTracesAsync(stream, onTrace, ct, extraHexes, onCount, progressInterval);
         }
 
         /// <summary>tar のストリームから日本の機体の軌跡ファイルを取り出す（テストではこちらを直接使う）</summary>
         /// <remarks>extraHexes に入れた hex（テストレジの外国の hex など）も、日本の範囲の外でも取り出す</remarks>
         public static async Task<int> ReadJapanTracesAsync(Stream tarStream, Func<string, byte[], Task> onTrace, CancellationToken ct = default,
-            IReadOnlySet<string>? extraHexes = null)
+            IReadOnlySet<string>? extraHexes = null, Action<int>? onCount = null, TimeSpan? progressInterval = null)
         {
             int count = 0;
+            var interval = progressInterval ?? TimeSpan.FromSeconds(30);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var nextReport = interval;
             using var reader = new TarReader(tarStream, leaveOpen: true);
             TarEntry? entry;
             while ((entry = await reader.GetNextEntryAsync(copyData: false, ct)) != null)
             {
+                if (onCount != null && sw.Elapsed >= nextReport)
+                {
+                    onCount(count);
+                    nextReport = sw.Elapsed + interval;
+                }
                 if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile) || entry.DataStream == null)
                 {
                     continue;
@@ -151,6 +171,12 @@ namespace JAFleet.Adsb
             private bool _finished;
             private Stream? _current;
 
+            /// <summary>ここまでに読んだバイト数（全分割の合計）</summary>
+            public long BytesRead { get; private set; }
+
+            /// <summary>いま読んでいる分割（0 から。まだ開いていなければ -1）</summary>
+            public int PartIndex => _index;
+
             public override bool CanRead => true;
             public override bool CanSeek => false;
             public override bool CanWrite => false;
@@ -184,6 +210,7 @@ namespace JAFleet.Adsb
                     int n = await _current.ReadAsync(buffer, ct);
                     if (n > 0)
                     {
+                        BytesRead += n;
                         return n;
                     }
                     _current.Dispose();
@@ -205,6 +232,21 @@ namespace JAFleet.Adsb
             public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
             public override void SetLength(long value) => throw new NotSupportedException();
             public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        }
+    }
+
+    /// <summary>リリースに付いた分割 tar 1つ（名前・URL・バイト数）</summary>
+    public record DumpPart(string Name, string Url, long Size);
+
+    /// <summary>ダンプの取得の進み具合</summary>
+    public record DumpProgress(long BytesRead, long TotalBytes, int Part, int PartCount, int JapanTraces, TimeSpan Elapsed)
+    {
+        public override string ToString()
+        {
+            const double GiB = 1024d * 1024 * 1024;
+            string percent = TotalBytes > 0 ? $"（{100.0 * BytesRead / TotalBytes:0}%）" : "";
+            return $"取得中 {BytesRead / GiB:0.00} / {TotalBytes / GiB:0.00} GiB{percent}、分割 {Part}/{PartCount}、" +
+                $"日本の機体 {JapanTraces} 件、経過 {(int)Elapsed.TotalMinutes}分{Elapsed.Seconds:00}秒";
         }
     }
 }

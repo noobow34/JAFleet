@@ -38,7 +38,7 @@ namespace JAFleet.Batch
             {
                 var result = new HexRefreshResult { DataDate = dataDate };
 
-                var parts = await AdsbDump.FindPartUrlsAsync(_http, dataDate, ct);
+                var parts = await AdsbDump.FindPartsAsync(_http, dataDate, ct);
                 if (parts == null)
                 {
                     result.DumpMissing = true;
@@ -46,6 +46,7 @@ namespace JAFleet.Batch
                 }
                 else
                 {
+                    this.JournalWriteLine($"{AdsbDump.TagName(dataDate)} を取得開始（分割 {parts.Count} 個）");
                     var observed = new List<HexObservation>();
                     result.JapanTraceCount = await AdsbDump.ReadJapanTracesAsync(_http, parts, (hex, content) =>
                     {
@@ -55,7 +56,8 @@ namespace JAFleet.Batch
                             observed.Add(new HexObservation(trace.Hex, trace.Registration));
                         }
                         return Task.CompletedTask;
-                    }, ct);
+                    }, ct, onProgress: progress => this.JournalWriteLine(progress.ToString()));
+                    this.JournalWriteLine($"取得完了。日本の機体 {result.JapanTraceCount} 件");
 
                     using var context = new JAFleetContext(_options);
                     var registrations = context.Aircrafts.AsNoTracking()
@@ -96,10 +98,16 @@ namespace JAFleet.Batch
                 .Where(r => !known.Contains(r))
                 .OrderBy(r => r, StringComparer.Ordinal)
                 .ToList();
+            this.JournalWriteLine($"ADSBdb で {targets.Count} 機を引く（{AdsbdbInterval.TotalSeconds:0}秒おき）");
 
             bool first = true;
+            int done = 0;
             foreach (string reg in targets)
             {
+                if (++done % 25 == 0)
+                {
+                    this.JournalWriteLine($"ADSBdb {done}/{targets.Count} 機目（引けた {result.FromAdsbdb.Count}・無かった {result.Unknown.Count}）");
+                }
                 if (!first)
                 {
                     await Task.Delay(AdsbdbInterval, ct);
