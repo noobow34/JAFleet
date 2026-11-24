@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Constants;
 using Noobow.Commons.Extensions;
 using Noobow.Commons.Utils;
+using System.Net;
 using System.Text;
 
 namespace JAFleet.Batch
@@ -64,8 +65,15 @@ namespace JAFleet.Batch
                             }
                         }
 
-                        var row = doc?.Body?.GetElementsByClassName("data-row");
-                        var ap = AircraftDataExtractor.ExtractPhotoDataFromJetphotos(doc);
+                        //ページを取得できなかった場合（Cloudflareのチャレンジ、レート制限、障害など）は
+                        //写真もExistPageも触らない。写真なし扱いで消してしまうのを防ぐため
+                        if (doc == null || doc.StatusCode != HttpStatusCode.OK)
+                        {
+                            logLine.Append($"{a.RegistrationNumber}:ページ取得失敗({doc?.StatusCode.ToString() ?? "応答なし"})、更新しない");
+                            break;
+                        }
+
+                        var ap = AircraftDataExtractor.ExtractAircraftDataFromFlightradar(doc).Photo;
 
                         AircraftPhoto? photo = context.AircraftPhotos.Where(p => p.RegistrationNumber == a.RegistrationNumber).SingleOrDefault();
                         WorkingStatus? ws = context.WorkingStatuses.Where(ws => ws.RegistrationNumber == a.RegistrationNumber).SingleOrDefault();

@@ -641,7 +641,7 @@ IP は携帯回線などで共有されるため、訪問者数は Cookie で数
 - PostgreSQL + Entity Framework Core（Npgsql）
 - Cloudflare Access による管理者認証（`Microsoft.AspNetCore.Authentication.JwtBearer` で JWT を検証）
 - Quartz.NET によるジョブスケジューリング
-- AngleSharp によるスクレイピング（Flightradar24 / JetPhotos）
+- AngleSharp によるスクレイピング（Flightradar24。取得元を FR24 にしたときだけ。[Flightradar24 からの取得](#flightradar24-からの取得)）
 - EPPlus（航空局 Excel の解析。非商用ライセンス）
 - Gemini API（特別塗装ニュースの判定。`generateContent` を 1 つ叩くだけなので SDK は入れず `HttpClient` で直接叩く）
 - Gmail API（航空局 Excel の取込元。使うのは 3 つのエンドポイントだけなので SDK は入れず `HttpClient` で直接叩く）
@@ -749,6 +749,35 @@ Flightradar24 を巡回する処理（`RefreshWorkingStatusAndPhotoJob`・`Refre
 403 を返すことがあり、そのまま続けると全機体を「運航なし」「写真なし」で上書きしてしまうためです
 （DB への保存は最後にまとめて行うので、途中で抜ければ何も変わりません）。中止した日は稼働チェックログが
 作られないので、`NotifyWorkingStatusJob` は「未実行」の警告を出します。
+
+## Flightradar24 からの取得
+
+**いまは使っていません**（稼働状況は adsb.lol の履歴ダンプから作る。[稼働状況の取得元](#稼働状況の取得元)）。
+サイト設定の取得元を FR24 にしたときだけ、稼働状況と写真を Flightradar24 の機体ページ（`/data/aircraft/{レジ}`）から取ります
+（`RefreshWorkingStatusAndPhoto` / `RefreshPhoto`、取り出しは `JAFleet.Commons` の `AircraftDataExtractor`）。
+
+このページは Inertia.js の SPA で、**表示に使う値はすべて `<div id="app" data-page="{...}">` の JSON に入っています**。
+HTML の見た目は予告なく変わる（かつて使っていた `data-row` のテーブルは無くなった）ので、
+DOM ではなくこの JSON を読みます。使うのは次の項目です。
+
+| 用途 | JSON の項目 |
+| --- | --- |
+| 機体ページかどうか（未知のレジは機種一覧へリダイレクトされる） | `props.aircraft.registration` |
+| 写真 | `props.photos[0]` の `url`（640px）と `link`（JetPhotos のページ）。`url` の最初のサイズ部分を `full` に替えたものを大きい写真として持つ |
+| フライト履歴（新しい順） | `props.flights[]` の `flightNumber`、`actualDeparture`／`estimatedDeparture`／`scheduledDeparture`（UNIX 秒）、`status.name`、`origin`／`destination` の `city` と `iata` |
+
+稼働判定は最新フライトの出発日時が 2 日以内かどうかで決めます。
+出発日時は 実出発 → 出発見込み → 出発予定 の順に使います。
+出発地・到着地は `都市名 (IATA)` 形式で保存します（整備入りの判定が IATA を含むかで見ているため）。
+
+**ページを取得できなかったときは稼働状況を書き換えません。**
+Cloudflare のチャレンジやレート制限で 403 が返ると、そのままでは全機体が一斉に非稼働と判定されてしまうためです。
+5 機体連続で取得できなかった場合はバッチを中断し、Slack へ通知します。
+
+日時（出発日時と「Landed 21:27」の時刻）は、サーバーのタイムゾーンによらず日本時間に直します。
+
+なお 2026-11 現在、このページはサーバーからのリクエストに Cloudflare のチャレンジ（`Just a moment...` の 403）を返し、
+FR24 の規約（2.3）も公式 API 以外の自動アクセスを禁じています。そのため取得元は adsb.lol に切り替えました。
 
 ## 環境変数
 
@@ -1008,8 +1037,10 @@ Flightradar24（FR24）がサーバーからの自動アクセスを止めた（
 | 管理コンソールの「ステータス・写真更新」 | 前日（UTC）分のダンプを取り込み、稼働状況を更新して通知 | FR24 を巡回（いままでどおり） |
 | 写真（`aircraft_photo`） | 更新しない（写真の更新ジョブと管理コンソールの「写真更新」は何もせず終わる）。DB の写真はどこにも出していない（機体詳細は FR24 の埋め込み、LINE はリンク、OGP は自前のカード画像） | FR24 の巡回のついでに更新 |
 
-FR24 の巡回で使っているのは master の古い HTML の読み方なので、FR24 を戻すときは `fr24-inertia-json` ブランチ
-（いまの FR24 の画面の JSON を読む修正）を取り込んでから切り替えてください。
+FR24 の巡回は、いまの FR24 の画面（Inertia.js の JSON）を読む形に直してある（`fr24-inertia-json` ブランチを 2026-11-24 に master へ
+取り込んだ。[Flightradar24 からの取得](#flightradar24-からの取得)）。FR24 がサーバーからの自動アクセスを許すようになったら、
+サイト設定を FR24 に切り替えるだけで戻せる。ただし FR24 の規約（2.3）は公式 API 以外の自動アクセスを禁じているので、
+戻すのは FR24 から許しが出たとき（または公式 API に作り替えたとき）に限ること。
 
 **adsb.lol での決め方**（`Batch/AdsbWorkingStatus.cs`）。区分・稼働チェックログ・通知の形は FR24 のときと同じです。
 
