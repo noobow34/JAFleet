@@ -9,19 +9,17 @@ using Quartz;
 
 namespace JAFleet.Jobs
 {
-    [Description("adsb.lol の履歴ダンプ（GitHub）で機体の hex を覚え、残りを ADSBdb で引く")]
+    [Description("hex（ICAO 24bit アドレス）の無い機体を ADSBdb で引いて補う。ダンプのレジで覚えるのは RefreshAdsbFlightJob がやるので、月1回程度で足りる")]
     [DisallowConcurrentExecution]
     public class RefreshAircraftHexJob : IJob
     {
-        private static readonly HttpClient http = new() { Timeout = TimeSpan.FromMinutes(60) };
+        private static readonly HttpClient http = new() { Timeout = TimeSpan.FromMinutes(1) };
 
         public async Task Execute(IJobExecutionContext context)
         {
             var options = new DbContextOptionsBuilder<JAFleetContext>();
             options.UseNpgsql(Environment.GetEnvironmentVariable("JAFLEET_CONNECTION_STRING") ?? "");
-            //ダンプは UTC の1日分が翌日の 12:30（日本時間）ごろに上がる。昼過ぎに動かせば前日（UTC）分がある
-            var dataDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
-            var result = await new RefreshAircraftHex(options.Options, http).ExecuteAsync(dataDate, ct: context.CancellationToken);
+            var result = await new RefreshAircraftHex(options.Options, http).ExecuteAsync(context.CancellationToken);
             await SlackUtil.PostAsync(SlackChannelEnum.jafleet.GetStringValue(), result.ToSlackMessage());
         }
     }

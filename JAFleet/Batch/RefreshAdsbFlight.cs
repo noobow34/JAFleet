@@ -1,5 +1,6 @@
 using JAFleet.Adsb;
 using JAFleet.Commons.Data;
+using JAFleet.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Extensions;
 
@@ -14,6 +15,16 @@ namespace JAFleet.Batch
     {
         public static bool Processing { get; private set; }
 
+        /// <summary>
+        /// ログを1行出す。/Scheduler の「実行中」の欄にも最新の1行として出す（JobActivity）。
+        /// 1回分のログは全部このインスタンスの名前と ID で出るので、journalctl で追いやすい
+        /// </summary>
+        public void Log(string text)
+        {
+            this.JournalWriteLine(text);
+            JobActivity.Report(typeof(RefreshAdsbFlightJob), text);
+        }
+
         public async Task<AdsbFlightResult> ExecuteAsync(DateOnly dataDate, CancellationToken ct = default)
         {
             Processing = true;
@@ -24,24 +35,24 @@ namespace JAFleet.Batch
                 if (parts == null)
                 {
                     result.DumpMissing = true;
-                    this.JournalWriteLine($"{AdsbDump.TagName(dataDate)} はまだ公開されていない");
+                    Log($"{AdsbDump.TagName(dataDate)} はまだ公開されていない");
                     return result;
                 }
                 const double GiB = 1024d * 1024 * 1024;
-                this.JournalWriteLine($"{AdsbDump.TagName(dataDate)} を取得開始（分割 {parts.Count} 個、計 {parts.Sum(p => p.Size) / GiB:0.00} GiB）");
+                Log($"{AdsbDump.TagName(dataDate)} を取得開始（分割 {parts.Count} 個、計 {parts.Sum(p => p.Size) / GiB:0.00} GiB）");
                 var now = DateTime.Now;
                 var collector = await CreateCollectorAsync(dataDate, now, ct);
                 if (collector.TestHexes.Count > 0)
                 {
-                    this.JournalWriteLine($"テストレジの hex {collector.TestHexes.Count} 件もダンプから拾う");
+                    Log($"テストレジの hex {collector.TestHexes.Count} 件もダンプから拾う");
                 }
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 result.JapanTraceCount = await AdsbDump.ReadJapanTracesAsync(http, parts, (hex, content) =>
                 {
                     collector.Add(TraceFile.Parse(hex, content));
                     return Task.CompletedTask;
-                }, ct, collector.TestHexes, progress => this.JournalWriteLine(progress.ToString()));
-                this.JournalWriteLine($"取得完了（{(int)sw.Elapsed.TotalMinutes}分{sw.Elapsed.Seconds:00}秒）。日本の機体 {result.JapanTraceCount} 件、" +
+                }, ct, collector.TestHexes, progress => Log(progress.ToString()));
+                Log($"取得完了（{(int)sw.Elapsed.TotalMinutes}分{sw.Elapsed.Seconds:00}秒）。日本の機体 {result.JapanTraceCount} 件、" +
                     $"切り出したフライト {collector.Rows.Count} 便。DB に保存する");
                 await SaveAsync(collector, result, dataDate, now, ct);
                 return result;
@@ -111,7 +122,7 @@ namespace JAFleet.Batch
                     }
                     catch (HttpRequestException ex)
                     {
-                        this.JournalWriteLine($"{t.Reg} のテストレジ {test} を ADSBdb で引けなかった（{ex.StatusCode}）");
+                        Log($"{t.Reg} のテストレジ {test} を ADSBdb で引けなかった（{ex.StatusCode}）");
                         continue;
                     }
                     if (hex == null)
@@ -149,7 +160,7 @@ namespace JAFleet.Batch
             result.MatchedByHex = collector.MatchedByHex;
             result.Unmatched = collector.Unmatched;
             result.TestFlights = collector.TestFlights;
-            this.JournalWriteLine(result.ToSummary());
+            Log(result.ToSummary());
         }
 
         /// <summary>軌跡を1本ずつ受け取り、機体に結び付けてフライトの行にする（軌跡そのものは持ち続けない）</summary>

@@ -79,6 +79,35 @@ namespace JAFleet.Controllers
             return View("Index", model);
         }
 
+        /// <summary>ジョブを今すぐ1回だけ動かす（無効のジョブでも動く）。動いたかどうかを画面に出す</summary>
+        [HttpPost]
+        public async Task<IActionResult> RunNowAsync(string className, bool fromAdmin)
+        {
+            if (!AdminAuth.IsAdmin(HttpContext))
+            {
+                return NotFound();
+            }
+
+            className = (className ?? string.Empty).Trim();
+            string? error = await RootScheduler.RunNowAsync(className);
+            //すぐ読み直すと、まだ Quartz が動かし始めていないことがあるので少しだけ待つ
+            if (error == null)
+            {
+                await Task.Delay(500);
+            }
+            SchedulerModel model = await BuildModelAsync(fromAdmin);
+            string name = JobCatalog.Find(className)?.DisplayName ?? className;
+            if (error != null)
+            {
+                model.ErrorMessage = error;
+            }
+            else
+            {
+                model.Message = $"{name} を実行しました。進み具合は、この画面を開き直すと「実行中」の表示で見られます。";
+            }
+            return View("Index", model);
+        }
+
         private static string? Validate(string className, string cronDef, bool enabled, SchedulerDef? def, JobInfo? info)
         {
             if (className.Length == 0 || (def == null && info == null))
@@ -165,6 +194,9 @@ namespace JAFleet.Controllers
                 Running = state?.Running ?? false,
                 NextFireTime = state?.NextFireTime,
                 PreviousFireTime = state?.PreviousFireTime,
+                RunningSince = state?.RunningSince,
+                Progress = (state?.Running ?? false) ? JobActivity.Progress(className)?.Text : null,
+                ProgressAt = (state?.Running ?? false) ? JobActivity.Progress(className)?.At : null,
             };
         }
     }

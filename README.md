@@ -730,6 +730,14 @@ Quartz に登録します（`Enabled` が true の行のみ）。
 画面で無効にしても、そのとき実行中の処理は止まりません。Quartz は動いているジョブを中断できないため、
 最後まで走り切ってから次回以降が実行されなくなります。
 
+- **今すぐ実行**: 各ジョブの「▶ 今すぐ実行」で1回だけ動かせる（`RootScheduler.RunNowAsync` → Quartz の `TriggerJob`）。
+  **無効のジョブでも動く**（定期実行に載っていないジョブは、トリガー無しのジョブとして足してから動かす。あとで有効にすると
+  登録し直される）。実行中のジョブは動かさない
+- **実行中の表示**: 「実行中（HH:mm から）」のバッジを出す。Quartz から動いたものに加えて、管理コンソールのボタンから直接動かした処理
+  （`RefreshAdsbFlight` などの `Processing`）も実行中として出す（`Jobs/JobActivity.cs`）。開始時刻は Quartz から動いたときだけ出る
+- **途中経過**: 長い処理は最新のログ1行を `JobActivity.Report` で入れ、実行中の行に出す（`RefreshAdsbFlightJob` の
+  「取得中 1.50 / 3.32 GiB（45%）…」、`RefreshAircraftHexJob` の「ADSBdb 25/130 機目…」）。画面を開き直すと新しくなる
+
 cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6〜7 項目**です（例: 毎日 6 時は `0 0 6 * * ?`）。
 保存時に `CronExpression.IsValidExpression` で検査し、通らない式は登録しません。
 
@@ -740,7 +748,7 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する。**取得元が FR24 のときだけ動く**（adsb.lol のときは `RefreshAdsbFlightJob` が投稿する） |
 | `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
 | `ApplyAircraftReservationJob` | 反映日が今日以前の機体更新の予約を反映し、Slack へ知らせる（[機体更新の予約](#機体更新の予約)）。DDL で毎日 0:05 に登録される |
-| `RefreshAircraftHexJob` | adsb.lol の履歴ダンプで機体の hex（ICAO 24bit アドレス）を覚え、残りを ADSBdb で引いて `aircraft_hex` に入れる。結果を Slack へ（[機体の hex](#機体の-hexaircraft_hex)） |
+| `RefreshAircraftHexJob` | hex（ICAO 24bit アドレス）の無い機体を ADSBdb で引いて `aircraft_hex` を補う。ダンプのレジで覚えるのは `RefreshAdsbFlightJob` がやるので、月1回程度で足りる。結果を Slack へ（[機体の hex](#機体の-hexaircraft_hex)） |
 | `RefreshFlightRouteJob` | VRS standing-data で路線（callsign→空港）と空港の一覧を丸ごと入れ替え、結果を Slack へ。週1回で足りる（[路線と空港](#路線と空港flight_routeairport)） |
 | `RefreshAdsbFlightJob` | adsb.lol の履歴ダンプの前日（UTC）分から日本の機体のフライトを切り出して `adsb_flight` に入れ、取得元が adsb.lol なら稼働状況を更新して Slack へ投稿する。ダンプがまだ無ければ 17:00 まで30分おきに待つ（[稼働状況の取得元](#稼働状況の取得元)・[ダンプからのフライト](#ダンプからのフライトadsb_flight)） |
 
@@ -982,9 +990,8 @@ DB と両方のアプリを同時に切り替える。
 
 ### 機体の hex（`aircraft_hex`）
 
-Flightradar24 から取れなくなったので（[Flightradar24 からの取得](#flightradar24-からの取得)）、稼働情報は
-adsb.lol の履歴ダンプへ移す予定です。ダンプは機体ごとの軌跡が hex（ICAO 24bit アドレス）単位で入っているので、
-まず機体記号と hex の対応を `aircraft_hex` に持たせます（稼働判定の切り替えはこのあと）。
+稼働情報は adsb.lol の履歴ダンプから作ります。ダンプは機体ごとの軌跡が hex（ICAO 24bit アドレス）単位で入っているので、
+機体記号と hex の対応を `aircraft_hex` に持たせます。
 
 - **元データ**: GitHub の `adsblol/globe_history_YYYY` のリリース `vYYYY.MM.DD-planes-readsb-prod-0`
   （UTC の1日分、翌日の 12:30（日本時間）ごろ公開、`.tar.aa`・`.tar.ab` で約3GiB）。ライセンスは ODbL 1.0 で、
@@ -992,14 +999,14 @@ adsb.lol の履歴ダンプへ移す予定です。ダンプは機体ごとの�
   （地図のホストを自動で叩くと回線ごとブロックされる。自動のクライアントはキー付き API の決まり）
 - **読み方**（`Adsb/AdsbDump.cs`）: 分割 tar を保存せずにつないで流し、`traces/xx/trace_full_<hex>.json` のうち
   日本の範囲（840000〜87FFFF）だけを取り出す。中身は gzip の JSON で、`r` がレジ
-- **覚え方**（`Batch/RefreshAircraftHex.cs`）: レジ付きで出てきた JAFleet の機体の hex を入れ、`last_seen_date` を進める。
-  hex が変わっていたら書き換えて Slack に名前を出す。同じ日に別々の hex で出たレジは見送る
-- **ADSBdb**: ダンプに出てこなかった機体（退役と予約登録を除く）だけ、`https://api.adsbdb.com/v0/aircraft/<レジ>` で1機ずつ
+- **覚え方**（`RefreshAircraftHex.Learn`。毎日の `RefreshAdsbFlightJob` が取り込みのついでに呼ぶ）: レジ付きで出てきた JAFleet の機体の
+  hex を入れ、`last_seen_date` を進める。hex が変わっていたら書き換える。同じ日に別々の hex で出たレジは見送る
+- **ADSBdb**（`RefreshAircraftHexJob`）: まだ hex の無い機体（退役と予約登録を除く）だけ、`https://api.adsbdb.com/v0/aircraft/<レジ>` で1機ずつ
   （2秒おき）引く。レジが一致して日本の範囲の hex だけ使う。エラーが返ったら残りは次回に回す。
   ADSBdb の路線データは転載・DB 化が禁止なので使わない
-- `RefreshAircraftHexJob` は前日（UTC）分のダンプを読むので、13:00 以降に動かす。`scheduler_def` の行は無いので、
-  `/Scheduler` から有効にする（例 `0 0 13 * * ?`）
-- 開発DBで 2026-11-22 のダンプを流した結果（17分46秒）: 日本の hex 753 件のうち JAFleet の 571 機をダンプで覚え、
+- `RefreshAircraftHexJob` は ADSBdb で引くだけで、ダンプは取らない（以前はダンプも流していたが、約3GiB をもう一度落とすのは無駄なのでやめた）。
+  `scheduler_def` の行は無いので、`/Scheduler` から有効にするか（例 月1回なら `0 0 4 1 * ?`）、「今すぐ実行」で流す
+- 開発DBで 2026-11-22 のダンプを流した結果（ダンプも流していたころ。17分46秒）: 日本の hex 753 件のうち JAFleet の 571 機をダンプで覚え、
   ADSBdb で 75 機を追加。ADSBdb でも見つからなかった 200 機は、ほとんどが予約登録だけのレジ
   （JA030A〜、JA351J〜、JA731B〜 など）だったので、2回目からは予約登録を引かないようにした
 
@@ -1059,8 +1066,8 @@ FR24 の巡回は、いまの FR24 の画面（Inertia.js の JSON）を読む�
 - **実行中のログ**: `RefreshAdsbFlightJob` は、1回分のログを全部 `【RefreshAdsbFlight:<ID>】` の名前で標準出力に出す
   （サーバでは `journalctl` で見る）。開始 → ダンプの有無（無ければ次に確かめる時刻）→ 取得開始（分割数・合計 GiB）→
   **取得中は30秒ごとに「取得中 1.50 / 3.06 GiB（49%）、分割 1/2、日本の機体 312 件、経過 2分30秒」** → 取得完了（便数）→
-  保存 → 稼働状況の更新（区分ごとの件数）→ Slack に投稿して終了（全体の時間）。`RefreshAircraftHexJob` も取得中の進み具合と、
-  ADSBdb を25機引くごとの進み具合を出す
+  保存 → 稼働状況の更新（区分ごとの件数）→ Slack に投稿して終了（全体の時間）。`RefreshAircraftHexJob` も
+  ADSBdb を25機引くごとの進み具合を出す。どちらも最新の1行は `/Scheduler` の「実行中」の欄にも出る
 - 非稼働情報（`/NotWorkingInfo`）と稼働チェックログの画面には、ODbL の出典表示（Data: adsb.lol (ODbL 1.0)）を出す
 - 切り替えた日の最初の通知は、FR24 が壊れていたあいだ非稼働に落ちていた機体がまとめて「運用中非稼働が稼働」に出る
 

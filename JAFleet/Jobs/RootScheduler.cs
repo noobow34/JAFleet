@@ -69,32 +69,79 @@ namespace JAFleet.Jobs
         public static async Task<IReadOnlyDictionary<string, JobRuntimeState>> GetStatesAsync()
         {
             Dictionary<string, JobRuntimeState> states = new(StringComparer.Ordinal);
-            if (sch is null)
+            Dictionary<string, DateTime> running = new(StringComparer.Ordinal);
+            if (sch is not null)
             {
-                return states;
+                foreach (var c in await sch.GetCurrentlyExecutingJobs())
+                {
+                    running[c.JobDetail.Key.Name] = c.FireTimeUtc.LocalDateTime;
+                }
+
+                foreach (JobKey jobKey in await sch.GetJobKeys(GroupMatcher<JobKey>.AnyGroup()))
+                {
+                    //「今すぐ実行」で足しただけのジョブ（トリガー無し）は、定期実行には載っていない
+                    ITrigger? trigger = (await sch.GetTriggersOfJob(jobKey)).FirstOrDefault(t => t is ICronTrigger);
+                    states[jobKey.Name] = new JobRuntimeState(
+                        trigger != null,
+                        trigger?.GetNextFireTimeUtc()?.LocalDateTime,
+                        trigger?.GetPreviousFireTimeUtc()?.LocalDateTime,
+                        running.ContainsKey(jobKey.Name),
+                        running.TryGetValue(jobKey.Name, out var since) ? since : null);
+                }
             }
 
-            HashSet<string> running = (await sch.GetCurrentlyExecutingJobs())
-                .Select(c => c.JobDetail.Key.Name)
-                .ToHashSet(StringComparer.Ordinal);
-
-            foreach (JobKey jobKey in await sch.GetJobKeys(GroupMatcher<JobKey>.AnyGroup()))
+            //無効にした直後などは登録が無いまま動いていることがあるので、それも状態として返す。
+            //管理コンソールのボタンから直接動かしたもの（Quartz を通らない）も実行中として出す
+            foreach (JobInfo info in JobCatalog.All)
             {
-                ITrigger? trigger = (await sch.GetTriggersOfJob(jobKey)).FirstOrDefault();
-                states[jobKey.Name] = new JobRuntimeState(
-                    true,
-                    trigger?.GetNextFireTimeUtc()?.LocalDateTime,
-                    trigger?.GetPreviousFireTimeUtc()?.LocalDateTime,
-                    running.Contains(jobKey.Name));
-            }
-
-            //無効にした直後などは登録が無いまま動いていることがあるので、それも状態として返す
-            foreach (string name in running.Where(n => !states.ContainsKey(n)))
-            {
-                states[name] = new JobRuntimeState(false, null, null, true);
+                bool quartzRunning = running.TryGetValue(info.ClassName, out var since);
+                bool processing = JobActivity.IsProcessing(info.ClassName);
+                if (!quartzRunning && !processing)
+                {
+                    continue;
+                }
+                states.TryGetValue(info.ClassName, out var s0);
+                states[info.ClassName] = (s0 ?? new JobRuntimeState(false, null, null, false, null)) with
+                {
+                    Running = true,
+                    RunningSince = quartzRunning ? since : s0?.RunningSince,
+                };
             }
 
             return states;
+        }
+
+        /// <summary>
+        /// ジョブを今すぐ1回だけ動かす。無効（定期実行に載っていない）ジョブでも動かせる。
+        /// 実行中なら動かさずに理由を返す。動かせたら null。
+        /// </summary>
+        public static async Task<string?> RunNowAsync(string className)
+        {
+            if (sch is null)
+            {
+                return "スケジューラがまだ起動していません。少し待ってからやり直してください。";
+            }
+            JobInfo? info = JobCatalog.Find(className);
+            if (info == null)
+            {
+                return $"クラス {className} が見つかりません。";
+            }
+            var states = await GetStatesAsync();
+            if (states.TryGetValue(className, out var state) && state.Running)
+            {
+                return $"{info.DisplayName} はいま実行中です。終わってからやり直してください。";
+            }
+
+            var key = new JobKey(className);
+            if (!await sch.CheckExists(key))
+            {
+                //定期実行に載っていないジョブは、トリガー無しで置いておけるようにして足す
+                //（あとで有効にしたときは ApplyAsync が消して登録し直す）
+                var job = JobBuilder.Create(info.JobType).WithIdentity(key).StoreDurably().Build();
+                await sch.AddJob(job, replace: false);
+            }
+            await sch.TriggerJob(key);
+            return null;
         }
 
         /// <summary>定義どおりにジョブとトリガーを登録する。クラスが見つからなければ何もせずfalseを返す。</summary>
@@ -124,5 +171,7 @@ namespace JAFleet.Jobs
     }
 
     /// <summary>スケジューラが持っているジョブの、そのときの状態</summary>
-    public record JobRuntimeState(bool Scheduled, DateTime? NextFireTime, DateTime? PreviousFireTime, bool Running);
+    /// <param name="Scheduled">定期実行（cron のトリガー）に載っているか</param>
+    /// <param name="RunningSince">実行中なら、始まった時刻（Quartz から動いたときだけ分かる）</param>
+    public record JobRuntimeState(bool Scheduled, DateTime? NextFireTime, DateTime? PreviousFireTime, bool Running, DateTime? RunningSince);
 }

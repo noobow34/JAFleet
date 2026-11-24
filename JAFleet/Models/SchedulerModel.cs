@@ -37,5 +37,12 @@ namespace JAFleet.Models
         public DateTime? NextFireTime { get; set; }
 
         public DateTime? PreviousFireTime { get; set; }
+
+        /// <summary>実行中なら、始まった時刻（Quartz から動いたときだけ分かる）</summary>
+        public DateTime? RunningSince { get; set; }
+
+        /// <summary>長い処理の途中経過の最新の1行と、その時刻</summary>
+        public string? Progress { get; set; }
+        public DateTime? ProgressAt { get; set; }
     }
 }

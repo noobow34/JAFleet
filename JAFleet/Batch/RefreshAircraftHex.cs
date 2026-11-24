@@ -1,15 +1,18 @@
 using JAFleet.Adsb;
 using JAFleet.Commons.Constants;
 using JAFleet.Commons.Data;
+using JAFleet.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Noobow.Commons.Extensions;
 
 namespace JAFleet.Batch
 {
     /// <summary>
-    /// 機体記号と ICAO 24bit アドレス（hex）の対応（aircraft_hex）を埋める。
-    /// ① adsb.lol の履歴ダンプ（GitHub）を流し、レジ付きで出てきた日本の機体の hex を覚える
-    /// ② それでも hex が無い機体（退役と予約登録を除く）だけ、ADSBdb で1機ずつ引く
+    /// 機体記号と ICAO 24bit アドレス（hex）の対応（aircraft_hex）のうち、まだ hex の無い機体（退役と予約登録を除く）を
+    /// ADSBdb で1機ずつ引いて埋める。
+    /// ダンプのレジで覚えるのは毎日の RefreshAdsbFlightJob が取り込みのついでにやるので、ここではダンプを取らない
+    /// （約3GiB をもう一度落とすのは無駄なため）。新造機など、ダンプにレジ付きで出てこない機体を補うためのもの。
+    /// Learn はダンプから覚えるときの処理で、RefreshAdsbFlight から呼ぶ。
     /// </summary>
     public class RefreshAircraftHex
     {
@@ -27,61 +30,20 @@ namespace JAFleet.Batch
             _http = http;
         }
 
-        /// <summary>
-        /// dataDate（UTC の日付）のダンプで覚え、残りを ADSBdb で引く。ダンプがまだ無ければ ADSBdb だけ行う。
-        /// Slack には流さない（呼び出し側が ToSlackMessage で流す）。
-        /// </summary>
-        public async Task<HexRefreshResult> ExecuteAsync(DateOnly dataDate, bool useAdsbdb = true, CancellationToken ct = default)
+        /// <summary>hex の無い機体を ADSBdb で引く。Slack には流さない（呼び出し側が ToSlackMessage で流す）</summary>
+        public async Task<HexRefreshResult> ExecuteAsync(CancellationToken ct = default)
         {
             Processing = true;
             try
             {
-                var result = new HexRefreshResult { DataDate = dataDate };
-
-                var parts = await AdsbDump.FindPartsAsync(_http, dataDate, ct);
-                if (parts == null)
-                {
-                    result.DumpMissing = true;
-                    this.JournalWriteLine($"{AdsbDump.TagName(dataDate)} がまだ無いので、ダンプからは覚えない");
-                }
-                else
-                {
-                    this.JournalWriteLine($"{AdsbDump.TagName(dataDate)} を取得開始（分割 {parts.Count} 個）");
-                    var observed = new List<HexObservation>();
-                    result.JapanTraceCount = await AdsbDump.ReadJapanTracesAsync(_http, parts, (hex, content) =>
-                    {
-                        var trace = TraceFile.Parse(hex, content);
-                        if (trace.Registration != null)
-                        {
-                            observed.Add(new HexObservation(trace.Hex, trace.Registration));
-                        }
-                        return Task.CompletedTask;
-                    }, ct, onProgress: progress => this.JournalWriteLine(progress.ToString()));
-                    this.JournalWriteLine($"取得完了。日本の機体 {result.JapanTraceCount} 件");
-
-                    using var context = new JAFleetContext(_options);
-                    var registrations = context.Aircrafts.AsNoTracking()
-                        .Select(a => a.RegistrationNumber!).ToHashSet(StringComparer.Ordinal);
-                    var existing = context.AircraftHexes.ToDictionary(h => h.RegistrationNumber, StringComparer.Ordinal);
-                    var learned = Learn(existing, observed, registrations, dataDate, DateTime.Now);
-                    foreach (var added in learned.Added)
-                    {
-                        context.AircraftHexes.Add(added);
-                    }
-                    await context.SaveChangesAsync(ct);
-                    result.Learned = learned;
-                }
-
-                if (useAdsbdb)
-                {
-                    await FillFromAdsbdbAsync(result, ct);
-                }
-
+                var result = new HexRefreshResult();
+                await FillFromAdsbdbAsync(result, ct);
                 return result;
             }
             finally
             {
                 Processing = false;
+                JobActivity.Clear(typeof(RefreshAircraftHexJob));
             }
         }
 
@@ -106,7 +68,9 @@ namespace JAFleet.Batch
             {
                 if (++done % 25 == 0)
                 {
-                    this.JournalWriteLine($"ADSBdb {done}/{targets.Count} 機目（引けた {result.FromAdsbdb.Count}・無かった {result.Unknown.Count}）");
+                    string line = $"ADSBdb {done}/{targets.Count} 機目（引けた {result.FromAdsbdb.Count}・無かった {result.Unknown.Count}）";
+                    this.JournalWriteLine(line);
+                    JobActivity.Report(typeof(RefreshAircraftHexJob), line);
                 }
                 if (!first)
                 {
@@ -216,10 +180,6 @@ namespace JAFleet.Batch
     /// <summary>1回分の実行結果</summary>
     public class HexRefreshResult
     {
-        public DateOnly DataDate { get; set; }
-        public bool DumpMissing { get; set; }
-        public int JapanTraceCount { get; set; }
-        public HexLearnResult? Learned { get; set; }
         public List<string> FromAdsbdb { get; } = [];
         /// <summary>ADSBdb でも見つからなかった機体</summary>
         public List<string> Unknown { get; } = [];
@@ -227,24 +187,15 @@ namespace JAFleet.Batch
 
         public string ToSlackMessage()
         {
-            var lines = new List<string> { $"hex の更新（{DataDate:yyyy-MM-dd} UTC のダンプ）" };
-            if (DumpMissing)
+            var lines = new List<string>
             {
-                lines.Add("ダンプがまだ公開されていないので、ダンプからは覚えていません。");
-            }
-            else if (Learned != null)
+                "hex の補充（ADSBdb）",
+                $"引けた {FromAdsbdb.Count} 機、見つからなかった {Unknown.Count} 機",
+            };
+            if (FromAdsbdb.Count > 0)
             {
-                lines.Add($"ダンプの日本の機体 {JapanTraceCount} 件、JAFleet と結び付いたもの {Learned.Seen} 機（新規 {Learned.Added.Count}、hex が変わった {Learned.Changed.Count}）");
-                if (Learned.Changed.Count > 0)
-                {
-                    lines.Add("hex が変わった: " + string.Join(", ", Learned.Changed));
-                }
-                if (Learned.Ambiguous.Count > 0)
-                {
-                    lines.Add("hex が1つに決まらず見送り: " + string.Join(", ", Learned.Ambiguous));
-                }
+                lines.Add("引けた機体: " + string.Join(", ", FromAdsbdb));
             }
-            lines.Add($"ADSBdb で引けた {FromAdsbdb.Count} 機、見つからなかった {Unknown.Count} 機");
             if (AdsbdbError != null)
             {
                 lines.Add($"ADSBdb はエラーで途中まで: {AdsbdbError}");

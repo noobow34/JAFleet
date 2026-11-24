@@ -72,6 +72,13 @@
     font-weight: 700; line-height: 1.7;
 }
 
+.sch-progress {
+    margin-top: 8px; padding: 8px 12px; border-radius: 8px; background: #eff6ff; border: 1px solid #bfdbfe;
+    font-size: 13px; color: #1e3a8a; line-height: 1.6; word-break: break-all;
+}
+.sch-progress .t { color: #64748b; font-size: 12px; }
+.sch-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
 .sch-help {
     border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc;
     padding: 14px 18px; margin-top: 20px; font-size: 13px; color: #475569; line-height: 1.8;
@@ -95,7 +102,8 @@
     <h2>⏰ 定期実行ジョブ</h2>
     <div class="sch-lead">
         保存すると動いているスケジューラにその場で反映されます。アプリの再起動は要りません。<br />
-        無効にしても、そのとき実行中の処理は最後まで走ります。
+        無効にしても、そのとき実行中の処理は最後まで走ります。<br />
+        「今すぐ実行」は無効のジョブでも1回だけ動かします。実行中かどうかと途中経過は、この画面を開き直すと新しくなります。
     </div>
 
     @if (!string.IsNullOrEmpty(Model.ErrorMessage))
@@ -126,7 +134,7 @@
                 }
                 @if (row.Running)
                 {
-                    <span class="sch-badge run">実行中</span>
+                    <span class="sch-badge run">実行中@(row.RunningSince is DateTime since ? $"（{since:HH:mm} から）" : "")</span>
                 }
                 @if (!row.TypeFound)
                 {
@@ -147,6 +155,12 @@
                 <div class="sch-desc">@row.Description</div>
             }
             <div class="sch-class">@row.ClassName</div>
+
+            @if (row.Running && !string.IsNullOrEmpty(row.Progress))
+            {
+                @* 長い処理の途中経過（最新の1行）。開き直すと新しくなる *@
+                <div class="sch-progress">⏳ @row.Progress <span class="t">（@row.ProgressAt?.ToString("HH:mm:ss") 時点）</span></div>
+            }
 
             @if (!row.TypeFound)
             {
@@ -178,7 +192,14 @@
                     前回：<span class="t">@(row.PreviousFireTime?.ToString("yyyy/MM/dd HH:mm:ss") ?? "―")</span>
                 </div>
 
-                <button type="submit" class="sch-btn primary" style="margin-left:auto">保存</button>
+                @if (row.TypeFound)
+                {
+                    @* 同じフォームのまま送り先だけ変える。無効のジョブでも1回だけ動く *@
+                    <button type="submit" class="sch-btn" style="margin-left:auto" formaction="/Scheduler/RunNow"
+                            disabled="@row.Running"
+                            onclick="return confirm('@row.DisplayName を今すぐ実行しますか？');">▶ 今すぐ実行</button>
+                }
+                <button type="submit" class="sch-btn primary" style="@(row.TypeFound ? "" : "margin-left:auto")">保存</button>
             </div>
         </form>
     }
