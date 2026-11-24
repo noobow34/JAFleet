@@ -16,6 +16,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Quartz" Version="3.19.1" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.2.0" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.2.0" />
     <PackageReference Include="WebEssentials.AspNetCore.PWA" Version="1.0.85" />
   </ItemGroup>
   <ItemGroup>
@@ -65,5 +67,9 @@
     <Content Update="wwwroot\js\site.min.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- OGP のカード画像（OgCardRenderer）で使うフォント。SIL OFL 1.1 -->
+    <None Update="Fonts\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

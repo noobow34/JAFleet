@@ -37,12 +37,13 @@ namespace JAFleet.Controllers
             model.NeedBack = needback;
 
             model.AV = _context.AircraftViews.AsNoTracking().Where(av => av.RegistrationNumber == id).FirstOrDefault();
-            model.OgImageUrl = model.AV?.PhotoDirectLarge ?? "https://ja-fleet.noobow.me/images/JA-Fleet_1_og.png";
             if (model.AV == null)
             {
                 //存在しないレジが指定された場合はNotFound
                 return NotFound();
             }
+            //OGP の画像は JA-Fleet が描いた機体ごとのカード画像（他人の写真は撮影者の表記・リンクを付けられないので使わない）
+            model.OgImageUrl = OgImageController.ImageUrl(model.AV.RegistrationNumber!);
             if (!nohead)
             {
                 model.AirlineGroupNmae = _context.AirlineGroups.AsNoTracking().Where(ag => ag.AirlineGroupCode == model.AV.AirlineGroupCode).FirstOrDefault()?.AirlineGroupName;

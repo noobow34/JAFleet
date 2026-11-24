@@ -62,6 +62,10 @@ builder.Services.AddProgressiveWebApp();
 builder.Services.AddDataProtection().SetApplicationName("ja-fleet");
 //アクセス集計の訪問者識別。DataProtectionの鍵を使うのでその後ろに置く
 builder.Services.AddSingleton<VisitorIdIssuer>();
+//機体詳細の OGP 用カード画像（/OgImage/{レジ}.png）。フォントとロゴの読み込みは起動後の最初の1回だけ
+builder.Services.AddSingleton(sp => new OgCardRenderer(
+    Path.Combine(AppContext.BaseDirectory, "Fonts", "NotoSansJP-Bold.otf"),
+    Path.Combine(sp.GetRequiredService<IWebHostEnvironment>().WebRootPath, "images", "JA-Fleet_1.png")));
 //管理者認証はCloudflare Accessが行い、アプリはAccessが発行したJWTを検証するだけ
 builder.Services.AddCloudflareAccess(cfAccessTeamDomain, cfAccessAud);
 builder.Services.AddSingleton<IConfiguration>(config);
@@ -129,6 +133,11 @@ app.MapControllerRoute(
     name: "AircraftDetail4",
     pattern: "ADE/{id?}",
     defaults: new { controller = "AircraftDetail", action = "Emb" }
+);
+app.MapControllerRoute(
+    name: "OgImage",
+    pattern: "OgImage/{id}.png",
+    defaults: new { controller = "OgImage", action = "Index" }
 );
 app.MapControllerRoute(
     name: "Logy",

@@ -47,19 +47,16 @@
     <meta name="description" content="@(Model.Title)の詳細情報です。JA-Fleetは日本国内の航空会社が保有する機材（飛行機）を一覧表示や検索できるサイトです。">
     <meta name="referrer" content="no-referrer" />
 
-    @if (Model.OgImageUrl != null && Model.OgImageUrl!.Contains("jetphotos.com"))
-    {
-        <meta name="twitter:card" content="summary_large_image" />
-    }
-    else
-    {
-        <meta name="twitter:card" content="summary" />
-    }
+    @* 画像は機体ごとのカード画像（1200×630）なので大きいカードにする *@
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@@ja_fleet" />
 
     <meta property="og:type" content="website" />
     <meta property="og:description" content="@(Model.Title)の詳細情報です。JA-Fleetは日本国内の航空会社が保有する機材（飛行機）を一覧表示や検索できるサイトです。" />
     <meta property="og:image" content="@(Model.OgImageUrl)" />
+    <meta property="og:image:width" content="@JAFleet.Services.OgCardRenderer.WIDTH" />
+    <meta property="og:image:height" content="@JAFleet.Services.OgCardRenderer.HEIGHT" />
+    <meta property="og:image:alt" content="@(Model.Title) の機体情報" />
     <meta property="og:url" content="https://ja-fleet.noobow.me/@Context.Request.Path" />
     <meta property="og:site_name" content="JA-Fleet【本邦航空会社機材一覧サイト】" />
 }
