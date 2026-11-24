@@ -13,6 +13,12 @@
 .adm-page { padding: 16px 0 60px; max-width: 900px; }
 .adm-page h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1e293b; }
 .adm-lead { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+.adm-back {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+    border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+    color: #334155; font-size: 13px; font-weight: 600; text-decoration: none;
+}
+.adm-back:hover { background: #f1f5f9; color: #1e293b; text-decoration: none; }
 
 .adm-section-title {
     font-size: 13px; font-weight: 700; color: #94a3b8;
@@ -87,6 +93,10 @@
 }
 
 <div class="adm-page">
+    @* ヘッダーの無いレイアウトなので、公開ページへ戻る道を用意する（各画面の「管理コンソールに戻る」と同じ見た目） *@
+    <div style="margin:0 0 12px;">
+        <a href="/" class="adm-back">← トップページへ</a>
+    </div>
     <h2>🛠 管理コンソール</h2>
     <div class="adm-lead">管理者のみ表示されます</div>
 
