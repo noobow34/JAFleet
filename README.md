@@ -688,6 +688,8 @@ JAFleet/
 │   ├── AircraftHistoryStore.cs 更新履歴の修正・削除
 │   ├── AircraftReservationStore.cs 機体更新の予約（差分の保存・反映・取消）
 │   └── MasterManager.cs        マスタのメモリキャッシュ
+├── Adsb/             adsb.lol の履歴ダンプ（GitHub）と ADSBdb の読み取り
+├── StandingData/     VRS standing-data（路線・空港）の読み取り
 ├── Batch/            スクレイピングを伴う長時間処理と Slack 通知の組み立て
 ├── Jobs/             Quartz のジョブと RootScheduler
 ├── Middleware/       アクセスログ記録、条件付き自動ログイン
@@ -722,6 +724,7 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
 | `ApplyAircraftReservationJob` | 反映日が今日以前の機体更新の予約を反映し、Slack へ知らせる（[機体更新の予約](#機体更新の予約)）。DDL で毎日 0:05 に登録される |
 | `RefreshAircraftHexJob` | adsb.lol の履歴ダンプで機体の hex（ICAO 24bit アドレス）を覚え、残りを ADSBdb で引いて `aircraft_hex` に入れる。結果を Slack へ（[機体の hex](#機体の-hexaircraft_hex)） |
+| `RefreshFlightRouteJob` | VRS standing-data で路線（callsign→空港）と空港の一覧を丸ごと入れ替え、結果を Slack へ。週1回で足りる（[路線と空港](#路線と空港flight_routeairport)） |
 
 Flightradar24 を巡回する処理（`RefreshWorkingStatusAndPhotoJob`・`RefreshRetiredAircraftPhotoJob` と、管理コンソールからの手動実行）は、**最初の1機で 403 が返ったら
 何も保存せずに中止し、Slack へ通知します**。FR24 は Cloudflare のボット対策でサーバーからのリクエストに
@@ -919,6 +922,9 @@ DB と両方のアプリを同時に切り替える。
 `create_aircraft_hex.sql`（機体の hex の `aircraft_hex`）は**デプロイ前**に実行してください。テーブルが無いと
 `RefreshAircraftHexJob` が落ちます（ほかの画面は使わないので影響しません）。
 
+`create_flight_route_airport.sql`（路線と空港の `flight_route`・`airport`）も**デプロイ前**に実行してください。
+テーブルが無いと `RefreshFlightRouteJob` が落ちます（ほかの画面は使わないので影響しません）。
+
 `create_site_setting.sql`（サイト設定の `site_setting`）は、デプロイの前後どちらでも構いません。
 テーブルが無いあいだは既定値（非稼働情報のメニューは表示）で動き、`/SiteSetting` で保存しようと
 したときだけエラーになります。全ページのレイアウトが読む値なので、起動時とマスタ再読込でメモリへ
@@ -946,6 +952,25 @@ adsb.lol の履歴ダンプへ移す予定です。ダンプは機体ごとの�
 - 開発DBで 2026-11-22 のダンプを流した結果（17分46秒）: 日本の hex 753 件のうち JAFleet の 571 機をダンプで覚え、
   ADSBdb で 75 機を追加。ADSBdb でも見つからなかった 200 機は、ほとんどが予約登録だけのレジ
   （JA030A〜、JA351J〜、JA731B〜 など）だったので、2回目からは予約登録を引かないようにした
+
+### 路線と空港（`flight_route`・`airport`）
+
+軌跡の callsign から出発地・到着地を出すための表です（使うのは稼働判定を切り替えてから）。
+
+- **元データ**: VRS standing-data（https://github.com/vradarserver/standing-data 、CC0）。リポジトリの tarball
+  （約6MB）を1回取って流し、`airports/schema-01/*/*.csv` と `routes/schema-01/*/<航空会社>-all.csv` を拾う
+  （`StandingData/VrsStandingData.cs`）。CC0 なので出典の表示は要らない
+- **路線**: JA 機が使う callsign の航空会社（`JAPANESE_CALLSIGN_AIRLINES` の24社）だけ。`airport_codes` は ICAO を
+  飛ぶ順に `-` でつないだもの（経由便は3つ以上）。JAC・NTH（HAC）・CUK は VRS に無い。HAC の `JAL2761` なども
+  JAL のファイルに無かったので、こうした便は軌跡の端に一番近い空港で代わりにする想定
+- **空港**: 全世界（約3.4万件、ヘリポートも含む）。都市名は英語で、FR24 と違うことがある（小松は Kanazawa）。
+  整備拠点（OKA・TPE・TNN・XMN・HKG・MNL・SIN・XSP・QPG・TNA）はすべて入っている
+- **入れ替え方**: 1トランザクションで全部消して入れ直す。空港が2万件未満・路線が3千件未満なら、配布物が
+  おかしいとみて入れ替えずに止める
+- VRS の航空会社の表（`airlines.csv`）は日本の会社に誤りがある（`RAC` が Icar Air など）ので使わない
+- `scheduler_def` の行は無いので、`/Scheduler` から有効にする（例 毎週月曜 3:00 は `0 0 3 ? * MON`）
+- 開発DBで流した結果: 路線 6,074 件（ANA 2,096、JAL 1,810、APJ 519、SKY 340…）、空港 34,128 件。
+  路線に出てくる空港コードはすべて空港の表にあった。所要は10秒ほど
 
 主なテーブル・ビューは `JAFleet.Commons` の `JAFleetContext` を参照してください
 （`aircraft`、`aircraft_view`、`aircraft_history`、`aircraft_photo`、`working_status`、
