@@ -718,15 +718,16 @@ cron 式は Quartz の書式で、Unix の cron と違い **秒から始まる 6
 | --- | --- |
 | `RefreshWorkingStatusAndPhotoJob` | 退役以外の全機体について Flightradar24 を巡回し、稼働状況と写真を更新。変化を稼働チェックログと Slack 通知用テキストとして記録 |
 | `RefreshRetiredAircraftPhotoJob` | 退役・抹消済み機体の写真のみ更新 |
+| `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する |
+| `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
+| `ApplyAircraftReservationJob` | 反映日が今日以前の機体更新の予約を反映し、Slack へ知らせる（[機体更新の予約](#機体更新の予約)）。DDL で毎日 0:05 に登録される |
+| `RefreshAircraftHexJob` | adsb.lol の履歴ダンプで機体の hex（ICAO 24bit アドレス）を覚え、残りを ADSBdb で引いて `aircraft_hex` に入れる。結果を Slack へ（[機体の hex](#機体の-hexaircraft_hex)） |
 
-Flightradar24 を巡回する処理（上の2つと、管理コンソールからの手動実行）は、**最初の1機で 403 が返ったら
+Flightradar24 を巡回する処理（`RefreshWorkingStatusAndPhotoJob`・`RefreshRetiredAircraftPhotoJob` と、管理コンソールからの手動実行）は、**最初の1機で 403 が返ったら
 何も保存せずに中止し、Slack へ通知します**。FR24 は Cloudflare のボット対策でサーバーからのリクエストに
 403 を返すことがあり、そのまま続けると全機体を「運航なし」「写真なし」で上書きしてしまうためです
 （DB への保存は最後にまとめて行うので、途中で抜ければ何も変わりません）。中止した日は稼働チェックログが
 作られないので、`NotifyWorkingStatusJob` は「未実行」の警告を出します。
-| `NotifyWorkingStatusJob` | その日の稼働状況の変化を Slack へ投稿。更新処理が実行中なら完了を待ってから投稿し、未実行なら警告する |
-| `CheckSpecialLiveryNewsJob` | Aviation Wire の RSS を取得し、特別塗装機のニュースから機体更新の候補を作る（[特別塗装ニュースの承認](#特別塗装ニュースの承認)） |
-| `ApplyAircraftReservationJob` | 反映日が今日以前の機体更新の予約を反映し、Slack へ知らせる（[機体更新の予約](#機体更新の予約)）。DDL で毎日 0:05 に登録される |
 
 ## 環境変数
 
@@ -915,10 +916,36 @@ DB と両方のアプリを同時に切り替える。
 列が無いと `/LiveryNews` が開けず、テーブルが無いと単票編集が開けません。
 `scheduler_def` の行は起動時に読まれるので、デプロイ（再起動）で反映ジョブが載ります。
 
+`create_aircraft_hex.sql`（機体の hex の `aircraft_hex`）は**デプロイ前**に実行してください。テーブルが無いと
+`RefreshAircraftHexJob` が落ちます（ほかの画面は使わないので影響しません）。
+
 `create_site_setting.sql`（サイト設定の `site_setting`）は、デプロイの前後どちらでも構いません。
 テーブルが無いあいだは既定値（非稼働情報のメニューは表示）で動き、`/SiteSetting` で保存しようと
 したときだけエラーになります。全ページのレイアウトが読む値なので、起動時とマスタ再読込でメモリへ
 読み込み、毎リクエストでは DB に行きません。
+
+### 機体の hex（`aircraft_hex`）
+
+Flightradar24 から取れなくなったので（[Flightradar24 からの取得](#flightradar24-からの取得)）、稼働情報は
+adsb.lol の履歴ダンプへ移す予定です。ダンプは機体ごとの軌跡が hex（ICAO 24bit アドレス）単位で入っているので、
+まず機体記号と hex の対応を `aircraft_hex` に持たせます（稼働判定の切り替えはこのあと）。
+
+- **元データ**: GitHub の `adsblol/globe_history_YYYY` のリリース `vYYYY.MM.DD-planes-readsb-prod-0`
+  （UTC の1日分、翌日の 12:30（日本時間）ごろ公開、`.tar.aa`・`.tar.ab` で約3GiB）。ライセンスは ODbL 1.0 で、
+  使った画面には出典（adsb.lol）の表示が要る。**adsb.lol のサーバー（地図・API）は自動で叩かない**
+  （地図のホストを自動で叩くと回線ごとブロックされる。自動のクライアントはキー付き API の決まり）
+- **読み方**（`Adsb/AdsbDump.cs`）: 分割 tar を保存せずにつないで流し、`traces/xx/trace_full_<hex>.json` のうち
+  日本の範囲（840000〜87FFFF）だけを取り出す。中身は gzip の JSON で、`r` がレジ
+- **覚え方**（`Batch/RefreshAircraftHex.cs`）: レジ付きで出てきた JAFleet の機体の hex を入れ、`last_seen_date` を進める。
+  hex が変わっていたら書き換えて Slack に名前を出す。同じ日に別々の hex で出たレジは見送る
+- **ADSBdb**: ダンプに出てこなかった機体（退役と予約登録を除く）だけ、`https://api.adsbdb.com/v0/aircraft/<レジ>` で1機ずつ
+  （2秒おき）引く。レジが一致して日本の範囲の hex だけ使う。エラーが返ったら残りは次回に回す。
+  ADSBdb の路線データは転載・DB 化が禁止なので使わない
+- `RefreshAircraftHexJob` は前日（UTC）分のダンプを読むので、13:00 以降に動かす。`scheduler_def` の行は無いので、
+  `/Scheduler` から有効にする（例 `0 0 13 * * ?`）
+- 開発DBで 2026-11-22 のダンプを流した結果（17分46秒）: 日本の hex 753 件のうち JAFleet の 571 機をダンプで覚え、
+  ADSBdb で 75 機を追加。ADSBdb でも見つからなかった 200 機は、ほとんどが予約登録だけのレジ
+  （JA030A〜、JA351J〜、JA731B〜 など）だったので、2回目からは予約登録を引かないようにした
 
 主なテーブル・ビューは `JAFleet.Commons` の `JAFleetContext` を参照してください
 （`aircraft`、`aircraft_view`、`aircraft_history`、`aircraft_photo`、`working_status`、
