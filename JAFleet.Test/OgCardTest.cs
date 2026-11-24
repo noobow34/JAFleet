@@ -1,6 +1,6 @@
 using JAFleet.Controllers;
 using JAFleet.Services;
-using SixLabors.ImageSharp;
+using SkiaSharp;
 
 namespace JAFleet.Test
 {
@@ -17,7 +17,7 @@ namespace JAFleet.Test
         public void 大きさ1200x630のPNGを描く()
         {
             byte[] png = Renderer.Render(new OgCardData("JA841A", "DHC-8-402", "ANAウイングス", "国内", "4", null));
-            using var img = Image.Load(png);
+            using var img = SKBitmap.Decode(png);
             Assert.AreEqual(OgCardRenderer.WIDTH, img.Width);
             Assert.AreEqual(OgCardRenderer.HEIGHT, img.Height);
         }

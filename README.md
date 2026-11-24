@@ -116,8 +116,9 @@
   レジを大きく、型式・航空会社・特別塗装（あれば）・運用状況のバッジ（運用中は青、退役は灰、受領前は橙）とロゴを載せる。
   他人の写真は OGP に使わない（JetPhotos は写真をほかで使う許可を出しておらず、Planespotters の API は写真の横の撮影者名と
   写真ページへのリンク、閲覧者のブラウザが直接取ることを条件にしているので、SNS や LINE のカードでは満たせない）
-  - 描画は ImageSharp 3.2 / ImageSharp.Drawing 2.2（Six Labors Split License。年商100万ドル未満の個人・会社は Apache 2.0 で使える）。
-    3.2.0 より前は既知の脆弱性があるので上げないこと
+  - 描画は SkiaSharp 3.119（MIT）。Linux 用のネイティブライブラリは `SkiaSharp.NativeAssets.Linux.NoDependencies` に入っているので、
+    サーバーに追加で入れるものは無い。ImageSharp は 3.2.0 以降が Release ビルドでライセンスキーを要求し、それより前は既知の脆弱性が
+    あるので使わない
   - 日本語は同梱の Noto Sans JP Bold（`JAFleet/Fonts/`、SIL OFL 1.1。ライセンス文も同じ場所）。発行時もコピーされる
   - 中身（レジ・型式・航空会社・運用状況・特別塗装）から ETag を作り、変わらなければ 304 を返す。`Cache-Control` は1日。
     描き方を変えたときは `OgImageController.Signature` の版（`v1`）を上げる
