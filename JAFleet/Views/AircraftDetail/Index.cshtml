@@ -39,6 +39,7 @@
     if (av.J != null) { seats.Add(("J", "クラスJ", av.J.Value)); }
     if (av.Y != null) { seats.Add(("Y", "エコノミー", av.Y.Value)); }
     bool photoIsExternal = Model.PhotoUrl.StartsWith("http");
+    bool photoIsFr24 = Model.PhotoUrl.Contains("flightradar24.com");
     bool hasPhoto = Model.PhotoUrl != "/nophoto.html";
     string editQuery = Model.NoHead ? "?nohead=true" : "";
 }
@@ -197,16 +198,21 @@
         @* ---- 写真 ---- *@
         <section class="ad-card ad-photo">
             <h3 class="ad-card-title">
-                写真
+                @(photoIsFr24 ? "写真・飛行履歴" : "写真")
                 @if (photoIsExternal)
                 {
-                    <a class="ad-ext" href="@Model.PhotoUrl" target="_blank" rel="noopener">JetPhotosで開く</a>
+                    <a class="ad-ext" href="@Model.PhotoUrl" target="_blank" rel="noopener">@(photoIsFr24 ? "Flightradar24で開く" : "JetPhotosで開く")</a>
                 }
             </h3>
             @if (hasPhoto)
             {
                 @* src はスクリプトで入れる（下の「写真は見えてから読み込む」） *@
-                <iframe data-src="@Model.PhotoUrl" id="photofr" class="ad-photo-frame" title="@reg の写真"></iframe>
+                <iframe data-src="@Model.PhotoUrl" id="photofr" class="ad-photo-frame" title="@(photoIsFr24 ? $"{reg} の Flightradar24 のページ" : $"{reg} の写真")"></iframe>
+                @if (photoIsFr24)
+                {
+                    @* FR24 の規約（8.2）に合わせて出典をはっきり書く。枠の中が空のときの逃げ道にもする *@
+                    <p class="ad-fr24-credit">表示: <a href="@Model.PhotoUrl" target="_blank" rel="noopener">Flightradar24</a>。枠の中が表示されないときは、リンクから直接開いてください。</p>
+                }
             }
             else
             {
@@ -293,7 +299,7 @@
                 historyBox.innerHTML = '<p class="ad-error">更新履歴を読み込めませんでした。時間をおいて開き直してください</p>';
             });
 
-            // 写真は見えてから読み込む。JetPhotos のページは読み込むと中の要素へフォーカスを当てるため、
+            // 写真は見えてから読み込む。JetPhotos・FR24 のページは読み込むと中の要素へフォーカスを当てることがあり、
             // 枠が画面の外にあるうちに読み込むと、ブラウザが枠まで勝手にスクロールしてしまう
             // （スマホでは開いた途端に機体の情報が見えなくなっていた）。PC では最初から見えているのですぐ読む
             (function () {

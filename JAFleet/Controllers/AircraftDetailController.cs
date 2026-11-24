@@ -64,11 +64,14 @@ namespace JAFleet.Controllers
             }
             if (!string.IsNullOrEmpty(linkUrl))
             {
+                //手で登録した写真のページ（JetPhotos に無い機体など）があればそれを出す
                 model.PhotoUrl = $"/ADE/{id}";
             }
             else
             {
-                model.PhotoUrl = model.AV?.PhotoUrl ?? "/nophoto.html";
+                //それ以外は Flightradar24 の機体ページをそのまま埋め込む（写真と飛行履歴が見られる）。
+                //読み込むのは閲覧者のブラウザなので、こちらのサーバーから FR24 を自動で取りに行くことはない
+                model.PhotoUrl = Fr24PageUrl(id);
             }
 
             //ログは非同期で書き込み
@@ -127,5 +130,9 @@ namespace JAFleet.Controllers
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
+
+        /// <summary>Flightradar24 の機体ページの URL（例 https://www.flightradar24.com/data/aircraft/ja030a）</summary>
+        public static string Fr24PageUrl(string registrationNumber)
+            => FlightradarConstant.FR24_DATA_URL + Uri.EscapeDataString(registrationNumber.Trim().ToLowerInvariant());
     }
 }
