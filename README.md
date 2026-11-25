@@ -206,6 +206,7 @@ DB では `date` 型ですが、文字列だったころの API と同じ形を�
 | 更新履歴の編集 | `/AircraftHistory?reg={レジ}` | 機体詳細に出る更新履歴（`aircraft_history`）の修正・削除 |
 | 同一型式の一括登録 | `/BulkRegister` | 「レジ / 登録年月日 / 製造番号」をタブ・カンマ・空白区切りで貼り付けてまとめて登録。登録年月日が月まで（`2026/08`、`2026/08/xx`、`R8.8`）ならその月の末日にし、日付として読めない行はエラーにする |
 | 航空局 Excel 取込 | `/JcabImport` | 国土交通省航空局から届くパスワード付き Excel を、Gmail から直接またはアップロードで取り込む |
+| 棚卸 | `/Inventory` | 検索画面と同じ条件で機体を全項目つきで並べ、内容を確かめた機体に目印を付ける（[棚卸](#棚卸)） |
 | コンフィグマスタ | `/SeatConfig` | 航空会社・型式ごとの座席仕様（コンフィグ）を登録・更新・削除する |
 | 特別塗装ニュース | `/LiveryNews` | Aviation Wire の RSS から Gemini が作った特別塗装の更新候補を承認・却下する |
 | マスタ再読込 | `/ReloadMaster` | 航空会社・型式などのマスタとサイト設定をメモリへ読み直す |
@@ -480,6 +481,31 @@ export GMAIL_REFRESH_TOKEN=$(pass ja-fleet.noobow.me/ja-fleet/gmail_refresh_toke
   `POST /JcabImport/CreateType`・`POST /JcabImport/CreateTypeDetail`（取込プレビュー用）。
   いずれも `AdminAuth.IsAdmin` を通らなければ `NotFound`
 
+#### 棚卸
+
+`/Inventory`（`InventoryController`・`Views/Inventory/Index.cshtml`）は、登録内容が正しいかを 1 機ずつ確かめるための画面です。
+入口は管理コンソールの「棚卸」。`AdminAuth.IsAdmin` を通らなければ `NotFound`。
+
+- **条件は検索画面と同じ**。欄の ID・見た目（`search.css`・`jf-multiselect.js`）も揃えてあり、絞り込みは
+  `Services/AircraftSearch.cs` を検索画面（`/Search/DoSearch`）と共通で使う。**条件を足すときは両方の画面に足すこと**。
+  保存済みの条件の呼び出しと、`/Inventory?sc={キー}`（検索画面の共有 URL のキー）での起動もできる。
+  検索画面と違い、検索条件（`search_condition`）とログは残さない
+- 最後に検索した条件はブラウザ（localStorage）に覚え、次に開いたときはその条件で検索する
+- 検索すると条件のカードを畳み、選んだ条件をチップで要約する（「▼ 条件を変更」で開く・「▲ 条件を畳む」で畳む）。
+  一覧は画面の下端までの高さの枠の中でスクロールし、見出しと「確認」「機体記号」の列は貼り付く。
+  条件を畳むとそのぶん一覧が広がる
+- 一覧は `aircraft_view` の全項目（航空会社・型式・製造番号・登録／抹消年月日・運用・Wi-Fi・コンフィグ・特別塗装・備考・
+  試験飛行用レジ・写真リンク・最終更新）を省略せずに出す。機体記号は詳細、「編集」は単票編集、「履歴」は更新履歴の編集を別タブで開く
+- **目印**: 左端のボタンで「未確認 → 確認済」。確認済をもう一度押すと外れる。付けた・外した直後は下に「取り消す」が出る（5 秒）。
+  目印は `inventory_check`（1 機 1 行、付けた日時）に保存する
+- **要再確認**: 目印を付けたあとで機体が更新された（`aircraft.actual_update_time` の方が新しい）ときは、目印を残したまま
+  橙の「要再確認」にする。押すと確認し直したことになる（日時が今になる）
+- 「確認済を隠す」で確認済の行を隠す（要再確認は隠さない）。設定はブラウザに覚える。隠しているときに目印を付けた行は、
+  薄くしてから消える
+- 一覧の上の絞り込み欄（空白区切りで AND、サーバには問い合わせない）と、「表示中をすべて確認済に」「表示中の目印を外す」
+  （確認のダイアログあり）。どちらも絞り込み・「確認済を隠す」で見えている行だけが対象
+- 件数は「全 N 機 / 確認済 / 要再確認 / 未確認」。「再読込」は同じ条件で取り直す（編集した結果を見るとき）
+
 #### コンフィグマスタ
 
 `/SeatConfig` は `seat_configuration` の画面です。ここに登録した行が、単票編集（`/E`）と
@@ -702,6 +728,7 @@ JAFleet/
 │   ├── Livery/       特別塗装ニュースの取得・判定・承認（RSS / Gemini / 反映）
 │   ├── AccessStatsService.cs   access_log の集計（/AccessStats）
 │   ├── AircraftStore.cs        機体の登録・更新（単票編集と一括取込の共通処理）
+│   ├── AircraftSearch.cs       検索条件での絞り込み（検索画面と棚卸で共通）
 │   ├── SearchConditionStore.cs 名前付き検索条件の登録
 │   ├── TypeStore.cs            型式のその場登録
 │   ├── TypeDetailStore.cs      詳細型式のその場登録
@@ -920,7 +947,24 @@ CSS / JS は `bundleconfig.json` に従いビルド時に `site.min.css` / `site
 dotnet test JAFleet.sln
 ```
 
-`WorkingStatusSlackNotifyTest` など一部のテストは Slack へ実際に投稿します。実行時は `SLACK_BOT_TOKEN` に注意してください。
+普段はこれだけで、20 秒ほどで終わります（ビルドを含む。テスト自体は 1 秒かからない）。外部（DB・Slack・FR24・adsb.lol）には触りません。
+
+**手動テスト**（`[TestCategory("Manual")]`）は、本物のジョブを動かしたり Slack へ投稿したりして様子を見るためのもので、
+普段は Inconclusive（スキップ）になります。入口は `JAFleet.Test/ManualTest.cs`。
+
+| テスト | 内容 |
+| --- | --- |
+| `NotifyWorkingStatusJobTest` | 稼働状況の通知ジョブを Quartz で動かして **10 分待つ**。`ExecuteWithtRefreshAsync` は開発 DB の機体で FR24 の巡回まで動かす（`JAFLEET_CONNECTION_STRING` が要る） |
+| `WorkingStatusSlackNotifyTest`・`Fr24ForbiddenSlackNotifyTest` | 通知を実際に Slack へ投稿して見た目を確かめる（`SLACK_BOT_TOKEN` が要る） |
+
+動かすときは、環境変数 `JAFLEET_RUN_MANUAL_TESTS=1` を付けて、そのテストだけを指定します。
+
+```powershell
+$env:JAFLEET_RUN_MANUAL_TESTS = "1"; dotnet test JAFleet.sln --filter "FullyQualifiedName~WorkingStatusSlackNotifyTest"
+```
+
+以前は手動テストも毎回動いていて、`NotifyWorkingStatusJobTest` の 10 分待ちのせいで `dotnet test` が毎回 10 分かかっていました。
+**長く待つ・外部に書き込むテストを足すときは、同じように `ManualTest.RequireOptIn()` を通すこと。**
 
 ## データベース
 
@@ -989,6 +1033,9 @@ DB と両方のアプリを同時に切り替える。
 
 `create_adsb_flight.sql`（ダンプからのフライトの `adsb_flight`）も**デプロイ前**に実行してください。
 テーブルが無いと `RefreshAdsbFlightJob` が落ちます（ほかの画面は使わないので影響しません）。
+
+`create_inventory_check.sql`（棚卸の目印の `inventory_check`）は、デプロイの前後どちらでも構いません。
+テーブルが無いあいだは `/Inventory` の検索がエラーになるだけで、ほかの画面は使いません。
 
 `create_site_setting.sql`（サイト設定の `site_setting`）は、デプロイの前後どちらでも構いません。
 テーブルが無いあいだは既定値（非稼働情報のメニューは表示）で動き、`/SiteSetting` で保存しようと

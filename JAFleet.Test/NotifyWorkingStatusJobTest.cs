@@ -9,12 +9,19 @@ using JAFleet.Batch;
 
 namespace JAFleet.Test
 {
+    /// <summary>
+    /// 稼働状況の通知ジョブを Quartz で本当に動かし、10 分待って様子を見る手動テスト。
+    /// ExecuteWithtRefreshAsync は開発 DB の機体で FR24 の巡回まで動かす。
+    /// 普段のテストでは動かさない（<see cref="ManualTest"/>）。
+    /// </summary>
     [TestClass]
+    [TestCategory(ManualTest.CATEGORY)]
     public sealed class NotifyWorkingStatusJobTest
     {
         [TestMethod]
         public async Task ExecuteWithoutRefreshAsync()
         {
+            ManualTest.RequireOptIn();
             var schedulerFactory = new StdSchedulerFactory();
             var sch = await schedulerFactory.GetScheduler();
             await sch.Start();
@@ -39,6 +46,7 @@ namespace JAFleet.Test
         [TestMethod]
         public async Task ExecuteWithtRefreshAsync()
         {
+            ManualTest.RequireOptIn();
             var options = new DbContextOptionsBuilder<JAFleetContext>();
             options.UseNpgsql(Environment.GetEnvironmentVariable("JAFLEET_CONNECTION_STRING") ?? "");
             using JAFleetContext jContext = new(options.Options);
