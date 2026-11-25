@@ -4,40 +4,40 @@
  * スマホ・タブレット（〜991px）は 1 列で「見出し → 現在の情報 → 写真 → 更新履歴」。
  * PC（992px〜）は左に情報と履歴、右に写真を画面に固定して並べる。
  */
-.ad { color: #1e293b; padding: 4px 0 24px; }
+.dtl { color: #1e293b; padding: 4px 0 24px; }
 
 /* ===== 見出し ===== */
-.ad-head { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px 14px; margin: 4px 0 10px; }
-.ad-title { flex: 1; min-width: 0; }
-.ad-reg-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
-.ad-reg {
+.dtl-head { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px 14px; margin: 4px 0 10px; }
+.dtl-title { flex: 1; min-width: 0; }
+.dtl-reg-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.dtl-reg {
     margin: 0; font-family: ui-monospace, Consolas, "SFMono-Regular", Menlo, monospace;
     font-size: 32px; font-weight: 700; line-height: 1.15; letter-spacing: .02em; color: #0f172a;
 }
-.ad-sub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; margin-top: 4px; font-size: 15px; color: #475569; }
-.ad-sub-type { font-weight: 700; color: #334155; }
-.ad-sub-sep { color: #cbd5e1; margin: 0 2px; }
-.ad-sub-test { font-size: 13px; color: #64748b; }
-.ad-back, .ad-btn {
+.dtl-sub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; margin-top: 4px; font-size: 15px; color: #475569; }
+.dtl-sub-type { font-weight: 700; color: #334155; }
+.dtl-sub-sep { color: #cbd5e1; margin: 0 2px; }
+.dtl-sub-test { font-size: 13px; color: #64748b; }
+.dtl-back, .dtl-btn {
     display: inline-flex; align-items: center; height: 34px; padding: 0 14px;
     border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155;
     font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
 }
-.ad-back:hover, .ad-btn:hover, .ad-btn:focus { background: #f1f5f9; color: #0f172a; text-decoration: none; }
-.ad-back { width: 100%; justify-content: center; height: 40px; font-size: 14px; }
-.ad-admin { display: flex; gap: 6px; flex-wrap: wrap; }
+.dtl-back:hover, .dtl-btn:hover, .dtl-btn:focus { background: #f1f5f9; color: #0f172a; text-decoration: none; }
+.dtl-back { width: 100%; justify-content: center; height: 40px; font-size: 14px; }
+.dtl-admin { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.ad-related { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-.ad-related a {
+.dtl-related { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.dtl-related a {
     display: inline-flex; align-items: center; padding: 3px 12px; border-radius: 999px;
     border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8;
     font-size: 12px; font-weight: 600; text-decoration: none;
 }
-.ad-related a::after { content: "の一覧"; margin-left: 1px; font-weight: 500; color: #60a5fa; }
-.ad-related a:hover { background: #dbeafe; text-decoration: none; }
+.dtl-related a::after { content: "の一覧"; margin-left: 1px; font-weight: 500; color: #60a5fa; }
+.dtl-related a:hover { background: #dbeafe; text-decoration: none; }
 
 /* ===== 運用バッジ（機体一覧と同じ色） ===== */
-.ad-op { display: inline-block; padding: 0 10px; border-radius: 999px; line-height: 24px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.dtl-op { display: inline-block; padding: 0 10px; border-radius: 999px; line-height: 24px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .op-intl   { background: #dbeafe; color: #1d4ed8; }
 .op-dom    { background: #dcfce7; color: #15803d; }
 .op-both   { background: #e0e7ff; color: #4338ca; }
@@ -48,121 +48,121 @@
 .op-other  { background: #f1f5f9; color: #475569; }
 
 /* ===== カード ===== */
-.ad-layout { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
-.ad-main { display: grid; gap: 14px; min-width: 0; align-content: start; }
-.ad-card {
+.dtl-layout { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+.dtl-main { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.dtl-card {
     border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;
     padding: 14px 16px 16px; box-shadow: 0 1px 3px rgba(15,23,42,.05); min-width: 0;
 }
-.ad-card-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #0f172a; }
-.ad-card-title .sub { font-size: 12px; font-weight: 600; color: #94a3b8; }
-.ad-card-title .ad-ext { margin-left: auto; }
-.ad-muted { color: #94a3b8; font-size: 12px; margin-left: 4px; }
-p.ad-muted, div.ad-muted { margin: 0; }
-.ad-error { margin: 0; color: #b91c1c; font-size: 13px; }
-.ad-num { font-variant-numeric: tabular-nums; }
-.ad-ext { font-size: 12px; font-weight: 600; color: #2563eb; text-decoration: none; white-space: nowrap; }
-.ad-ext::after { content: " ↗"; }
-.ad-ext:hover { text-decoration: underline; }
+.dtl-card-title { display: flex; align-items: baseline; gap: 8px; margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #0f172a; }
+.dtl-card-title .sub { font-size: 12px; font-weight: 600; color: #94a3b8; }
+.dtl-card-title .dtl-ext { margin-left: auto; }
+.dtl-muted { color: #94a3b8; font-size: 12px; margin-left: 4px; }
+p.dtl-muted, div.dtl-muted { margin: 0; }
+.dtl-error { margin: 0; color: #b91c1c; font-size: 13px; }
+.dtl-num { font-variant-numeric: tabular-nums; }
+.dtl-ext { font-size: 12px; font-weight: 600; color: #2563eb; text-decoration: none; white-space: nowrap; }
+.dtl-ext::after { content: " ↗"; }
+.dtl-ext:hover { text-decoration: underline; }
 
 /* ---- 現在の情報 ---- */
-.ad-spec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 0; }
-.ad-item { min-width: 0; }
-.ad-item.wide { grid-column: 1 / -1; }
-.ad-item dt { margin: 0 0 2px; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .02em; }
-.ad-item dd { margin: 0; font-size: 15px; font-weight: 600; color: #0f172a; overflow-wrap: anywhere; line-height: 1.5; }
-.ad-wifi { font-weight: 700; }
-.ad-wifi::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: currentColor; }
-.ad-wifi.w-yes { color: #16a34a; }
-.ad-wifi.w-part { color: #d97706; }
-.ad-wifi.w-no { color: #94a3b8; }
-.ad-seats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
-.ad-seat {
+.dtl-spec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 0; }
+.dtl-item { min-width: 0; }
+.dtl-item.wide { grid-column: 1 / -1; }
+.dtl-item dt { margin: 0 0 2px; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: .02em; }
+.dtl-item dd { margin: 0; font-size: 15px; font-weight: 600; color: #0f172a; overflow-wrap: anywhere; line-height: 1.5; }
+.dtl-wifi { font-weight: 700; }
+.dtl-wifi::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: currentColor; }
+.dtl-wifi.w-yes { color: #16a34a; }
+.dtl-wifi.w-part { color: #d97706; }
+.dtl-wifi.w-no { color: #94a3b8; }
+.dtl-seats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.dtl-seat {
     display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 10px; border-radius: 8px;
     background: #f1f5f9; border: 1px solid #e2e8f0; font-variant-numeric: tabular-nums; font-size: 15px;
 }
-.ad-seat b { font-size: 11px; color: #64748b; }
-.ad-seat-total { font-size: 13px; font-weight: 600; color: #475569; }
-.ad-seat-total b { font-size: 15px; color: #0f172a; }
-.ad-livery {
+.dtl-seat b { font-size: 11px; color: #64748b; }
+.dtl-seat-total { font-size: 13px; font-weight: 600; color: #475569; }
+.dtl-seat-total b { font-size: 15px; color: #0f172a; }
+.dtl-livery {
     display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 10px; border-radius: 8px;
     background: #f5f3ff; border: 1px solid #ede9fe; color: #6d28d9; font-size: 14px; font-weight: 700; line-height: 1.5;
 }
-.ad-livery::before {
+.dtl-livery::before {
     content: ""; flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%;
     background: conic-gradient(#ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444);
 }
-.ad-remarks { font-weight: 500; font-size: 14px; color: #334155; white-space: pre-wrap; }
+.dtl-remarks { font-weight: 500; font-size: 14px; color: #334155; white-space: pre-wrap; }
 
 /* ---- 写真 ---- */
-.ad-photo { padding-bottom: 12px; }
-.ad-nophoto { margin: 0; padding: 18px 16px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #f8fafc; color: #64748b; font-size: 13px; line-height: 1.7; }
-.ad-photo-frame { display: block; width: 100%; height: 72vh; min-height: 420px; border: 0; border-radius: 8px; background: #f8fafc; }
-.ad-fr24-credit { margin: 6px 0 0; font-size: 12px; color: #94a3b8; }
-.ad-fr24-credit a { color: inherit; text-decoration: underline; }
+.dtl-photo { padding-bottom: 12px; }
+.dtl-nophoto { margin: 0; padding: 18px 16px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #f8fafc; color: #64748b; font-size: 13px; line-height: 1.7; }
+.dtl-photo-frame { display: block; width: 100%; height: 72vh; min-height: 420px; border: 0; border-radius: 8px; background: #f8fafc; }
+.dtl-fr24-credit { margin: 6px 0 0; font-size: 12px; color: #94a3b8; }
+.dtl-fr24-credit a { color: inherit; text-decoration: underline; }
 
 /* ---- 更新履歴 ---- */
-.ad-tl { list-style: none; margin: 0; padding: 0; position: relative; }
-.ad-tl::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 2px; background: #e2e8f0; }
-.ad-tl-item { position: relative; padding: 0 0 14px 22px; }
-.ad-tl-item:last-child { padding-bottom: 0; }
-.ad-tl-item::before {
+.dtl-tl { list-style: none; margin: 0; padding: 0; position: relative; }
+.dtl-tl::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 2px; background: #e2e8f0; }
+.dtl-tl-item { position: relative; padding: 0 0 14px 22px; }
+.dtl-tl-item:last-child { padding-bottom: 0; }
+.dtl-tl-item::before {
     content: ""; position: absolute; left: 0; top: 4px; width: 12px; height: 12px; border-radius: 50%;
     background: #fff; border: 2px solid #94a3b8;
 }
-.ad-tl-item.is-now::before { border-color: #2563eb; background: #2563eb; box-shadow: 0 0 0 3px #dbeafe; }
-.ad-tl-date { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; font-variant-numeric: tabular-nums; }
-.ad-tag { padding: 0 7px; border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 18px; }
-.ad-tag.now { background: #dbeafe; color: #1d4ed8; }
-.ad-tag.first { background: #f1f5f9; color: #64748b; }
-.ad-tl-changes { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
-.ad-tl-changes li { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; font-size: 13px; line-height: 1.5; }
-.ad-tl-changes .k { font-size: 11px; font-weight: 700; color: #94a3b8; padding-top: 2px; }
-.ad-tl-changes .v { min-width: 0; overflow-wrap: anywhere; }
-.ad-tl-changes .old { color: #94a3b8; text-decoration: line-through; text-decoration-color: #cbd5e1; }
-.ad-tl-changes .arrow { margin: 0 6px; color: #94a3b8; }
-.ad-tl-changes .new { color: #0f172a; font-weight: 700; background: #fdf2f8; box-shadow: 0 2px 0 #f9a8d4; padding: 0 2px; }
-.ad-tl-summary { margin-top: 4px; font-size: 13px; color: #475569; overflow-wrap: anywhere; }
-.ad-none { color: #cbd5e1; font-weight: 500; text-decoration: none; }
+.dtl-tl-item.is-now::before { border-color: #2563eb; background: #2563eb; box-shadow: 0 0 0 3px #dbeafe; }
+.dtl-tl-date { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; font-variant-numeric: tabular-nums; }
+.dtl-tag { padding: 0 7px; border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 18px; }
+.dtl-tag.now { background: #dbeafe; color: #1d4ed8; }
+.dtl-tag.first { background: #f1f5f9; color: #64748b; }
+.dtl-tl-changes { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.dtl-tl-changes li { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; font-size: 13px; line-height: 1.5; }
+.dtl-tl-changes .k { font-size: 11px; font-weight: 700; color: #94a3b8; padding-top: 2px; }
+.dtl-tl-changes .v { min-width: 0; overflow-wrap: anywhere; }
+.dtl-tl-changes .old { color: #94a3b8; text-decoration: line-through; text-decoration-color: #cbd5e1; }
+.dtl-tl-changes .arrow { margin: 0 6px; color: #94a3b8; }
+.dtl-tl-changes .new { color: #0f172a; font-weight: 700; background: #fdf2f8; box-shadow: 0 2px 0 #f9a8d4; padding: 0 2px; }
+.dtl-tl-summary { margin-top: 4px; font-size: 13px; color: #475569; overflow-wrap: anywhere; }
+.dtl-none { color: #cbd5e1; font-weight: 500; text-decoration: none; }
 
-.ad-table-toggle { margin-top: 14px; border-top: 1px dashed #e2e8f0; padding-top: 10px; }
-.ad-table-toggle summary { cursor: pointer; font-size: 12px; font-weight: 700; color: #2563eb; }
-.ad-table-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 8px; }
-.ad-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
-.ad-table th { position: sticky; top: 0; background: #f8fafc; color: #64748b; font-weight: 700; text-align: left; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
-.ad-table td { padding: 5px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-.ad-table tr:last-child td { border-bottom: 0; }
-.ad-table td.chg { background: #fdf2f8; color: #9d174d; font-weight: 700; }
+.dtl-table-toggle { margin-top: 14px; border-top: 1px dashed #e2e8f0; padding-top: 10px; }
+.dtl-table-toggle summary { cursor: pointer; font-size: 12px; font-weight: 700; color: #2563eb; }
+.dtl-table-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 8px; }
+.dtl-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.dtl-table th { position: sticky; top: 0; background: #f8fafc; color: #64748b; font-weight: 700; text-align: left; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+.dtl-table td { padding: 5px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+.dtl-table tr:last-child td { border-bottom: 0; }
+.dtl-table td.chg { background: #fdf2f8; color: #9d174d; font-weight: 700; }
 
 /* 1 列のときは「現在の情報 → 写真 → 更新履歴」の順にする（DOM は PC の左右の組み分けのまま） */
 @media (max-width: 991px) {
-    .ad-main { display: contents; }
-    .ad-photo { order: 2; }
-    .ad-history-card { order: 3; }
+    .dtl-main { display: contents; }
+    .dtl-photo { order: 2; }
+    .dtl-history-card { order: 3; }
 }
 
 /* ===== タブレット: 情報の項目を 3 列 ===== */
 @media (min-width: 600px) {
-    .ad-spec { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .ad-back { width: auto; height: 34px; font-size: 13px; }
+    .dtl-spec { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .dtl-back { width: auto; height: 34px; font-size: 13px; }
 }
 
 /* ===== PC: 左に情報と履歴、右に写真（スクロールしても写真は見えたまま） ===== */
 @media (min-width: 992px) {
-    .ad-layout { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; }
-    .ad-spec { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .ad-photo { position: sticky; top: var(--ad-top, 92px); }
-    .ad--nohead .ad-photo { top: 8px; }
+    .dtl-layout { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; }
+    .dtl-spec { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dtl-photo { position: sticky; top: var(--dtl-top, 92px); }
+    .dtl--nohead .dtl-photo { top: 8px; }
     /* 開いた時点で枠が画面に収まる高さにする。はみ出していると、JetPhotos 側がフォーカスを当てたときに
        ブラウザが枠を見せようとしてページが勝手にスクロールする */
-    .ad-photo-frame { height: calc(100vh - 270px); min-height: 460px; }
-    .ad--nohead .ad-photo-frame { height: calc(100vh - 170px); }
+    .dtl-photo-frame { height: calc(100vh - 270px); min-height: 460px; }
+    .dtl--nohead .dtl-photo-frame { height: calc(100vh - 170px); }
 }
 
 /* ===== スマホ ===== */
 @media (max-width: 599px) {
-    .ad-reg { font-size: 28px; }
-    .ad-card { padding: 12px 14px 14px; }
-    .ad-photo-frame { height: 64vh; min-height: 360px; }
-    .ad-tl-changes li { grid-template-columns: 64px minmax(0, 1fr); }
+    .dtl-reg { font-size: 28px; }
+    .dtl-card { padding: 12px 14px 14px; }
+    .dtl-photo-frame { height: 64vh; min-height: 360px; }
+    .dtl-tl-changes li { grid-template-columns: 64px minmax(0, 1fr); }
 }

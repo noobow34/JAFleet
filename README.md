@@ -89,7 +89,11 @@
 #### 機体詳細の画面
 
 `/AD/{レジ}`（とヘッダ無しの `/ADN`、戻る付きの `/ADNB`）は `Views/AircraftDetail/Index.cshtml` と
-`wwwroot/css/aircraft-detail.css` で描いています。
+`wwwroot/css/aircraft-detail.css` で描いています。クラス名の接頭辞は `dtl-`。
+
+> **クラス名に `ad` / `ad-` を使わないこと。** 広告ブロッカーの汎用規則（EasyList などの `##.ad-head` `##.ad-main`
+> `##.ad-card` `##.ad-title` `##.ad-table` など）に当たって、要素ごと消される。以前この画面の接頭辞が `ad-` で、
+> 広告ブロッカーを入れていると詳細が真っ白になっていた。ほかの画面の接頭辞（`fl-` `nw-` `sx-` `adm-` など）は当たらないことを確かめてある
 
 | 幅 | 並び |
 | --- | --- |

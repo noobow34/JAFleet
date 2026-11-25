@@ -64,43 +64,43 @@
     <link rel="stylesheet" href="~/css/aircraft-detail.css" asp-append-version="true" />
 }
 
-<div class="ad @(Model.NoHead ? "ad--nohead" : "")">
+<div class="dtl @(Model.NoHead ? "dtl--nohead" : "")">
     @* ---- 見出し ---- *@
-    <div class="ad-head">
+    <div class="dtl-head">
         @if (Model.NeedBack)
         {
-            <button type="button" class="ad-back" onclick="window.close();">← 戻る</button>
+            <button type="button" class="dtl-back" onclick="window.close();">← 戻る</button>
         }
-        <div class="ad-title">
-            <div class="ad-reg-line">
-                <h2 class="ad-reg">@reg</h2>
+        <div class="dtl-title">
+            <div class="dtl-reg-line">
+                <h2 class="dtl-reg">@reg</h2>
                 @if (!string.IsNullOrEmpty(av.Operation))
                 {
-                    <span class="ad-op op-@opClass">@av.Operation</span>
+                    <span class="dtl-op op-@opClass">@av.Operation</span>
                 }
             </div>
-            <div class="ad-sub">
-                <span class="ad-sub-type">@av.TypeDetailName</span>
-                <span class="ad-sub-sep">·</span>
+            <div class="dtl-sub">
+                <span class="dtl-sub-type">@av.TypeDetailName</span>
+                <span class="dtl-sub-sep">·</span>
                 <span>@av.AirlineNameJpShort</span>
                 @if (!string.IsNullOrEmpty(av.TestRegistration))
                 {
-                    <span class="ad-sub-sep">·</span>
-                    <span class="ad-sub-test">試験飛行 @av.TestRegistration</span>
+                    <span class="dtl-sub-sep">·</span>
+                    <span class="dtl-sub-test">試験飛行 @av.TestRegistration</span>
                 }
             </div>
         </div>
         @if (Model.IsAdmin)
         {
-            <div class="ad-admin">
-                <a class="ad-btn" href="/E/@(reg)@(editQuery)">編集</a>
-                <a class="ad-btn" href="/AircraftHistory?reg=@reg">履歴を編集</a>
+            <div class="dtl-admin">
+                <a class="dtl-btn" href="/E/@(reg)@(editQuery)">編集</a>
+                <a class="dtl-btn" href="/AircraftHistory?reg=@reg">履歴を編集</a>
             </div>
         }
     </div>
     @if (!Model.NoHead)
     {
-        <nav class="ad-related" aria-label="関連する一覧">
+        <nav class="dtl-related" aria-label="関連する一覧">
             <a href="/Aircraft/AirlineGroup/@av.AirlineGroupCode">@Model.AirlineGroupNmae</a>
             <a href="/Aircraft/Airline/@av.Airline">@av.AirlineNameJpShort</a>
             <a href="/Aircraft/Type/@av.TypeCode">@av.TypeName</a>
@@ -108,37 +108,37 @@
         </nav>
     }
 
-    <div class="ad-layout">
-        <div class="ad-main">
+    <div class="dtl-layout">
+        <div class="dtl-main">
             @* ---- 現在の情報 ---- *@
-            <section class="ad-card">
-                <h3 class="ad-card-title">現在の情報 <span class="sub">@(av.UpdateTime?.ToString("yyyy/MM/dd")) 更新</span></h3>
-                <dl class="ad-spec">
-                    <div class="ad-item">
+            <section class="dtl-card">
+                <h3 class="dtl-card-title">現在の情報 <span class="sub">@(av.UpdateTime?.ToString("yyyy/MM/dd")) 更新</span></h3>
+                <dl class="dtl-spec">
+                    <div class="dtl-item">
                         <dt>航空会社</dt>
                         <dd>@av.AirlineNameJpShort</dd>
                     </div>
-                    <div class="ad-item">
+                    <div class="dtl-item">
                         <dt>機種</dt>
-                        <dd>@av.TypeDetailName @if (av.TypeName != av.TypeDetailName) {<span class="ad-muted">@av.TypeName</span>}</dd>
+                        <dd>@av.TypeDetailName @if (av.TypeName != av.TypeDetailName) {<span class="dtl-muted">@av.TypeName</span>}</dd>
                     </div>
-                    <div class="ad-item">
+                    <div class="dtl-item">
                         <dt>製造番号</dt>
-                        <dd class="ad-num">@(string.IsNullOrEmpty(av.SerialNumber) ? "—" : av.SerialNumber)</dd>
+                        <dd class="dtl-num">@(string.IsNullOrEmpty(av.SerialNumber) ? "—" : av.SerialNumber)</dd>
                     </div>
-                    <div class="ad-item">
+                    <div class="dtl-item">
                         <dt>登録年月日</dt>
-                        <dd class="ad-num">@(JaDateUtil.Format(av.RegisterDate) ?? "—")</dd>
+                        <dd class="dtl-num">@(JaDateUtil.Format(av.RegisterDate) ?? "—")</dd>
                     </div>
-                    <div class="ad-item">
+                    <div class="dtl-item">
                         <dt>運用</dt>
                         <dd>@(string.IsNullOrEmpty(av.Operation) ? "—" : av.Operation)</dd>
                     </div>
-                    <div class="ad-item">
+                    <div class="dtl-item">
                         <dt>Wi-Fi</dt>
-                        <dd>@if (string.IsNullOrEmpty(wifiText)) {<text>—</text>} else {<span class="ad-wifi w-@wifiClass">@wifiText</span>}</dd>
+                        <dd>@if (string.IsNullOrEmpty(wifiText)) {<text>—</text>} else {<span class="dtl-wifi w-@wifiClass">@wifiText</span>}</dd>
                     </div>
-                    <div class="ad-item wide">
+                    <div class="dtl-item wide">
                         <dt>コンフィグ</dt>
                         <dd>
                             @if (seats.Count == 0)
@@ -147,15 +147,15 @@
                             }
                             else
                             {
-                                <div class="ad-seats">
+                                <div class="dtl-seats">
                                     @foreach (var s in seats)
                                     {
-                                        <span class="ad-seat" title="@s.Name"><b>@s.Cls</b>@s.Count</span>
+                                        <span class="dtl-seat" title="@s.Name"><b>@s.Cls</b>@s.Count</span>
                                     }
-                                    <span class="ad-seat-total">計 <b>@seats.Sum(s => s.Count)</b> 席</span>
+                                    <span class="dtl-seat-total">計 <b>@seats.Sum(s => s.Count)</b> 席</span>
                                     @if (!string.IsNullOrEmpty(av.SeatUrl))
                                     {
-                                        <a class="ad-ext" href="@av.SeatUrl" target="_blank" rel="noopener">座席表</a>
+                                        <a class="dtl-ext" href="@av.SeatUrl" target="_blank" rel="noopener">座席表</a>
                                     }
                                 </div>
                             }
@@ -163,58 +163,58 @@
                     </div>
                     @if (!string.IsNullOrEmpty(av.SpecialLivery))
                     {
-                        <div class="ad-item wide">
+                        <div class="dtl-item wide">
                             <dt>特別塗装</dt>
-                            <dd><span class="ad-livery">@av.SpecialLivery</span></dd>
+                            <dd><span class="dtl-livery">@av.SpecialLivery</span></dd>
                         </div>
                     }
                     @if (av.DeregisterDate != null)
                     {
-                        <div class="ad-item">
+                        <div class="dtl-item">
                             <dt>抹消年月日</dt>
-                            <dd class="ad-num">@JaDateUtil.Format(av.DeregisterDate)</dd>
+                            <dd class="dtl-num">@JaDateUtil.Format(av.DeregisterDate)</dd>
                         </div>
                     }
                     @if (!string.IsNullOrEmpty(av.Remarks))
                     {
-                        <div class="ad-item wide">
+                        <div class="dtl-item wide">
                             <dt>備考</dt>
-                            <dd class="ad-remarks">@av.Remarks</dd>
+                            <dd class="dtl-remarks">@av.Remarks</dd>
                         </div>
                     }
                 </dl>
             </section>
 
             @* ---- 更新履歴（スクリプトで描く） ---- *@
-            <section class="ad-card ad-history-card">
-                <h3 class="ad-card-title">更新履歴</h3>
-                <div id="adHistory" class="ad-history"><p class="ad-muted">読み込み中…</p></div>
+            <section class="dtl-card dtl-history-card">
+                <h3 class="dtl-card-title">更新履歴</h3>
+                <div id="adHistory" class="dtl-history"><p class="dtl-muted">読み込み中…</p></div>
             </section>
         </div>
 
         @* ---- 写真 ---- *@
-        <section class="ad-card ad-photo">
-            <h3 class="ad-card-title">
+        <section class="dtl-card dtl-photo">
+            <h3 class="dtl-card-title">
                 @(photoIsFr24 ? "写真・飛行履歴" : "写真")
                 @if (photoIsExternal)
                 {
-                    <a class="ad-ext" href="@Model.PhotoUrl" target="_blank" rel="noopener">@(photoIsFr24 ? "Flightradar24で開く" : "JetPhotosで開く")</a>
+                    <a class="dtl-ext" href="@Model.PhotoUrl" target="_blank" rel="noopener">@(photoIsFr24 ? "Flightradar24で開く" : "JetPhotosで開く")</a>
                 }
             </h3>
             @if (hasPhoto)
             {
                 @* src はスクリプトで入れる（下の「写真は見えてから読み込む」） *@
-                <iframe data-src="@Model.PhotoUrl" id="photofr" class="ad-photo-frame" title="@(photoIsFr24 ? $"{reg} の Flightradar24 のページ" : $"{reg} の写真")"></iframe>
+                <iframe data-src="@Model.PhotoUrl" id="photofr" class="dtl-photo-frame" title="@(photoIsFr24 ? $"{reg} の Flightradar24 のページ" : $"{reg} の写真")"></iframe>
                 @if (photoIsFr24)
                 {
                     @* FR24 の規約（8.2）に合わせて出典をはっきり書く。枠の中が空のときの逃げ道にもする *@
-                    <p class="ad-fr24-credit">表示: <a href="@Model.PhotoUrl" target="_blank" rel="noopener">Flightradar24</a>。枠の中が表示されないときは、リンクから直接開いてください。</p>
+                    <p class="dtl-fr24-credit">表示: <a href="@Model.PhotoUrl" target="_blank" rel="noopener">Flightradar24</a>。枠の中が表示されないときは、リンクから直接開いてください。</p>
                 }
             }
             else
             {
                 @* 写真が無いときに大きな空の枠を出さないよう、nophoto.html と同じ案内をその場に出す *@
-                <p class="ad-nophoto"><a href="https://www.jetphotos.com/" target="_blank" rel="noopener">JetPhotos</a>に写真が登録されていないため表示できません。写真が投稿されると表示できるようになります。</p>
+                <p class="dtl-nophoto"><a href="https://www.jetphotos.com/" target="_blank" rel="noopener">JetPhotos</a>に写真が登録されていないため表示できません。写真が投稿されると表示できるようになります。</p>
             }
         </section>
     </div>
@@ -238,30 +238,30 @@
                 { label: '備考', changed: 'remarksChanged', value: function (r) { return r.remarks; } }
             ];
             const esc = function (s) {
-                if (s == null || s === '') { return '<span class="ad-none">（なし）</span>'; }
+                if (s == null || s === '') { return '<span class="dtl-none">（なし）</span>'; }
                 return String(s).replace(/[&<>"']/g, function (c) {
                     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
                 });
             };
 
             const renderTimeline = function (list) {
-                let h = '<ol class="ad-tl">';
+                let h = '<ol class="dtl-tl">';
                 list.forEach(function (r, i) {
                     const isFirst = i === list.length - 1;
-                    const tags = (i === 0 ? '<span class="ad-tag now">現在</span>' : '') + (isFirst ? '<span class="ad-tag first">記録開始</span>' : '');
-                    h += '<li class="ad-tl-item' + (i === 0 ? ' is-now' : '') + '">';
-                    h += '<div class="ad-tl-date">' + esc(r.updateTimeString) + tags + '</div>';
+                    const tags = (i === 0 ? '<span class="dtl-tag now">現在</span>' : '') + (isFirst ? '<span class="dtl-tag first">記録開始</span>' : '');
+                    h += '<li class="dtl-tl-item' + (i === 0 ? ' is-now' : '') + '">';
+                    h += '<div class="dtl-tl-date">' + esc(r.updateTimeString) + tags + '</div>';
                     if (isFirst) {
                         // いちばん古い版は比べる相手が無いので、主な項目をそのまま並べる
-                        h += '<div class="ad-tl-summary">' + [r.operation, r.typeDetailName, r.airlineNameJpShort, r.seatConfig, r.specialLivery]
-                            .filter(function (v) { return v; }).map(esc).join('<span class="ad-sub-sep">·</span>') + '</div>';
+                        h += '<div class="dtl-tl-summary">' + [r.operation, r.typeDetailName, r.airlineNameJpShort, r.seatConfig, r.specialLivery]
+                            .filter(function (v) { return v; }).map(esc).join('<span class="dtl-sub-sep">·</span>') + '</div>';
                     } else {
                         const older = list[i + 1];
                         const changes = FIELDS.filter(function (f) { return r[f.changed] == 1; });
                         if (changes.length === 0) {
-                            h += '<div class="ad-tl-summary ad-muted">表示している項目に変更はありません</div>';
+                            h += '<div class="dtl-tl-summary dtl-muted">表示している項目に変更はありません</div>';
                         } else {
-                            h += '<ul class="ad-tl-changes">';
+                            h += '<ul class="dtl-tl-changes">';
                             changes.forEach(function (f) {
                                 h += '<li><span class="k">' + f.label + '</span><span class="v"><span class="old">' + esc(f.value(older)) + '</span>'
                                     + '<span class="arrow" aria-label="から">→</span><span class="new">' + esc(f.value(r)) + '</span></span></li>';
@@ -276,11 +276,11 @@
 
             // これまでの全項目の表（変わった欄に印）。必要な人だけ開く
             const renderTable = function (list) {
-                let h = '<details class="ad-table-toggle"><summary>全項目を表で見る</summary><div class="ad-table-wrap"><table class="ad-table"><thead><tr><th>更新日</th>';
+                let h = '<details class="dtl-table-toggle"><summary>全項目を表で見る</summary><div class="dtl-table-wrap"><table class="dtl-table"><thead><tr><th>更新日</th>';
                 FIELDS.forEach(function (f) { h += '<th>' + f.label + '</th>'; });
                 h += '</tr></thead><tbody>';
                 list.forEach(function (r) {
-                    h += '<tr><td class="ad-num">' + esc(r.updateTimeString) + '</td>';
+                    h += '<tr><td class="dtl-num">' + esc(r.updateTimeString) + '</td>';
                     FIELDS.forEach(function (f) {
                         h += '<td' + (r[f.changed] == 1 ? ' class="chg"' : '') + '>' + esc(f.value(r)) + '</td>';
                     });
@@ -291,9 +291,9 @@
 
             const historyBox = document.getElementById('adHistory');
             JfHttp.get('@(Model.api)').then(function (list) {
-                historyBox.innerHTML = list.length ? renderTimeline(list) + renderTable(list) : '<p class="ad-muted">更新履歴はありません</p>';
+                historyBox.innerHTML = list.length ? renderTimeline(list) + renderTable(list) : '<p class="dtl-muted">更新履歴はありません</p>';
             }, function () {
-                historyBox.innerHTML = '<p class="ad-error">更新履歴を読み込めませんでした。時間をおいて開き直してください</p>';
+                historyBox.innerHTML = '<p class="dtl-error">更新履歴を読み込めませんでした。時間をおいて開き直してください</p>';
             });
 
             // 写真は見えてから読み込む。JetPhotos・FR24 のページは読み込むと中の要素へフォーカスを当てることがあり、
@@ -317,7 +317,7 @@
                 const sync = function () {
                     if (nav.querySelector('.navbar-collapse.in')) { return; }
                     const h = nav.offsetHeight;
-                    document.documentElement.style.setProperty('--ad-top', (h + 12) + 'px');
+                    document.documentElement.style.setProperty('--dtl-top', (h + 12) + 'px');
                     document.body.style.paddingTop = Math.max(base, h + 8) + 'px';
                 };
                 sync();
