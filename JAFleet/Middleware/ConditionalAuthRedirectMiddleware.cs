@@ -36,15 +36,34 @@ namespace JAFleet.Middleware
             if (adminKey.Length != 0 && adminCookieValue == adminValue)
             {
                 string returnUrl = context.Request.Path + context.Request.QueryString;
-                context.Response.Cookies.Append(adminKey, adminCookieValue!, new CookieOptions
-                {
-                    Expires = DateTimeOffset.UtcNow.AddYears(1)
-                });
+                IssueMarker(context);
                 context.Response.Redirect(CloudflareAccess.BuildLoginUrl(returnUrl));
                 return;
             }
 
             await _next(context);
+        }
+
+        /// <summary>
+        /// 目印のCookieを発行（または期限を延長）する。
+        /// /Account/Loginを通過した端末にも配るので、新しい端末でも一度ログインすれば
+        /// 次から自動ログインの対象になる。値はサーバの環境変数から出すだけで、端末間で持ち運ぶ必要はない。
+        /// 目印は「Accessのログインへ案内する」合図にすぎず、漏れても管理者にはなれない
+        /// </summary>
+        public static void IssueMarker(HttpContext context)
+        {
+            if (adminKey.Length == 0 || adminValue.Length == 0)
+            {
+                return;
+            }
+
+            context.Response.Cookies.Append(adminKey, adminValue, new CookieOptions
+            {
+                Expires = DateTimeOffset.UtcNow.AddYears(1),
+                Secure = true,
+                HttpOnly = true,
+                SameSite = SameSiteMode.Lax,
+            });
         }
     }
 }

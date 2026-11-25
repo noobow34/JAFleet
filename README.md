@@ -832,7 +832,10 @@ Cloudflare Access はプロキシとして認証しますが、通過したリ�
 
 `ConditionalAuthRedirectMiddleware` は、`ADMIN_KEY`/`ADMIN_VALUE` の Cookie を持つ端末が未認証のときだけ
 `/Account/Login` へリダイレクトします。一般の利用者はこの Cookie を持たないのでログイン画面を見ることはありません。
-Cookie は `/SetCookie?key=...&value=...` で仕込みます。
+この Cookie は `/Account/Login` を通過したときにサーバが発行します。新しい端末では `/Account/Login` を一度手で開いて
+Access のログインを通れば、次からは自動ログインの対象になります（値を端末間で持ち運ぶ必要はありません）。
+目印は「Access のログインへ案内する」合図にすぎず、値が漏れても Access を通れなければ管理者にはなれません。
+`/SetCookie?key=...&value=...` で手で仕込むこともできます。
 
 `/Account/Logout` は `/cdn-cgi/access/logout` へ送るだけで、目印の Cookie は消しません。
 そのため目印を持つ端末はログアウト直後にまたログイン画面へ飛ばされますが、基本はログインしたまま使う前提で、

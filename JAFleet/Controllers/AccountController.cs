@@ -1,4 +1,5 @@
 ﻿using JAFleet.Infrastructure;
+using JAFleet.Middleware;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JAFleet.Controllers
@@ -8,7 +9,7 @@ namespace JAFleet.Controllers
         /// <summary>
         /// Cloudflare Accessの保護対象パス。
         /// ここへ到達した時点でAccessの認証は済んでおり、CF_Authorizationも発行済みなので、
-        /// アプリ側ですることは元のページへ戻すことだけ。
+        /// アプリ側ですることは、自動ログインの目印Cookieを配って元のページへ戻すことだけ。
         /// </summary>
         public IActionResult Login(string returnUrl = "/")
         {
@@ -20,6 +21,8 @@ namespace JAFleet.Controllers
                     "Cloudflare Accessの認証情報を確認できませんでした。/Account/LoginがAccessアプリケーションの対象に含まれているか、CF_ACCESS_TEAM_DOMAINとCF_ACCESS_AUDが正しいか確認してください。");
             }
 
+            //Accessを通過できた端末なので目印を配る。新しい端末でも一度ここを開けば自動ログインの対象になる
+            ConditionalAuthRedirectMiddleware.IssueMarker(HttpContext);
             return Redirect(Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
         }
 
