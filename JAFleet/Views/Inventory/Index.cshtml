@@ -1,0 +1,604 @@
+@model SearchModel
+@{
+    Layout = "_LayoutNoHead";
+    string initialCondition = ViewData["InitialCondition"] as string ?? "";
+}
+@*
+    棚卸（/Inventory）。条件の欄は検索画面（Views/Search/Index.cshtml）と同じ ID・同じ見た目（search.css）にしてある。
+    条件を足すときは検索画面と両方に足すこと（絞り込みは Services/AircraftSearch.cs で共通）。
+*@
+@section CssPartial {
+<link rel="stylesheet" href="~/css/search.css" asp-append-version="true" />
+<style>
+/* 注意: Bootstrap3 が html{font-size:10px} を設定しているため rem は使わず px で指定すること。
+   クラス名の接頭辞は inv-（ad- は広告ブロッカーに消されるので使わない） */
+body > .container { width: auto; max-width: none; padding: 0 12px; }
+.inv { padding-top: 4px; }
+.inv-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 4px 0 10px; }
+.inv-head h2 { margin: 0; font-size: 22px; font-weight: 700; color: #0f172a; }
+.inv-lead { font-size: 12px; color: #94a3b8; }
+
+/* ---- 条件のカード。畳むと要約のチップだけになる ---- */
+.inv .sx-card { margin-bottom: 10px; }
+.inv-cardhead { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+.inv-cardhead .ttl { font-size: 13px; font-weight: 700; color: #334155; white-space: nowrap; }
+.inv-chips { flex: 1; min-width: 0; display: none; flex-wrap: wrap; gap: 4px; }
+.inv-cardhead .sx-btn { height: 30px; padding: 0 12px; font-size: 12px; margin-left: auto; }
+.sx-card.is-collapsed .sx-body, .sx-card.is-collapsed .sx-actions { display: none; }
+.sx-card.is-collapsed .inv-cardhead { border-bottom: 0; }
+.sx-card.is-collapsed .inv-chips { display: flex; }
+
+/* ---- 一覧の上の操作バー ---- */
+.inv-bar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.inv-counts { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; font-weight: 700; }
+.inv-count { padding: 3px 10px; border-radius: 999px; background: #f1f5f9; color: #334155; }
+.inv-count.ok { background: #dcfce7; color: #166534; }
+.inv-count.stale { background: #fef3c7; color: #92400e; }
+.inv-count.todo { background: #fee2e2; color: #991b1b; }
+.inv-filter { width: 220px; height: 34px; padding: 4px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+.inv-hide { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 700; color: #334155; cursor: pointer; }
+.inv-hide input { width: 16px; height: 16px; margin: 0; }
+.inv-bar .sx-btn { height: 34px; padding: 0 12px; font-size: 12px; }
+.inv-bar .grow { flex: 1; }
+
+/* ---- 一覧。枠の中でスクロールし、見出しと確認・レジの列は貼り付ける ---- */
+.inv-list { overflow: auto; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; min-height: 240px; }
+.inv-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1500px; font-size: 13px; color: #0f172a; }
+.inv-table th, .inv-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; text-align: left; background: #fff; }
+.inv-table thead th {
+    position: sticky; top: 0; z-index: 2; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+    font-size: 11px; font-weight: 700; color: #64748b; white-space: nowrap;
+}
+.inv-table .c-ck { position: sticky; left: 0; z-index: 1; width: 104px; min-width: 104px; }
+.inv-table .c-reg { position: sticky; left: 104px; z-index: 1; width: 92px; min-width: 92px; border-right: 1px solid #e2e8f0; }
+.inv-table thead .c-ck, .inv-table thead .c-reg { z-index: 3; }
+.inv-table .mono { font-family: ui-monospace, Consolas, "SFMono-Regular", Menlo, monospace; }
+.inv-table .nowrap { white-space: nowrap; }
+.inv-table .wrap { min-width: 160px; max-width: 280px; white-space: pre-wrap; word-break: break-all; }
+.inv-table .muted { color: #94a3b8; }
+.inv-table td a { color: #1d4ed8; }
+.inv-table tbody tr:hover td { background: #f8fafc; }
+.inv-table tr.is-ok td { background: #f0fdf4; }
+.inv-table tr.is-stale td { background: #fffbeb; }
+.inv-table tr.is-leaving td { opacity: .35; transition: opacity .5s; }
+.inv-table tr.is-retired td:not(.c-ck) { color: #94a3b8; }
+.inv-empty { padding: 40px 16px; text-align: center; color: #94a3b8; font-size: 14px; }
+
+/* 確認の目印 */
+.inv-ck {
+    display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 6px; margin: 0;
+    border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #64748b;
+    font-size: 12px; font-weight: 700; text-align: left; line-height: 1.25; cursor: pointer;
+}
+.inv-ck:hover { border-color: #64748b; }
+.inv-ck .box {
+    flex: 0 0 18px; height: 18px; border: 2px solid #cbd5e1; border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: #fff;
+}
+.inv-ck .when { display: block; font-size: 10px; font-weight: 500; }
+.inv-ck.ok { border-color: #86efac; background: #dcfce7; color: #166534; }
+.inv-ck.ok .box { border-color: #16a34a; background: #16a34a; }
+.inv-ck.stale { border-color: #fcd34d; background: #fef3c7; color: #92400e; }
+.inv-ck.stale .box { border-color: #d97706; background: #d97706; }
+.inv-ck[disabled] { opacity: .5; cursor: wait; }
+
+.inv-op { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 18px; white-space: nowrap; }
+.op-intl { background: #dbeafe; color: #1d4ed8; } .op-dom { background: #dcfce7; color: #15803d; }
+.op-both { background: #e0e7ff; color: #4338ca; } .op-cargo { background: #ffedd5; color: #c2410c; }
+.op-pre { background: #f3e8ff; color: #7e22ce; } .op-dlv { background: #cffafe; color: #0e7490; }
+.op-retire, .op-other { background: #f1f5f9; color: #64748b; }
+.inv-acts { display: flex; gap: 6px; white-space: nowrap; }
+
+/* 目印を付けた・外したときの知らせ（取り消せる） */
+.inv-toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50;
+    display: none; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 10px;
+    background: #0f172a; color: #fff; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(15,23,42,.3);
+}
+.inv-toast.show { display: flex; }
+.inv-toast button { border: 0; background: none; color: #93c5fd; font-weight: 700; padding: 0; cursor: pointer; }
+.inv-error { margin-bottom: 8px; padding: 10px 14px; border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px; color: #b91c1c; font-size: 13px; font-weight: 600; display: none; }
+
+@@media (max-width: 767px) {
+    .inv-filter { width: 100%; }
+    .inv-bar .grow { display: none; }
+}
+</style>
+}
+
+<div class="sx inv">
+    <div class="inv-head">
+        <h2>棚卸</h2>
+        <span class="inv-lead">検索画面と同じ条件で探し、内容を確かめた機体に目印を付けます。目印のあとで機体を更新すると「要再確認」になります</span>
+    </div>
+
+    <section class="sx-card" id="sxCard">
+        <div class="inv-cardhead">
+            <span class="ttl">検索条件</span>
+            <div class="inv-chips" id="sxChips"></div>
+            <button type="button" class="sx-btn" id="invToggle" aria-expanded="true">▲ 条件を畳む</button>
+        </div>
+
+        <div class="sx-body">
+            <div class="sx-preset">
+                <label class="sx-label" for="PresetSearchCondition">保存済みの条件</label>
+                <div class="sx-preset-row">
+                    <div class="sx-grow">
+                        @Html.DropDownList("PresetSearchCondition", new SelectList(Model.PresetSearchConditionList, "SearchConditionKey", "SearchConditionName"), "（選んでください）")
+                    </div>
+                    <button type="button" id="presetDisp" class="sx-btn" disabled="disabled">呼び出す</button>
+                </div>
+            </div>
+
+            <div class="sx-grid">
+                <div class="sx-field">
+                    <label class="sx-label" for="RegistrationNumber">機体記号 <span class="sx-hint">正規表現も使える</span></label>
+                    @Html.TextBoxFor(model => model.RegistrationNumber, new { @class = "sx-input mono", placeholder = "JA801A / JA8.*", autocomplete = "off", autocapitalize = "characters" })
+                </div>
+                <div class="sx-field">
+                    <label class="sx-label" for="Airline">航空会社</label>
+                    @Html.DropDownListFor(model => model.Airline, new SelectList(Model.AirlineList, "AirlineCode", "AirlineNameJpShort", null, "AirlineGroup"), new { @multiple = "multiple" })
+                </div>
+                <div class="sx-field">
+                    <label class="sx-label" for="TypeDetail">型式</label>
+                    @Html.DropDownListFor(model => model.TypeDetail, new SelectList(Model.TypeDetailList, "TypeDetailId", "TypeDetailName", null, "TypeName"), new { @multiple = "multiple" })
+                </div>
+                <div class="sx-field">
+                    <label class="sx-label" for="OperationCode">運用状況</label>
+                    @Html.DropDownListFor(model => model.OperationCode, new SelectList(Model.OperationList, "Key", "Value", null, "OptGroup"), new { @multiple = "multiple" })
+                </div>
+                <div class="sx-field">
+                    <label class="sx-label" for="WiFiCode">Wi-Fi</label>
+                    @Html.DropDownListFor(model => model.WiFiCode, new SelectList(Model.WiFiList, "Key", "Value"), new { @multiple = "multiple" })
+                </div>
+                <div class="sx-field">
+                    <label class="sx-label" for="RegistrationDate">登録年月</label>
+                    <div class="sx-inline">
+                        @Html.TextBoxFor(model => model.RegistrationDate, new { @class = "sx-input", type = "month" })
+                        @Html.DropDownListFor(model => model.RegistrationSelection, Model.RegistrationSelectionList, new { @class = "sx-input sx-narrow", aria_label = "登録年月の範囲" })
+                    </div>
+                </div>
+                <div class="sx-field">
+                    <label class="sx-label" for="DeregistrationDate">抹消年月</label>
+                    <div class="sx-inline">
+                        @Html.TextBoxFor(model => model.DeregistrationDate, new { @class = "sx-input", type = "month" })
+                        @Html.DropDownListFor(model => model.DeregistrationSelection, Model.RegistrationSelectionList, new { @class = "sx-input sx-narrow", aria_label = "抹消年月の範囲" })
+                    </div>
+                </div>
+                <div class="sx-field">
+                    <label class="sx-label" for="SpecialLiveryList">特別塗装</label>
+                    @Html.DropDownListFor(model => model.SpecialLiveryList, Model.SpecialLiveryList, "指定しない", new { @class = "sx-input" })
+                    @Html.TextBoxFor(model => model.SpecialLiveryKeyword, new { @class = "sx-input sx-keyword", placeholder = "塗装名のキーワード", @disabled = "true", aria_label = "特別塗装のキーワード" })
+                </div>
+                <div class="sx-field">
+                    <label class="sx-label" for="RemarksList">備考</label>
+                    @Html.DropDownListFor(model => model.RemarksList, Model.RemarksList, "指定しない", new { @class = "sx-input" })
+                    @Html.TextBoxFor(model => model.RemarksKeyword, new { @class = "sx-input sx-keyword", placeholder = "備考のキーワード", @disabled = "true", aria_label = "備考のキーワード" })
+                </div>
+            </div>
+        </div>
+
+        <div class="sx-actions">
+            <button type="button" id="clear" class="sx-btn">クリア</button>
+            <button type="button" id="serach" class="sx-btn primary">検索</button>
+        </div>
+    </section>
+
+    <div class="inv-error" id="invError"></div>
+
+    <div class="inv-bar">
+        <div class="inv-counts" id="invCounts"></div>
+        <input type="search" class="inv-filter" id="invFilter" placeholder="結果を絞り込み（空白区切りでAND）" autocomplete="off" />
+        <label class="inv-hide"><input type="checkbox" id="invHide" /> 確認済を隠す</label>
+        <span class="grow"></span>
+        <button type="button" class="sx-btn" id="invCheckAll">表示中をすべて確認済に</button>
+        <button type="button" class="sx-btn" id="invUncheckAll">表示中の目印を外す</button>
+        <button type="button" class="sx-btn" id="invReload">再読込</button>
+    </div>
+
+    <div class="inv-list" id="invList">
+        <table class="inv-table">
+            <thead>
+                <tr>
+                    <th class="c-ck">確認</th>
+                    <th class="c-reg">機体記号</th>
+                    <th>航空会社</th>
+                    <th>型式</th>
+                    <th>製造番号</th>
+                    <th>登録年月日</th>
+                    <th>抹消年月日</th>
+                    <th>運用</th>
+                    <th>Wi-Fi</th>
+                    <th>コンフィグ</th>
+                    <th>特別塗装</th>
+                    <th>備考</th>
+                    <th>試験飛行用レジ</th>
+                    <th>写真リンク</th>
+                    <th>最終更新</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="invBody"></tbody>
+        </table>
+        <div class="inv-empty" id="invEmpty">条件を指定して「検索」を押してください</div>
+    </div>
+</div>
+
+<div class="inv-toast" id="invToast"><span id="invToastText"></span><button type="button" id="invUndo">取り消す</button></div>
+
+@section ScriptsPartial {
+<script src="~/js/jf-multiselect.min.js" asp-append-version="true"></script>
+<script>
+(function () {
+    'use strict';
+    const byId = function (id) { return document.getElementById(id); };
+    const esc = function (s) {
+        return s == null ? '' : String(s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    };
+    // 保存済みの条件（?sc=）から開いたときの条件。検索画面が保存した JSON そのまま
+    const INITIAL_CONDITION = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(initialCondition));
+    const STORE_COND = 'jf-inventory-condition';
+    const STORE_HIDE = 'jf-inventory-hide-checked';
+    const store = {
+        get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+        set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
+    };
+
+    // ---- 条件の欄（検索画面と同じ部品・同じ値） ----
+    const pickers = {};
+    const MS_COMMON = { buttonClass: 'sx-ms', nonSelectedText: '指定しない', nSelectedText: ' 件を選択', allSelectedText: 'すべて', numberDisplayed: 2, maxHeight: 360 };
+    const createMs = function (id, opt) { pickers[id] = JfMultiSelect.create(byId(id), Object.assign({}, MS_COMMON, opt)); };
+    const msSelect = function (id, values) { pickers[id].setSelected(values); };
+    const multiValue = function (id) { return Array.from(byId(id).selectedOptions).map(function (o) { return o.value; }).join('|'); };
+
+    const LIVERY_KEYWORD = ['3', '5'];
+    const REMARKS_KEYWORD = ['3'];
+    const syncKeyword = function (selectId, keywordId, codes, keyword) {
+        const box = byId(keywordId);
+        const on = codes.indexOf(byId(selectId).value) >= 0;
+        box.disabled = !on;
+        box.value = on ? (keyword != null ? keyword : box.value) : '';
+    };
+
+    createMs('Airline', { clickableGroups: true, collapsibleGroups: true });
+    createMs('TypeDetail', { clickableGroups: true, collapsibleGroups: true, collapseGroupsByDefault: true, filter: true, filterPlaceholder: '型式名で絞り込み' });
+    createMs('OperationCode', { clickableGroups: true, collapsibleGroups: true });
+    createMs('WiFiCode', {});
+    createMs('PresetSearchCondition', { filter: true, filterPlaceholder: '名前で絞り込み', nonSelectedText: '選んでください' });
+
+    // 検索画面の conditionData と同じ名前で送る（保存済みの条件の JSON とも同じ名前）
+    const conditionData = function () {
+        return {
+            RegistrationNumber: byId('RegistrationNumber').value,
+            Airline: multiValue('Airline'),
+            TypeDetail: multiValue('TypeDetail'),
+            OperationCode: multiValue('OperationCode'),
+            RegistrationDate: byId('RegistrationDate').value.replace('-', '/'),
+            RegistrationSelection: byId('RegistrationSelection').value,
+            DeregistrationDate: byId('DeregistrationDate').value.replace('-', '/'),
+            DeregistrationSelection: byId('DeregistrationSelection').value,
+            WiFiCode: multiValue('WiFiCode'),
+            Remarks: byId('RemarksList').value,
+            RemarksKeyword: byId('RemarksKeyword').value,
+            SpecialLivery: byId('SpecialLiveryList').value,
+            SpecialLiveryKeyword: byId('SpecialLiveryKeyword').value
+        };
+    };
+
+    const clearCondition = function () {
+        byId('RegistrationNumber').value = '';
+        ['Airline', 'TypeDetail', 'OperationCode', 'WiFiCode'].forEach(function (id) { msSelect(id, []); });
+        byId('RegistrationDate').value = '';
+        byId('RegistrationSelection').value = '0';
+        byId('DeregistrationDate').value = '';
+        byId('DeregistrationSelection').value = '0';
+        byId('SpecialLiveryList').value = '';
+        syncKeyword('SpecialLiveryList', 'SpecialLiveryKeyword', LIVERY_KEYWORD);
+        byId('RemarksList').value = '';
+        syncKeyword('RemarksList', 'RemarksKeyword', REMARKS_KEYWORD);
+    };
+
+    // 条件の JSON（保存済みの条件・前回の条件）を欄へ入れる
+    const applyCondition = function (c) {
+        clearCondition();
+        const split = function (v) { return v ? String(v).split('|') : []; };
+        if (c.RegistrationNumber) { byId('RegistrationNumber').value = c.RegistrationNumber; }
+        msSelect('Airline', split(c.Airline));
+        msSelect('TypeDetail', split(c.TypeDetail));
+        msSelect('OperationCode', split(c.OperationCode));
+        msSelect('WiFiCode', split(c.WiFiCode));
+        if (c.RegistrationDate) { byId('RegistrationDate').value = c.RegistrationDate.replace('/', '-'); }
+        if (c.RegistrationSelection) { byId('RegistrationSelection').value = c.RegistrationSelection; }
+        if (c.DeregistrationDate) { byId('DeregistrationDate').value = c.DeregistrationDate.replace('/', '-'); }
+        if (c.DeregistrationSelection) { byId('DeregistrationSelection').value = c.DeregistrationSelection; }
+        if (c.SpecialLivery) {
+            byId('SpecialLiveryList').value = c.SpecialLivery;
+            syncKeyword('SpecialLiveryList', 'SpecialLiveryKeyword', LIVERY_KEYWORD, c.SpecialLiveryKeyword);
+        }
+        if (c.Remarks) {
+            byId('RemarksList').value = c.Remarks;
+            syncKeyword('RemarksList', 'RemarksKeyword', REMARKS_KEYWORD, c.RemarksKeyword);
+        }
+    };
+
+    byId('RemarksList').addEventListener('change', function () {
+        syncKeyword('RemarksList', 'RemarksKeyword', REMARKS_KEYWORD);
+        if (!byId('RemarksKeyword').disabled) { byId('RemarksKeyword').focus(); }
+    });
+    byId('SpecialLiveryList').addEventListener('change', function () {
+        syncKeyword('SpecialLiveryList', 'SpecialLiveryKeyword', LIVERY_KEYWORD);
+        if (!byId('SpecialLiveryKeyword').disabled) { byId('SpecialLiveryKeyword').focus(); }
+    });
+    byId('PresetSearchCondition').addEventListener('change', function () {
+        byId('presetDisp').disabled = byId('PresetSearchCondition').value == '';
+    });
+    byId('presetDisp').addEventListener('click', function () {
+        JfHttp.post('/Search/GetSearchCondition', { searchCondition: byId('PresetSearchCondition').value }).then(function (c) {
+            applyCondition(typeof c === 'string' ? JSON.parse(c) : c);
+            search();
+        });
+    });
+
+    // ---- 条件の畳み・要約 ----
+    const selectedTexts = function (id) { return Array.from(byId(id).selectedOptions).map(function (o) { return o.text.trim(); }).filter(Boolean); };
+    const selectedText = function (id) { const o = byId(id).selectedOptions[0]; return o ? o.text : ''; };
+    const shortList = function (list) { return list.length <= 2 ? list.join('、') : list.slice(0, 2).join('、') + ' ほか' + (list.length - 2); };
+    const buildSummary = function () {
+        const chips = [];
+        const add = function (label, value) { if (value) { chips.push('<span class="sx-chip"><b>' + esc(label) + '</b>' + esc(value) + '</span>'); } };
+        add('機体記号', byId('RegistrationNumber').value.trim());
+        add('航空会社', shortList(selectedTexts('Airline')));
+        add('型式', shortList(selectedTexts('TypeDetail')));
+        add('運用', shortList(selectedTexts('OperationCode')));
+        add('Wi-Fi', shortList(selectedTexts('WiFiCode')));
+        if (byId('RegistrationDate').value) { add('登録', byId('RegistrationDate').value.replace('-', '/') + ' ' + selectedText('RegistrationSelection')); }
+        if (byId('DeregistrationDate').value) { add('抹消', byId('DeregistrationDate').value.replace('-', '/') + ' ' + selectedText('DeregistrationSelection')); }
+        const withKeyword = function (selectId, keywordId) {
+            if (!byId(selectId).value) { return ''; }
+            const k = byId(keywordId).disabled ? '' : byId(keywordId).value.trim();
+            return selectedText(selectId) + (k ? '「' + k + '」' : '');
+        };
+        add('特別塗装', withKeyword('SpecialLiveryList', 'SpecialLiveryKeyword'));
+        add('備考', withKeyword('RemarksList', 'RemarksKeyword'));
+        byId('sxChips').innerHTML = chips.length ? chips.join('') : '<span class="sx-chip empty">条件なし（すべての機体）</span>';
+    };
+    const setCollapsed = function (collapsed) {
+        if (collapsed) { buildSummary(); }
+        byId('sxCard').classList.toggle('is-collapsed', collapsed);
+        byId('invToggle').textContent = collapsed ? '▼ 条件を変更' : '▲ 条件を畳む';
+        byId('invToggle').setAttribute('aria-expanded', String(!collapsed));
+        fitList();
+    };
+    byId('invToggle').addEventListener('click', function () {
+        setCollapsed(!byId('sxCard').classList.contains('is-collapsed'));
+    });
+
+    // 一覧は画面の下端までの高さにして、枠の中でスクロールさせる（条件を畳むとそのぶん広がる）
+    const fitList = function () {
+        const list = byId('invList');
+        const top = list.getBoundingClientRect().top;
+        list.style.height = Math.max(320, window.innerHeight - top - 12) + 'px';
+    };
+    window.addEventListener('resize', fitList);
+
+    // ---- 一覧 ----
+    const OP_CLASS = { '0': 'pre', '1': 'pre', '2': 'dlv', '3': 'intl', '4': 'dom', '5': 'both', '6': 'cargo', '7': 'retire', '8': 'retire', '9': 'other' };
+    let rows = [];
+    const state = function (r) { return r.checkedAt ? (r.stale ? 'stale' : 'ok') : 'todo'; };
+
+    const searchText = function (r) {
+        return [r.reg, r.airline, r.type, r.serial, r.registerDate, r.deregisterDate, r.operation, r.wifi, r.seatConfig,
+            r.specialLivery, r.remarks, r.testReg].join(' ').toLowerCase();
+    };
+    const visibleRows = function () {
+        const words = byId('invFilter').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const hide = byId('invHide').checked;
+        return rows.filter(function (r) {
+            if (hide && state(r) === 'ok' && !r.leaving) { return false; }
+            if (words.length === 0) { return true; }
+            const t = r._text || (r._text = searchText(r));
+            return words.every(function (w) { return t.indexOf(w) >= 0; });
+        });
+    };
+
+    const ckButton = function (r) {
+        const s = state(r);
+        const label = s === 'ok' ? '確認済' : s === 'stale' ? '要再確認' : '未確認';
+        const title = s === 'ok' ? 'クリックで目印を外す'
+            : s === 'stale' ? '確認（' + r.checkedAt + '）のあとで更新されました。クリックで確認し直す'
+            : 'クリックで確認済にする';
+        return '<button type="button" class="inv-ck ' + s + '" data-reg="' + esc(r.reg) + '" title="' + esc(title) + '">'
+            + '<span class="box">' + (s === 'ok' ? '✓' : s === 'stale' ? '!' : '') + '</span>'
+            + '<span>' + label + (r.checkedAt ? '<span class="when">' + esc(r.checkedAt) + '</span>' : '') + '</span></button>';
+    };
+    const cell = function (v, cls) {
+        return '<td class="' + (cls || '') + '">' + (v == null || v === '' ? '<span class="muted">—</span>' : esc(v)) + '</td>';
+    };
+    const rowHtml = function (r) {
+        const s = state(r);
+        const retired = r.operationCode === '7' || r.operationCode === '8';
+        return '<tr data-reg="' + esc(r.reg) + '" class="is-' + s + (retired ? ' is-retired' : '') + (r.leaving ? ' is-leaving' : '') + '">'
+            + '<td class="c-ck">' + ckButton(r) + '</td>'
+            + '<td class="c-reg mono nowrap"><a href="/AD/' + encodeURIComponent(r.reg) + '" target="_blank" rel="noopener">' + esc(r.reg) + '</a></td>'
+            + cell(r.airline, 'nowrap')
+            + cell(r.type, 'nowrap')
+            + cell(r.serial, 'mono nowrap')
+            + cell(r.registerDate, 'mono nowrap')
+            + cell(r.deregisterDate, 'mono nowrap')
+            + '<td>' + (r.operation ? '<span class="inv-op op-' + (OP_CLASS[r.operationCode] || 'other') + '">' + esc(r.operation) + '</span>' : '<span class="muted">—</span>') + '</td>'
+            + cell(r.wifi, 'nowrap')
+            + cell(r.seatConfig, 'mono nowrap')
+            + cell(r.specialLivery, 'wrap')
+            + cell(r.remarks, 'wrap')
+            + cell(r.testReg, 'mono nowrap')
+            + '<td class="wrap">' + (r.linkUrl ? '<a href="' + esc(r.linkUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(r.linkUrl) + '</a>' : '<span class="muted">—</span>') + '</td>'
+            + cell(r.updated, 'mono nowrap')
+            + '<td><div class="inv-acts"><a href="/E/' + encodeURIComponent(r.reg) + '" target="_blank" rel="noopener">編集</a>'
+            + '<a href="/AircraftHistory?reg=' + encodeURIComponent(r.reg) + '" target="_blank" rel="noopener">履歴</a></div></td>'
+            + '</tr>';
+    };
+
+    const renderCounts = function () {
+        const n = { ok: 0, stale: 0, todo: 0 };
+        rows.forEach(function (r) { n[state(r)]++; });
+        byId('invCounts').innerHTML = rows.length === 0 ? '' :
+            '<span class="inv-count">全 ' + rows.length + ' 機</span>'
+            + '<span class="inv-count ok">確認済 ' + n.ok + '</span>'
+            + (n.stale ? '<span class="inv-count stale">要再確認 ' + n.stale + '</span>' : '')
+            + '<span class="inv-count todo">未確認 ' + n.todo + '</span>';
+    };
+    let emptyText = '条件を指定して「検索」を押してください';
+    const render = function () {
+        const list = visibleRows();
+        byId('invBody').innerHTML = list.map(rowHtml).join('');
+        const empty = byId('invEmpty');
+        empty.textContent = rows.length === 0 ? emptyText : list.length === 0 ? '表示する機体はありません（すべて確認済か、絞り込みに当たりません）' : '';
+        empty.style.display = list.length === 0 ? '' : 'none';
+        renderCounts();
+        fitList();
+    };
+
+    const showError = function (text) {
+        const box = byId('invError');
+        box.textContent = text || '';
+        box.style.display = text ? 'block' : 'none';
+    };
+
+    let lastCondition = null;
+    const search = function (keepScroll) {
+        const cond = conditionData();
+        lastCondition = cond;
+        store.set(STORE_COND, JSON.stringify(cond));
+        showError('');
+        const scrollTop = byId('invList').scrollTop;
+        byId('serach').disabled = true;
+        return JfHttp.post('/Inventory/Search', cond).then(function (d) {
+            if (d.errorMessage) { showError(d.errorMessage); return; }
+            rows = d.list;
+            emptyText = '条件に当たる機体はありません';
+            render();
+            if (keepScroll) { byId('invList').scrollTop = scrollTop; } else { byId('invList').scrollTop = 0; }
+            if (rows.length > 0 && !keepScroll) { setCollapsed(true); }
+        }, function (e) {
+            showError('検索できませんでした（' + e.status + ' ' + e.statusText + '）。inventory_check テーブルが無いときは Ddl/create_inventory_check.sql を流してください。');
+        }).finally(function () { byId('serach').disabled = false; });
+    };
+
+    byId('serach').addEventListener('click', function () { search(false); });
+    ['RegistrationNumber', 'SpecialLiveryKeyword', 'RemarksKeyword'].forEach(function (id) {
+        byId(id).addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.isComposing) { search(false); }
+        });
+    });
+    byId('clear').addEventListener('click', function () {
+        clearCondition();
+        msSelect('PresetSearchCondition', '');
+        byId('presetDisp').disabled = true;
+    });
+    byId('invReload').addEventListener('click', function () {
+        if (lastCondition) { applyCondition(lastCondition); search(true); }
+    });
+
+    let filterTimer = 0;
+    byId('invFilter').addEventListener('input', function () {
+        clearTimeout(filterTimer);
+        filterTimer = setTimeout(render, 150);
+    });
+    byId('invHide').checked = store.get(STORE_HIDE) === '1';
+    byId('invHide').addEventListener('change', function () {
+        store.set(STORE_HIDE, byId('invHide').checked ? '1' : '0');
+        render();
+    });
+
+    // ---- 目印 ----
+    const findRow = function (reg) { return rows.find(function (r) { return r.reg === reg; }); };
+    let toastTimer = 0;
+    let undo = null;
+    const toast = function (text, undoFn) {
+        byId('invToastText').textContent = text;
+        byId('invUndo').style.display = undoFn ? '' : 'none';
+        undo = undoFn;
+        byId('invToast').classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { byId('invToast').classList.remove('show'); undo = null; }, 5000);
+    };
+    byId('invUndo').addEventListener('click', function () {
+        byId('invToast').classList.remove('show');
+        if (undo) { const fn = undo; undo = null; fn(); }
+    });
+
+    // regs の目印を付ける・外す。prev は取り消し用に元の状態を持っておく
+    const setChecked = function (regs, on, withUndo) {
+        const prev = regs.map(function (reg) { const r = findRow(reg); return { reg: reg, checkedAt: r.checkedAt, stale: r.stale }; });
+        return JfHttp.post('/Inventory/Check', { regs: regs, on: on }).then(function (d) {
+            const hide = byId('invHide').checked;
+            regs.forEach(function (reg) {
+                const r = findRow(reg);
+                r.checkedAt = d.checkedAt;
+                r.stale = false;
+                // 隠す設定のときは、付けた行をすぐには消さず薄くしてから消す（押した行を見失わないように）
+                r.leaving = on && hide;
+            });
+            render();
+            if (on && hide) {
+                setTimeout(function () { regs.forEach(function (reg) { findRow(reg).leaving = false; }); render(); }, 800);
+            }
+            if (withUndo) {
+                const label = regs.length === 1 ? regs[0] : regs.length + ' 機';
+                toast(label + (on ? ' を確認済にしました' : ' の目印を外しました'), function () { restore(prev); });
+            }
+        }, function () {
+            toast('保存できませんでした。もう一度押してください');
+            render();
+        });
+    };
+    // 取り消し: 元から目印があった機体は付け直し（日時は今になる）、無かった機体は外す
+    const restore = function (prev) {
+        const wasOn = prev.filter(function (p) { return p.checkedAt; }).map(function (p) { return p.reg; });
+        const wasOff = prev.filter(function (p) { return !p.checkedAt; }).map(function (p) { return p.reg; });
+        const jobs = [];
+        if (wasOn.length) { jobs.push(setChecked(wasOn, true, false)); }
+        if (wasOff.length) { jobs.push(setChecked(wasOff, false, false)); }
+        Promise.all(jobs).then(function () { toast('元に戻しました'); });
+    };
+
+    byId('invBody').addEventListener('click', function (e) {
+        const btn = e.target.closest('.inv-ck');
+        if (!btn) { return; }
+        const r = findRow(btn.dataset.reg);
+        btn.disabled = true;
+        // 確認済なら外す。未確認・要再確認なら確認済にする
+        setChecked([r.reg], state(r) !== 'ok', true);
+    });
+
+    byId('invCheckAll').addEventListener('click', function () {
+        const regs = visibleRows().filter(function (r) { return state(r) !== 'ok'; }).map(function (r) { return r.reg; });
+        if (regs.length === 0) { toast('表示中の機体はすべて確認済です'); return; }
+        if (!confirm('表示中の ' + regs.length + ' 機を確認済にします。よろしいですか？')) { return; }
+        setChecked(regs, true, true);
+    });
+    byId('invUncheckAll').addEventListener('click', function () {
+        const regs = visibleRows().filter(function (r) { return r.checkedAt; }).map(function (r) { return r.reg; });
+        if (regs.length === 0) { toast('表示中の機体に目印はありません'); return; }
+        if (!confirm('表示中の ' + regs.length + ' 機の目印を外します。よろしいですか？')) { return; }
+        setChecked(regs, false, true);
+    });
+
+    // ---- 開いたとき: ?sc= の条件 → 前回の条件 の順で復元して検索する ----
+    let first = null;
+    if (INITIAL_CONDITION) {
+        try { first = JSON.parse(INITIAL_CONDITION); } catch (e) { first = null; }
+    }
+    if (!first) {
+        try { first = JSON.parse(store.get(STORE_COND) || 'null'); } catch (e) { first = null; }
+    }
+    render();
+    if (first) {
+        applyCondition(first);
+        search(false);
+    }
+})();
+</script>
+}

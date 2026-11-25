@@ -84,157 +84,16 @@ namespace JAFleet.Controllers
                 //初回ロードかつダイレクト指定ではない場合は空リストを返す
                 return Json(new SearchResult { ResultList = [], SearchConditionKey = string.Empty });
             }
-            AircraftView[]? searchResult = null;
-            var regList = new List<string?>();
-            string[] airline;
-            int[] typeDetail = [];
-            string[] operation;
-            string[] wifi;
-            var addSpecialLiveryReg = new List<string>();
-
-            if (model.RegistrationNumber != null)
-            {
-                //|区切りで複数件を処理
-                foreach (string r in model.RegistrationNumber.ToUpper().Split("|"))
-                {
-                    string reg = string.Empty;
-                    if (!r.StartsWith("JA"))
-                    {
-                        //JAがついていなければ付加
-                        reg = "JA";
-                    }
-                    reg = reg += r.ToUpper();
-                    regList.Add(reg);
-                }
-            }
-
-            //検索
-            IQueryable<AircraftView> query = _context.AircraftViews.AsNoTracking();
-            if (!string.IsNullOrEmpty(model.Airline))
-            {
-                airline = model.Airline.Split("|");
-                query = query.Where(p => airline.Contains(p.Airline));
-            }
-
-            if (!string.IsNullOrEmpty(model.TypeDetail))
-            {
-                typeDetail = model.TypeDetail.Split("|").Select(t => Convert.ToInt32(t)).ToArray();
-                query = query.Where(p => typeDetail.Contains(p.TypeDetailId));
-            }
-
-            if (!string.IsNullOrEmpty(model.WiFiCode))
-            {
-                wifi = model.WiFiCode.Split("|");
-                query = query.Where(p => wifi.Contains(p.WifiCode));
-            }
-
-            //登録年月・抹消年月（yyyy/MM）で絞る。「と等しい」はその月、「以前」「以降」はその月を含む
-            if (MonthRange(model.RegistrationDate) is (DateOnly regFirst, DateOnly regLast))
-            {
-                query = model.RegistrationSelection switch
-                {
-                    "1" => query.Where(p => p.RegisterDate <= regLast),
-                    "2" => query.Where(p => p.RegisterDate >= regFirst),
-                    _ => query.Where(p => p.RegisterDate >= regFirst && p.RegisterDate <= regLast),
-                };
-            }
-            if (MonthRange(model.DeregistrationDate) is (DateOnly deregFirst, DateOnly deregLast))
-            {
-                query = model.DeregistrationSelection switch
-                {
-                    "1" => query.Where(p => p.DeregisterDate <= deregLast),
-                    "2" => query.Where(p => p.DeregisterDate >= deregFirst),
-                    _ => query.Where(p => p.DeregisterDate >= deregFirst && p.DeregisterDate <= deregLast),
-                };
-            }
-
-            if (!string.IsNullOrEmpty(model.OperationCode))
-            {
-                operation = model.OperationCode.Split("|");
-                query = query.Where(p => operation.Contains(p.OperationCode));
-            }
-
-            if (model.Remarks == "1")
-            {
-                query = query.Where(p => string.IsNullOrEmpty(p.Remarks));
-            }
-            else if (model.Remarks == "2")
-            {
-                query = query.Where(p => !string.IsNullOrEmpty(p.Remarks));
-            }
-            else if (model.Remarks == "3")
-            {
-                query = query.Where(p => p.Remarks!.Contains(model.RemarksKeyword));
-            }
-
-            if (model.SpecialLivery == "1")
-            {
-                query = query.Where(p => string.IsNullOrEmpty(p.SpecialLivery));
-            }
-            else if (model.SpecialLivery == "2")
-            {
-                query = query.Where(p => !string.IsNullOrEmpty(p.SpecialLivery));
-            }
-            else if (model.SpecialLivery == "3")
-            {
-                query = query.Where(p => p.SpecialLivery!.Contains(model.SpecialLiveryKeyword));
-            }
-            else if (model.SpecialLivery == "4")
-            {
-                //あり（履歴含む）
-                //一旦履歴テーブルを検索して、履歴の中の該当のレジを取得
-                addSpecialLiveryReg.AddRange(_context.AircraftHistories.Where(p => !string.IsNullOrEmpty(p.SpecialLivery)).Select(s => s.RegistrationNumber).Distinct().ToList());
-                regList.AddRange(addSpecialLiveryReg);
-                regList.AddRange(_context.Aircrafts.Where(p => !string.IsNullOrEmpty(p.SpecialLivery)).Select(s => s.RegistrationNumber).Distinct().ToList());
-            }
-            else if (model.SpecialLivery == "5")
-            {
-                //キーワード指定（履歴含む）
-                //一旦履歴テーブルを検索して、履歴の中の該当のレジを取得
-                addSpecialLiveryReg.AddRange(_context.AircraftHistories.Where(p => p.SpecialLivery!.Contains(model.SpecialLiveryKeyword)).Select(s => s.RegistrationNumber).Distinct().ToList());
-                regList.AddRange(addSpecialLiveryReg);
-                regList.AddRange(_context.Aircrafts.Where(p => p.SpecialLivery!.Contains(model.SpecialLiveryKeyword)).Select(s => s.RegistrationNumber).Distinct().ToList());
-            }
-
-            if (regList.Count == 1)
-            {
-                if (StringUtil.ContainsMetaCharacter(regList[0]!))
-                {
-                    //メタ文字を含む場合正規表現検索
-                    query = query.Where(a => Regex.IsMatch(a.RegistrationNumber, regList[0]!));
-                }
-                else
-                {
-                    //含まない場合＝検索
-                    query = query.Where(a => a.RegistrationNumber == regList[0]);
-                }
-            }
-            else if (regList.Count > 1)
-            {
-                //2件以上の場合は正規表現無効でIN検索
-                query = query.Where(p => regList.Contains(p.RegistrationNumber));
-            }
-
+            AircraftView[] searchResult;
             try
             {
-                searchResult = query.OrderBy(p => p.DisplayOrder).ToArray();
+                searchResult = AircraftSearch.Build(_context, model, out List<string> historyLiveryRegs).ToArray();
+                //履歴から検索している場合、その旨追記
+                AircraftSearch.MarkHistoryLivery(searchResult, historyLiveryRegs);
             }
-            catch (Npgsql.PostgresException ex)
+            catch (Npgsql.PostgresException ex) when (AircraftSearch.IsInvalidRegex(ex))
             {
-                if (ex.Message.Contains("invalid regular expression"))
-                {
-                    return Json(new SearchResult { ErrorMessage = "不正な正規表現が指定されました。正規表現を修正してください。正しい正規表現にもかかわらずこのメッセージが表示される場合は管理人にご連絡ください。" });
-                }
-            }
-
-            //履歴から検索している場合、その旨追記
-            foreach (var reg in addSpecialLiveryReg)
-            {
-                var addTarget = searchResult?.Where(s => s.RegistrationNumber == reg).SingleOrDefault();
-                if (addTarget != null)
-                {
-                    addTarget.SpecialLivery += "（履歴あり）";
-                }
+                return Json(new SearchResult { ErrorMessage = AircraftSearch.INVALID_REGEX_MESSAGE });
             }
 
             //検索条件保持用クラスにコピー
@@ -295,7 +154,7 @@ namespace JAFleet.Controllers
                     LogDate = DateTime.Now,
                     LogType = LogType.SEARCH,
                     LogDetail = schash,
-                    Additional = $"{model.IsDirect},{searchResult?.Length}",
+                    Additional = $"{model.IsDirect},{searchResult.Length}",
                     UserId = isAdmin.ToString()
                 };
                 context.Logs.Add(log);
@@ -303,18 +162,7 @@ namespace JAFleet.Controllers
                 context.SaveChanges();
             });
 
-            return Json(new SearchResult { ResultList = searchResult!, SearchConditionKey = schash });
-        }
-
-        /// <summary>"yyyy/MM" をその月の初日と末日にする。空・読めないときは null（その条件では絞らない）</summary>
-        private static (DateOnly First, DateOnly Last)? MonthRange(string? month)
-        {
-            if (string.IsNullOrEmpty(month) || !JaDateUtil.TryParse(month, out DateOnly? monthEnd) || monthEnd == null)
-            {
-                return null;
-            }
-            DateOnly last = monthEnd.Value;
-            return (new DateOnly(last.Year, last.Month, 1), last);
+            return Json(new SearchResult { ResultList = searchResult, SearchConditionKey = schash });
         }
 
         /// <summary>
