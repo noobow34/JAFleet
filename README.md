@@ -954,7 +954,7 @@ dotnet test JAFleet.sln
 
 | テスト | 内容 |
 | --- | --- |
-| `NotifyWorkingStatusJobTest` | 稼働状況の通知ジョブを Quartz で動かして **10 分待つ**。`ExecuteWithtRefreshAsync` は開発 DB の機体で FR24 の巡回まで動かす（`JAFLEET_CONNECTION_STRING` が要る） |
+| `NotifyWorkingStatusJobTest` | 稼働状況の通知ジョブを Quartz で動かし、**ジョブが終わるまで待つ**（上限 3.5 時間）。`ExecuteWithtRefreshAsync` は開発 DB の機体で FR24 の巡回まで動かす（`JAFLEET_CONNECTION_STRING` が要る） |
 | `WorkingStatusSlackNotifyTest`・`Fr24ForbiddenSlackNotifyTest` | 通知を実際に Slack へ投稿して見た目を確かめる（`SLACK_BOT_TOKEN` が要る） |
 
 動かすときは、環境変数 `JAFLEET_RUN_MANUAL_TESTS=1` を付けて、そのテストだけを指定します。
@@ -963,7 +963,12 @@ dotnet test JAFleet.sln
 $env:JAFLEET_RUN_MANUAL_TESTS = "1"; dotnet test JAFleet.sln --filter "FullyQualifiedName~WorkingStatusSlackNotifyTest"
 ```
 
-以前は手動テストも毎回動いていて、`NotifyWorkingStatusJobTest` の 10 分待ちのせいで `dotnet test` が毎回 10 分かかっていました。
+テストのメソッドを抜けるとプロセスが終わり、動いている Quartz のジョブも中断されます。そのため手動テストでジョブを動かすときは、
+`QuartzJobRunner.RunOnceAsync<ジョブ>(上限)` を使ってください。ジョブの終わり（`IJobListener.JobWasExecuted`）を待ち、
+ジョブの例外はそのままテストの失敗になります。上限を過ぎたら失敗にして、ジョブを中断させます。
+この部品そのものは `QuartzJobRunnerTest` で、短いダミーのジョブを使って普段のテストで確かめています。
+
+以前は手動テストも毎回動いていて、`NotifyWorkingStatusJobTest` が決め打ちで 10 分待っていたため、`dotnet test` が毎回 10 分かかっていました。
 **長く待つ・外部に書き込むテストを足すときは、同じように `ManualTest.RequireOptIn()` を通すこと。**
 
 ## データベース
