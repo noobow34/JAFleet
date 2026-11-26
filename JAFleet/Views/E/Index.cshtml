@@ -262,7 +262,8 @@ textarea.ed-input { height: auto; min-height: 76px; resize: vertical; line-heigh
                         <input type="hidden" name="fromAdmin" value="@fromAdmin" />
                         <input type="hidden" name="returnTo" value="E" />
                         <button type="submit" class="ed-link"
-                                onclick="return confirm('この予約を取り消します。機体情報は変わりません。よろしいですか？');">取消</button>
+                                data-confirm="この予約を取り消します。機体情報は変わりません。よろしいですか？"
+                                data-confirm-ok="取り消す" data-confirm-danger="true">取消</button>
                     </form>
                 </div>
             }

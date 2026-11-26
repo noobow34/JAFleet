@@ -177,7 +177,8 @@
                         <a class="imp-btn" data-busy="作業内容を読み込んでいます…"
                            href="@Url.Action("Resume", "JcabImport", new { id = session.SessionId, fromAdmin = Model.FromAdmin })">再開</a>
                         <form method="post" asp-action="DeleteSession" asp-route-fromAdmin="@Model.FromAdmin"
-                              onsubmit="return confirm('@session.FileName の作業内容を削除します。よろしいですか。');">
+                              data-confirm="@session.FileName の作業内容を削除します。よろしいですか？"
+                              data-confirm-ok="削除する" data-confirm-danger="true">
                             <input type="hidden" name="id" value="@session.SessionId" />
                             <button type="submit" class="imp-btn">削除</button>
                         </form>

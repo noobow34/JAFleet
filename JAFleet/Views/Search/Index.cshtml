@@ -369,7 +369,7 @@
                 JfUi.modal.show('#presetModal');
             }
         }, function () {
-            alert('検索条件登録のための通信に失敗しました。繰り返し表示される場合は管理人にご連絡ください。')
+            JfDialog.alert('検索条件登録のための通信に失敗しました。繰り返し表示される場合は管理人にご連絡ください。');
         });
     });
 
@@ -387,7 +387,7 @@
             byId('presetName').readOnly = true;
             JfDom.hide(byId('presetRegModal'));
         }, function () {
-            alert('検索条件登録に通信に失敗しました。繰り返し表示される場合は管理人にご連絡ください。')
+            JfDialog.alert('検索条件登録の通信に失敗しました。繰り返し表示される場合は管理人にご連絡ください。');
         });
     });
 

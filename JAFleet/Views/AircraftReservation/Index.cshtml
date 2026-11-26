@@ -220,14 +220,5 @@
 
 @section ScriptsPartial {
     <partial name="_BusyOverlayScript" />
-    <script>
-        //取消などの押し間違いを防ぐ
-        document.addEventListener('click', function (e) {
-            const target = e.target.closest('[data-confirm]');
-            if (target && !window.confirm(target.getAttribute('data-confirm'))) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-            }
-        });
-    </script>
+    @* 取消などの確認は data-confirm（site.js の JfDialog が出す） *@
 }

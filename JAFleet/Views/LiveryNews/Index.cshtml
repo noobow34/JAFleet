@@ -541,14 +541,7 @@
             input.addEventListener('input', function () { refreshStart(input); });
         });
 
-        document.querySelectorAll('[data-confirm]').forEach(function (button) {
-            button.addEventListener('click', function (e) {
-                if (!confirm(button.getAttribute('data-confirm'))) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            });
-        });
+        //却下などの確認は data-confirm（site.js の JfDialog が出す）
 
         //お試し欄は一番下にあるので、送ったあと（開いた状態で返ってきたとき）はそこまで送る
         const trial = document.getElementById('trial');

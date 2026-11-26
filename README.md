@@ -703,6 +703,14 @@ IP は携帯回線などで共有されるため、訪問者数は Cookie で数
 - jQuery は読み込んでいない（jQuery UI・magnific-popup・Bootstrap の JS・bootstrap-multiselect も外した）
   - 機体詳細のポップアップは `site.js` の `openPopUp` が `<dialog>` と iframe で開く（magnific-popup は使っていない）
   - 管理画面・更新履歴のレジ補完は `site.js` の `attachRegList` が付ける `<datalist>`（jQuery UI は使っていない）
+  - **ブラウザの `alert` / `confirm` / `prompt` は使わない**。`site.js` の `JfDialog`（`<dialog>` の自前のポップアップ、見た目は `site.css` の `.jf-dlg`）を使う。
+    `JfDialog.alert(文)`・`JfDialog.confirm(文, { okText, danger })`（true / false）・`JfDialog.prompt(文, { placeholder })`（文字列 / null）で、
+    どれも Promise を返す。`title`（見出し）・`note`（小さい補足）も付けられ、重なって呼ばれたら順に出す
+  - 送信やリンクの前の確認は、ボタン・リンク・フォームに `data-confirm="文"` を付けるだけでよい
+    （`data-confirm-title` / `data-confirm-note` / `data-confirm-ok` / `data-confirm-danger="true"` も使える）。
+    OK のあとは同じボタンを押し直す・同じフォームを送り直すので、`formaction` や押したボタンの name/value もそのまま送られる。
+    確認のあいだは `data-busy` のぐるぐるも出ない
+  - 更新履歴の編集（`/AircraftHistory`）の削除・履歴作成の確認だけは、レジを大きく出す専用のモーダルのまま（`JfDialog` 以前からある）
 - 表はすべて自前の部品（`fleet-list.js` など）で描いており、DataTables・dayjs・clipboard.js は使っていない
 - SheetJS（一覧・非稼働情報の Excel 出力。押したときだけ cdnjs から読み込む）
 - テストは MSTest

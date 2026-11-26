@@ -263,6 +263,7 @@
                         <div class="scm-ops">
                             <button type="submit" class="scm-btn primary">保存</button>
                             <button type="submit" class="scm-btn danger" formaction="/SeatConfig/Delete" formnovalidate
+                                    data-confirm="このコンフィグを削除します。よろしいですか？" data-confirm-ok="削除する" data-confirm-danger="true"
                                     disabled="@(row.UsedCount > 0)"
                                     title="@(row.UsedCount > 0 ? $"{row.UsedCount}機が使っているため削除できません" : "削除する")">
                                 削除
@@ -307,14 +308,7 @@
             row.addEventListener('change', onSeat);
         });
 
-        document.querySelectorAll('.scm-btn.danger').forEach(function (button) {
-            button.addEventListener('click', function (e) {
-                if (!confirm('このコンフィグを削除します。よろしいですか？')) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            });
-        });
+        //削除の確認は data-confirm（site.js の JfDialog が出す）
     });
 </script>
 }

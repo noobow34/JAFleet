@@ -197,7 +197,7 @@
                     @* 同じフォームのまま送り先だけ変える。無効のジョブでも1回だけ動く *@
                     <button type="submit" class="sch-btn" style="margin-left:auto" formaction="/Scheduler/RunNow"
                             disabled="@row.Running"
-                            onclick="return confirm('@row.DisplayName を今すぐ実行しますか？');">▶ 今すぐ実行</button>
+                            data-confirm="@row.DisplayName を今すぐ実行しますか？" data-confirm-ok="実行する">▶ 今すぐ実行</button>
                 }
                 <button type="submit" class="sch-btn primary" style="@(row.TypeFound ? "" : "margin-left:auto")">保存</button>
             </div>

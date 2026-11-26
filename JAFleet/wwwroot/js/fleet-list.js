@@ -206,7 +206,7 @@
             window.XLSX.writeFile(wb, name + '.xlsx');
             fetch('/Dummy?excel', { cache: 'no-store' });
         }, function () {
-            window.alert('Excel出力の準備に失敗しました。通信状況を確かめて、もう一度押してください。');
+            JfDialog.alert('Excel出力の準備に失敗しました。通信状況を確かめて、もう一度押してください。');
         });
     };
 

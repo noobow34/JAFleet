@@ -603,14 +603,18 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
     // 「検索」。棚卸を開いていて欄の条件が変わっていたら、棚卸の条件を変えるか聞く
     const onSearch = function () {
         if (current && JSON.stringify(conditionData()) !== baseline) {
-            if (!confirm('棚卸「' + current.name + '」の条件を、いま入っている内容に変えますか？\n'
-                + '付けた目印は残ります。新しく条件に入った機体は未確認になります。\n'
-                + '（棚卸を変えずに別の条件で探すときは、上の「棚卸」の選択を外してください）')) { return; }
-            JfHttp.post('/Inventory/UpdateCondition', Object.assign({ sessionId: current.id }, conditionData())).then(function (d) {
-                updateSession(d.session);
-                baseline = JSON.stringify(conditionData());
-                search(false);
-            }, function () { toast('条件を保存できませんでした'); });
+            JfDialog.confirm('棚卸「' + current.name + '」の条件を、いま入っている内容に変えますか？', {
+                title: '棚卸の条件を変える',
+                note: '付けた目印は残ります。新しく条件に入った機体は未確認になります。\n棚卸を変えずに別の条件で探すときは、上の「棚卸」の選択を外してください。',
+                okText: '条件を変える'
+            }).then(function (yes) {
+                if (!yes) { return; }
+                JfHttp.post('/Inventory/UpdateCondition', Object.assign({ sessionId: current.id }, conditionData())).then(function (d) {
+                    updateSession(d.session);
+                    baseline = JSON.stringify(conditionData());
+                    search(false);
+                }, function () { toast('条件を保存できませんでした'); });
+            });
             return;
         }
         search(false);
@@ -641,9 +645,18 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
         }
     });
     byId('invStart').addEventListener('click', function () {
-        const name = prompt('棚卸の名前を付けてください（例：ANA 2026年12月）');
-        if (name == null || !name.trim()) { return; }
-        JfHttp.post('/Inventory/Create', Object.assign({ name: name.trim() }, conditionData())).then(function (d) {
+        JfDialog.prompt('棚卸の名前を付けてください', {
+            title: 'この条件で棚卸を始める',
+            placeholder: '例：ANA 2026年12月',
+            maxLength: 100,
+            okText: '始める'
+        }).then(function (name) {
+            if (!name) { return; }
+            startSession(name);
+        });
+    });
+    const startSession = function (name) {
+        JfHttp.post('/Inventory/Create', Object.assign({ name: name }, conditionData())).then(function (d) {
             sessions.unshift(d.session);
             current = d.session;
             baseline = JSON.stringify(conditionData());
@@ -652,24 +665,37 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
             search(true);
             toast('棚卸「' + d.session.name + '」を始めました');
         }, function (e) { toast('保存できませんでした（' + (e.responseText || e.status) + '）'); });
-    });
+    };
     byId('invComplete').addEventListener('click', function () {
-        const completed = !current.completedAt;
-        const rest = current.total - current.checkedCount;
-        if (completed && rest > 0 && !confirm('未確認・要再確認が ' + rest + ' 機ありますが、「' + current.name + '」を完了にしますか？')) { return; }
-        JfHttp.post('/Inventory/SetCompleted', { sessionId: current.id, completed: completed }).then(function (d) {
-            updateSession(d.session);
-            toast('「' + d.session.name + '」を' + (completed ? '完了にしました' : '未完了に戻しました'));
-        }, function () { toast('保存できませんでした'); });
+        const s = current;
+        const completed = !s.completedAt;
+        const rest = s.total - s.checkedCount;
+        const ask = completed && rest > 0
+            ? JfDialog.confirm('未確認・要再確認が ' + rest + ' 機ありますが、「' + s.name + '」を完了にしますか？', { title: '棚卸を完了にする', okText: '完了にする' })
+            : Promise.resolve(true);
+        ask.then(function (yes) {
+            if (!yes) { return; }
+            JfHttp.post('/Inventory/SetCompleted', { sessionId: s.id, completed: completed }).then(function (d) {
+                updateSession(d.session);
+                toast('「' + d.session.name + '」を' + (completed ? '完了にしました' : '未完了に戻しました'));
+            }, function () { toast('保存できませんでした'); });
+        });
     });
     byId('invDelete').addEventListener('click', function () {
         const s = current;
-        if (!confirm('棚卸「' + s.name + '」を削除します。付けた目印もすべて消え、元に戻せません。よろしいですか？')) { return; }
-        JfHttp.post('/Inventory/Delete', { sessionId: s.id }).then(function () {
-            sessions = sessions.filter(function (x) { return x.id !== s.id; });
-            closeSession();
-            toast('棚卸「' + s.name + '」を削除しました');
-        }, function () { toast('削除できませんでした'); });
+        JfDialog.confirm('棚卸「' + s.name + '」を削除します。', {
+            title: '棚卸の削除',
+            note: '付けた目印もすべて消え、元に戻せません。',
+            okText: '削除する',
+            danger: true
+        }).then(function (yes) {
+            if (!yes) { return; }
+            JfHttp.post('/Inventory/Delete', { sessionId: s.id }).then(function () {
+                sessions = sessions.filter(function (x) { return x.id !== s.id; });
+                closeSession();
+                toast('棚卸「' + s.name + '」を削除しました');
+            }, function () { toast('削除できませんでした'); });
+        });
     });
 
     let filterTimer = 0;
@@ -785,15 +811,17 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
         if (!current) { return; }
         const regs = visibleRows().filter(function (r) { return state(r) !== 'ok'; }).map(function (r) { return r.reg; });
         if (regs.length === 0) { toast('表示中の機体はすべて確認済です'); return; }
-        if (!confirm('表示中の ' + regs.length + ' 機を確認済にします。よろしいですか？')) { return; }
-        setChecked(regs, true, true);
+        JfDialog.confirm('表示中の ' + regs.length + ' 機を確認済にします。よろしいですか？', { okText: '確認済にする' }).then(function (yes) {
+            if (yes) { setChecked(regs, true, true); }
+        });
     });
     byId('invUncheckAll').addEventListener('click', function () {
         if (!current) { return; }
         const regs = visibleRows().filter(function (r) { return r.checkedAt; }).map(function (r) { return r.reg; });
         if (regs.length === 0) { toast('表示中の機体に目印はありません'); return; }
-        if (!confirm('表示中の ' + regs.length + ' 機の目印を外します。よろしいですか？')) { return; }
-        setChecked(regs, false, true);
+        JfDialog.confirm('表示中の ' + regs.length + ' 機の目印を外します。よろしいですか？', { okText: '目印を外す', danger: true }).then(function (yes) {
+            if (yes) { setChecked(regs, false, true); }
+        });
     });
 
     // ---- 開いたとき: ?sc= の条件（棚卸にはしない）か、棚卸（?session= か最後に開いた未完了のもの）を開く ----

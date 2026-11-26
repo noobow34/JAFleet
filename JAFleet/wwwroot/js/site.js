@@ -188,6 +188,132 @@ const ZGB = function() {
     return r;
 }
 
+// ==================== 確認・お知らせ・入力のポップアップ (alert / confirm / prompt の代わり) ====================
+// ブラウザの alert / confirm / prompt は使わない（見た目が揃わず、ブラウザによっては「このページのダイアログを止める」も出るため）。
+// どれも Promise を返す。<dialog> を 1 つ作って使い回し、重なって呼ばれたら順に出す。
+//   JfDialog.alert('保存しました')                                           → 閉じたら解決
+//   JfDialog.confirm('削除しますか？', { okText: '削除する', danger: true }) → true / false
+//   JfDialog.prompt('名前', { value: '', placeholder: '例：…' })             → 入れた文字列（前後の空白は除く）/ やめたら null
+// 共通の options: title（見出し）, note（下の小さい補足）, okText, cancelText, danger（OK を赤にする）
+// 文中の改行はそのまま改行で出る。Esc・背景のクリックは「キャンセル」と同じ（alert は閉じるだけ）。
+//
+// 画面に書くだけで確認を出すには、ボタン・リンク・フォームに data-confirm="文" を付ける
+// （data-confirm-title / data-confirm-note / data-confirm-ok / data-confirm-danger="true" も使える）。
+// OK のあとは同じボタンを押し直す・同じフォームを送り直すので、formaction や name/value もそのまま送られる。
+const JfDialog = (function () {
+    let dialog = null;
+    let queue = Promise.resolve();
+
+    const build = function () {
+        dialog = document.createElement('dialog');
+        dialog.className = 'jf-dlg';
+        dialog.innerHTML =
+            '<form method="dialog" class="jf-dlg-box">'
+            + '<div class="jf-dlg-title"></div>'
+            + '<div class="jf-dlg-msg"></div>'
+            + '<input type="text" class="jf-dlg-input" autocomplete="off" />'
+            + '<div class="jf-dlg-note"></div>'
+            + '<div class="jf-dlg-foot">'
+            + '<button type="submit" value="cancel" class="jf-dlg-btn jf-dlg-cancel"></button>'
+            + '<button type="submit" value="ok" class="jf-dlg-btn jf-dlg-ok"></button>'
+            + '</div></form>';
+        // 背景（dialog 自身）を押したらキャンセル
+        dialog.addEventListener('click', function (e) { if (e.target === dialog) { dialog.close('cancel'); } });
+        document.body.appendChild(dialog);
+    };
+
+    const show = function (kind, message, opt) {
+        opt = opt || {};
+        if (!dialog) { build(); }
+        const q = function (sel) { return dialog.querySelector(sel); };
+        const setText = function (sel, text) {
+            const el = q(sel);
+            el.textContent = text || '';
+            el.hidden = !text;
+        };
+        setText('.jf-dlg-title', opt.title);
+        setText('.jf-dlg-msg', message);
+        setText('.jf-dlg-note', opt.note);
+        const input = q('.jf-dlg-input');
+        const ok = q('.jf-dlg-ok');
+        const cancel = q('.jf-dlg-cancel');
+        input.hidden = kind !== 'prompt';
+        input.value = opt.value || '';
+        input.placeholder = opt.placeholder || '';
+        input.maxLength = opt.maxLength || 524288;
+        ok.textContent = opt.okText || 'OK';
+        ok.classList.toggle('danger', !!opt.danger);
+        cancel.textContent = opt.cancelText || 'キャンセル';
+        cancel.hidden = kind === 'alert';
+        // prompt は空のままでは OK を押せない
+        const syncOk = function () { ok.disabled = kind === 'prompt' && input.value.trim() === ''; };
+        input.oninput = syncOk;
+        syncOk();
+
+        return new Promise(function (resolve) {
+            dialog.returnValue = '';
+            dialog.addEventListener('close', function () {
+                const accepted = dialog.returnValue === 'ok';
+                if (kind === 'alert') { resolve(); }
+                else if (kind === 'confirm') { resolve(accepted); }
+                else { resolve(accepted ? input.value.trim() : null); }
+            }, { once: true });
+            dialog.showModal();
+            (kind === 'prompt' ? input : ok).focus();
+            if (kind === 'prompt') { input.select(); }
+        });
+    };
+
+    // 重なって呼ばれても 1 つずつ出す
+    const enqueue = function (kind, message, opt) {
+        const p = queue.then(function () { return show(kind, message, opt); });
+        queue = p.catch(function () { });
+        return p;
+    };
+
+    // ---- data-confirm（画面に書くだけの確認） ----
+    const optionsOf = function (el) {
+        return {
+            title: el.getAttribute('data-confirm-title'),
+            note: el.getAttribute('data-confirm-note'),
+            okText: el.getAttribute('data-confirm-ok'),
+            danger: el.getAttribute('data-confirm-danger') === 'true'
+        };
+    };
+    // ボタン・リンク: 1 回目の押下を止めて確認し、OK なら同じものを押し直す（2 回目は素通り）
+    document.addEventListener('click', function (e) {
+        const el = e.target.closest ? e.target.closest('[data-confirm]') : null;
+        if (!el || el.tagName === 'FORM') { return; }
+        if (el.jfConfirmed) { el.jfConfirmed = false; return; }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        enqueue('confirm', el.getAttribute('data-confirm'), optionsOf(el)).then(function (yes) {
+            if (yes) { el.jfConfirmed = true; el.click(); }
+        });
+    }, true);
+    // フォーム: 送信を止めて確認し、OK なら押したボタンのまま送り直す
+    document.addEventListener('submit', function (e) {
+        const form = e.target;
+        if (!form.hasAttribute || !form.hasAttribute('data-confirm')) { return; }
+        if (form.jfConfirmed) { form.jfConfirmed = false; return; }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const submitter = e.submitter;
+        enqueue('confirm', form.getAttribute('data-confirm'), optionsOf(form)).then(function (yes) {
+            if (!yes) { return; }
+            form.jfConfirmed = true;
+            if (form.requestSubmit) { form.requestSubmit(submitter && submitter.form === form ? submitter : undefined); }
+            else { form.submit(); }
+        });
+    }, true);
+
+    return {
+        alert: function (message, opt) { return enqueue('alert', message, opt); },
+        confirm: function (message, opt) { return enqueue('confirm', message, opt); },
+        prompt: function (message, opt) { return enqueue('prompt', message, opt); }
+    };
+})();
+
 const getParam = function(name, url) {
     if (!url) url = window.location.href;
     name = name.replace(/[\[\]]/g, "\\$&");

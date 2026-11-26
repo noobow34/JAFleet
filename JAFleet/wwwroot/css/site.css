@@ -191,3 +191,41 @@ body {
 }
 .jf-popup-close:hover, .jf-popup-close:focus { opacity: 1; }
 html.jf-popup-open { overflow: hidden; }
+
+/* ===== 確認・お知らせ・入力のポップアップ (site.js の JfDialog。alert / confirm / prompt の代わり) =====
+   html{font-size:10px}（Bootstrap3）のため rem は使わない */
+.jf-dlg {
+    width: min(92vw, 440px);
+    padding: 0;
+    border: 0;
+    border-radius: 14px;
+    background: #fff;
+    color: #1e293b;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, .3);
+}
+.jf-dlg::backdrop { background: rgba(15, 23, 42, .55); }
+.jf-dlg-box { margin: 0; padding: 20px 20px 16px; }
+.jf-dlg-title { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: #0f172a; }
+.jf-dlg-msg { font-size: 14px; font-weight: 600; line-height: 1.7; color: #334155; white-space: pre-wrap; word-break: break-word; }
+.jf-dlg-note { margin-top: 8px; font-size: 12px; line-height: 1.7; color: #94a3b8; white-space: pre-wrap; }
+.jf-dlg-input {
+    display: block; width: 100%; height: 40px; margin-top: 12px; padding: 6px 10px;
+    border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; color: #0f172a;
+}
+.jf-dlg-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .18); }
+.jf-dlg-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.jf-dlg-btn {
+    min-width: 96px; height: 38px; padding: 0 16px; border: 1px solid #cbd5e1; border-radius: 8px;
+    background: #fff; color: #334155; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.jf-dlg-btn:hover { background: #f1f5f9; }
+.jf-dlg-ok { border-color: #0f172a; background: #0f172a; color: #fff; }
+.jf-dlg-ok:hover { background: #1e293b; }
+.jf-dlg-ok.danger { border-color: #dc2626; background: #dc2626; }
+.jf-dlg-ok.danger:hover { background: #b91c1c; }
+.jf-dlg-ok:disabled { opacity: .45; cursor: default; }
+.jf-dlg [hidden] { display: none; }
+@media (max-width: 599px) {
+    .jf-dlg-input { font-size: 16px; } /* 16px 未満だと iOS が拡大する */
+    .jf-dlg-btn { flex: 1; }
+}
