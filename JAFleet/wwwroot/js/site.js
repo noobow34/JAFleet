@@ -29,6 +29,21 @@ const openPopUp = function (url) {
     dialog.showModal();
 }
 
+// 「戻る」ボタン用。openPopUp で重ねて開かれた画面の中なら、親のダイアログを閉じる。
+// iframe の中で history.back() を呼ぶと、親の画面ごと前のページへ戻ってしまうため。そうでなければ前のページへ戻る
+const jfBack = function () {
+    try {
+        const dialog = window.parent !== window ? window.parent.document.getElementById('jfPopup') : null;
+        if (dialog && dialog.open) {
+            dialog.close();
+            return;
+        }
+    } catch (e) {
+        // 別オリジンの親には触れない（その場合は普通に戻る）
+    }
+    history.back();
+}
+
 // レジ入力欄に、登録済みレジの候補 (<datalist>) を付ける。
 // 空欄のまま候補を全部出しても選べないので、1 文字以上入っているときだけ list を付ける。
 const attachRegList = function (input) {

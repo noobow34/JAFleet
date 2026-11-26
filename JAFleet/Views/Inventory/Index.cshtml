@@ -421,7 +421,7 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
         const retired = r.operationCode === '7' || r.operationCode === '8';
         return '<tr data-reg="' + esc(r.reg) + '" class="is-' + s + (retired ? ' is-retired' : '') + (r.leaving ? ' is-leaving' : '') + '">'
             + '<td class="c-ck">' + ckButton(r) + '</td>'
-            + '<td class="c-reg mono nowrap"><a href="/AD/' + encodeURIComponent(r.reg) + '" target="_blank" rel="noopener">' + esc(r.reg) + '</a></td>'
+            + '<td class="c-reg mono nowrap"><a href="/AD/' + encodeURIComponent(r.reg) + '" target="_blank" rel="noopener" data-open="detail">' + esc(r.reg) + '</a></td>'
             + cell(r.airline, 'nowrap')
             + cell(r.type, 'nowrap')
             + cell(r.serial, 'mono nowrap')
@@ -435,8 +435,8 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
             + cell(r.testReg, 'mono nowrap')
             + '<td class="wrap">' + (r.linkUrl ? '<a href="' + esc(r.linkUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(r.linkUrl) + '</a>' : '<span class="muted">—</span>') + '</td>'
             + cell(r.updated, 'mono nowrap')
-            + '<td><div class="inv-acts"><a href="/E/' + encodeURIComponent(r.reg) + '" target="_blank" rel="noopener">編集</a>'
-            + '<a href="/AircraftHistory?reg=' + encodeURIComponent(r.reg) + '" target="_blank" rel="noopener">履歴</a></div></td>'
+            + '<td><div class="inv-acts"><a href="/E/' + encodeURIComponent(r.reg) + '" target="_blank" rel="noopener" data-open="edit">編集</a>'
+            + '<a href="/AircraftHistory?reg=' + encodeURIComponent(r.reg) + '" target="_blank" rel="noopener" data-open="history">履歴</a></div></td>'
             + '</tr>';
     };
 
@@ -563,6 +563,41 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
         if (wasOff.length) { jobs.push(setChecked(wasOff, false, false)); }
         Promise.all(jobs).then(function () { toast('元に戻しました'); });
     };
+
+    // ---- 詳細・編集・履歴は、一覧画面と同じく画面の上に重ねて開く（site.js の openPopUp / openDetail） ----
+    // 幅 700px 未満と、Ctrl・Shift・中クリックなどは従来どおり別タブ（リンクの既定の動き）
+    const POPUP_URL = {
+        edit: function (reg) { return '/E/' + encodeURIComponent(reg) + '?nohead=true'; },
+        history: function (reg) { return '/AircraftHistory?reg=' + encodeURIComponent(reg); }
+    };
+    let editedInPopup = false;
+    let popupHooked = false;
+    // 編集・履歴のダイアログを閉じたら、同じ条件で取り直して変更（と要再確認）を一覧に映す
+    const hookPopupClose = function () {
+        const dialog = byId('jfPopup');
+        if (popupHooked || !dialog) { return; }
+        popupHooked = true;
+        dialog.addEventListener('close', function () {
+            if (editedInPopup && lastCondition) {
+                editedInPopup = false;
+                search(true);
+            }
+        });
+    };
+    byId('invBody').addEventListener('click', function (e) {
+        const link = e.target.closest('a[data-open]');
+        if (!link || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0 || window.innerWidth < 700) { return; }
+        e.preventDefault();
+        const reg = link.closest('tr').dataset.reg;
+        const kind = link.dataset.open;
+        if (kind === 'detail') {
+            openDetail(reg);
+            return;
+        }
+        openPopUp(POPUP_URL[kind](reg));
+        editedInPopup = true;
+        hookPopupClose();
+    });
 
     byId('invBody').addEventListener('click', function (e) {
         const btn = e.target.closest('.inv-ck');
