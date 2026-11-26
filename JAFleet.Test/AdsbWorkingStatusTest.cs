@@ -90,6 +90,19 @@ namespace JAFleet.Test
         }
 
         [TestMethod]
+        public void 長すぎる文字列は列の長さに切り詰めて入れる()
+        {
+            var status = new WorkingStatus { RegistrationNumber = "JA841A", Working = true, FlightDate = new DateTime(2026, 11, 20, 8, 0, 0) };
+            var flight = Flight(new DateTime(2026, 11, 22, 10, 5, 0), "Tokyo (HND)", "Hagåtña, Guam International Airport (GUM)");
+
+            AdsbWorkingStatus.Apply(Aircraft(OperationCode.INTERNATIONAL), status, flight, null, Reference, [Tpe], new WorkingStatusSections(), Now);
+
+            Assert.AreEqual(30, status.ToAp!.Length);
+            Assert.IsTrue(status.ToAp.EndsWith("…"));
+            Assert.AreEqual("Tokyo (HND)", status.FromAp);
+        }
+
+        [TestMethod]
         public void 古い日を流し直しても新しい便を上書きしない()
         {
             var status = new WorkingStatus { RegistrationNumber = "JA841A", Working = true, FlightDate = new DateTime(2026, 11, 22, 20, 0, 0), ToAp = "Osaka (ITM)" };

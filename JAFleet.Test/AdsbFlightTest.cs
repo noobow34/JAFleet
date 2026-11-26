@@ -183,6 +183,18 @@ namespace JAFleet.Test
         }
 
         [TestMethod]
+        public void 長い都市名は30文字に収める()
+        {
+            var guam = Ap("PGUM", "GUM", "Hagåtña, Guam International Airport", 13.4834, 144.796);
+            Assert.AreEqual("Hagåtña (GUM)", DailyFlightAnalyzer.Display(guam), "最初の「,」の前だけ");
+
+            var longCity = Ap("XXXX", "XXX", "Llanfairpwllgwyngyllgogerychwyrndrobwll", 53.2, -4.2);
+            string shown = DailyFlightAnalyzer.Display(longCity)!;
+            Assert.AreEqual(DailyFlightAnalyzer.DISPLAY_MAX, shown.Length);
+            Assert.IsTrue(shown.EndsWith("… (XXX)"), shown);
+        }
+
+        [TestMethod]
         public void 表示はFR24と同じ都市名とIATA()
         {
             Assert.AreEqual("Tokyo (HND)", DailyFlightAnalyzer.Display(Hnd));

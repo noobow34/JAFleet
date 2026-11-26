@@ -122,10 +122,11 @@ namespace JAFleet.Batch
             if (today != null && (status.FlightDate == null || today.DepartureTime >= status.FlightDate))
             {
                 status.FlightDate = today.DepartureTime;
-                status.FromAp = today.FromAp ?? "—";
-                status.ToAp = today.ToAp ?? "—";
-                status.FlightNumber = today.FlightNumber ?? "—";
-                status.Status = today.Status;
+                //working_status の文字列の列はどれも varchar(30)。1件のはみ出しで全機の更新が止まらないよう切り詰める
+                status.FromAp = Fit(today.FromAp ?? "—");
+                status.ToAp = Fit(today.ToAp ?? "—");
+                status.FlightNumber = Fit(today.FlightNumber ?? "—");
+                status.Status = Fit(today.Status);
                 status.ExistOperation = true;
             }
             status.Working = status.FlightDate is DateTime d && (referenceDate.Date - d.Date).TotalDays <= WORKING_DAYS;
@@ -158,6 +159,12 @@ namespace JAFleet.Batch
                 sections.Mainteing.Add(reg, entry);
             }
         }
+
+        /// <summary>working_status の文字列の列（varchar(30)）に収まるよう切り詰める</summary>
+        public const int WORKING_STATUS_TEXT_MAX = 30;
+
+        public static string? Fit(string? text)
+            => text == null || text.Length <= WORKING_STATUS_TEXT_MAX ? text : text[..(WORKING_STATUS_TEXT_MAX - 1)] + "…";
 
         /// <summary>テストレジで前回より新しく飛んでいたら「テストレジが稼働」に積む</summary>
         public static void ApplyTestFlight(AircraftView a, WorkingStatus status, DateTime testDate, WorkingStatusSections sections)
