@@ -2,6 +2,7 @@
 @{
     Layout = "_LayoutNoHead";
     string initialCondition = ViewData["InitialCondition"] as string ?? "";
+    int? initialSession = ViewData["InitialSession"] as int?;
 }
 @*
     棚卸（/Inventory）。条件の欄は検索画面（Views/Search/Index.cshtml）と同じ ID・同じ見た目（search.css）にしてある。
@@ -99,6 +100,26 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
 .inv-toast button { border: 0; background: none; color: #93c5fd; font-weight: 700; padding: 0; cursor: pointer; }
 .inv-error { margin-bottom: 8px; padding: 10px 14px; border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px; color: #b91c1c; font-size: 13px; font-weight: 600; display: none; }
 
+/* ---- 棚卸の選択（名前を付けて保存した棚卸） ---- */
+.inv-session {
+    display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; margin-bottom: 10px; padding: 10px 12px;
+    border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(15,23,42,.05);
+}
+.inv-session .lbl { margin: 0; font-size: 13px; font-weight: 700; color: #334155; white-space: nowrap; }
+.inv-session select { flex: 0 1 380px; min-width: 200px; height: 36px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; }
+.inv-session .sx-btn { height: 34px; padding: 0 12px; font-size: 12px; }
+.inv-session .sx-btn.go { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.inv-session .sx-btn.go:hover { background: #1e40af; }
+.inv-session .sx-btn.danger { color: #b91c1c; border-color: #fecaca; }
+.inv-session .sx-btn.danger:hover { background: #fef2f2; }
+.inv-session-state { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; font-weight: 700; color: #334155; }
+.inv-badge { padding: 3px 10px; border-radius: 999px; background: #f1f5f9; color: #475569; white-space: nowrap; }
+.inv-badge.doing { background: #dbeafe; color: #1d4ed8; }
+.inv-badge.done { background: #dcfce7; color: #166534; }
+.inv-badge.warn { background: #fef3c7; color: #92400e; }
+.inv-session .grow { flex: 1; }
+.inv-ck-off { color: #cbd5e1; font-size: 12px; }
+
 @@media (max-width: 767px) {
     .inv-filter { width: 100%; }
     .inv-bar .grow { display: none; }
@@ -109,7 +130,17 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
 <div class="sx inv">
     <div class="inv-head">
         <h2>棚卸</h2>
-        <span class="inv-lead">検索画面と同じ条件で探し、内容を確かめた機体に目印を付けます。目印のあとで機体を更新すると「要再確認」になります</span>
+        <span class="inv-lead">検索画面と同じ条件で探し、名前を付けて棚卸を始めると、内容を確かめた機体に目印を付けられます。目印のあとで機体を更新すると「要再確認」になり、全部確認済になると棚卸は完了します</span>
+    </div>
+
+    <div class="inv-session">
+        <label class="lbl" for="invSession">棚卸</label>
+        <select id="invSession"></select>
+        <div class="inv-session-state" id="invSessionState"></div>
+        <span class="grow"></span>
+        <button type="button" class="sx-btn go" id="invStart">＋ この条件で棚卸を始める</button>
+        <button type="button" class="sx-btn" id="invComplete">完了にする</button>
+        <button type="button" class="sx-btn danger" id="invDelete">削除</button>
     </div>
 
     <section class="sx-card" id="sxCard">
@@ -239,7 +270,8 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
     };
     // 保存済みの条件（?sc=）から開いたときの条件。検索画面が保存した JSON そのまま
     const INITIAL_CONDITION = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(initialCondition));
-    const STORE_COND = 'jf-inventory-condition';
+    // 開く棚卸（?session= か、最後に開いた未完了の棚卸）
+    const INITIAL_SESSION = @(initialSession?.ToString() ?? "null");
     const STORE_HIDE = 'jf-inventory-hide-checked';
     const store = {
         get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -404,6 +436,7 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
     };
 
     const ckButton = function (r) {
+        if (!current) { return '<span class="inv-ck-off" title="棚卸を始めると目印を付けられます">—</span>'; }
         const s = state(r);
         const label = s === 'ok' ? '確認済' : s === 'stale' ? '要再確認' : '未確認';
         const title = s === 'ok' ? 'クリックで目印を外す'
@@ -443,6 +476,10 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
     const renderCounts = function () {
         const n = { ok: 0, stale: 0, todo: 0 };
         rows.forEach(function (r) { n[state(r)]++; });
+        if (!current) {
+            byId('invCounts').innerHTML = rows.length === 0 ? '' : '<span class="inv-count">全 ' + rows.length + ' 機</span>';
+            return;
+        }
         byId('invCounts').innerHTML = rows.length === 0 ? '' :
             '<span class="inv-count">全 ' + rows.length + ' 機</span>'
             + '<span class="inv-count ok">確認済 ' + n.ok + '</span>'
@@ -466,30 +503,123 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
         box.style.display = text ? 'block' : 'none';
     };
 
+    // ---- 棚卸（名前を付けて保存した条件。目印は棚卸ごと） ----
+    let sessions = [];
+    let current = null;   // 開いている棚卸。null のときは条件で探すだけで、目印は付けられない
+    let baseline = '';    // 開いた棚卸の条件を欄に入れた直後の conditionData。検索のときに欄が変わっていたら、条件を変えるか聞く
+    const sessionLabel = function (s) {
+        return s.completedAt
+            ? '✓ ' + s.name + '（完了 ' + s.completedAt.slice(0, 10) + '）'
+            : s.name + '（' + s.checkedCount + ' / ' + s.total + '）';
+    };
+    const renderSessions = function () {
+        const sel = byId('invSession');
+        const opt = function (s) { return '<option value="' + s.id + '">' + esc(sessionLabel(s)) + '</option>'; };
+        const open = sessions.filter(function (s) { return !s.completedAt; });
+        const done = sessions.filter(function (s) { return s.completedAt; });
+        sel.innerHTML = '<option value="">（棚卸を選ぶ）</option>'
+            + (open.length ? '<optgroup label="未完了">' + open.map(opt).join('') + '</optgroup>' : '')
+            + (done.length ? '<optgroup label="完了">' + done.map(opt).join('') + '</optgroup>' : '');
+        sel.value = current ? String(current.id) : '';
+
+        const st = byId('invSessionState');
+        if (!current) {
+            st.innerHTML = '<span class="inv-badge">棚卸を選ぶか、条件で探して「この条件で棚卸を始める」</span>';
+        } else {
+            const rest = current.total - current.checkedCount;
+            st.innerHTML = (current.completedAt
+                    ? '<span class="inv-badge done">完了 ' + esc(current.completedAt) + (current.completedManually ? '（手動）' : '（全部確認済）') + '</span>'
+                    : '<span class="inv-badge doing">棚卸中</span>')
+                + '<span>確認 ' + current.checkedCount + ' / ' + current.total + ' 機</span>'
+                + (current.completedAt && rest > 0 ? '<span class="inv-badge warn">完了後に未確認 ' + rest + '</span>' : '');
+        }
+        byId('invStart').style.display = current ? 'none' : '';
+        byId('invComplete').style.display = current ? '' : 'none';
+        byId('invDelete').style.display = current ? '' : 'none';
+        byId('invComplete').textContent = current && current.completedAt ? '未完了に戻す' : '完了にする';
+        byId('invCheckAll').disabled = !current;
+        byId('invUncheckAll').disabled = !current;
+    };
+    // サーバから返った棚卸で一覧と表示を差し替える。全部確認済で自動で完了したときは知らせる
+    const updateSession = function (s) {
+        const i = sessions.findIndex(function (x) { return x.id === s.id; });
+        const wasDone = i >= 0 && sessions[i].completedAt;
+        if (i >= 0) { sessions[i] = s; } else { sessions.unshift(s); }
+        if (current && current.id === s.id) {
+            current = s;
+            if (!wasDone && s.completedAt && !s.completedManually) {
+                toast('全部確認済になったので「' + s.name + '」を完了にしました');
+            }
+        }
+        renderSessions();
+    };
+    const setUrl = function () {
+        const u = new URL(location.href);
+        u.searchParams.delete('sc');
+        if (current) { u.searchParams.set('session', current.id); } else { u.searchParams.delete('session'); }
+        history.replaceState(null, '', u);
+    };
+    const openSession = function (id) {
+        current = sessions.find(function (x) { return x.id === id; }) || null;
+        if (current) {
+            applyCondition(JSON.parse(current.condition));
+            baseline = JSON.stringify(conditionData());
+        }
+        setUrl();
+        renderSessions();
+        return search(false);
+    };
+    // 棚卸を閉じる（条件と一覧はそのまま。目印は出さない）
+    const closeSession = function () {
+        current = null;
+        baseline = '';
+        setUrl();
+        renderSessions();
+        rows.forEach(function (r) { r.checkedAt = null; r.stale = false; });
+        render();
+    };
+
     let lastCondition = null;
     const search = function (keepScroll) {
         const cond = conditionData();
         lastCondition = cond;
-        store.set(STORE_COND, JSON.stringify(cond));
         showError('');
         const scrollTop = byId('invList').scrollTop;
         byId('serach').disabled = true;
-        return JfHttp.post('/Inventory/Search', cond).then(function (d) {
+        // 棚卸を開いているときは、その棚卸の条件で探す（サーバが保存した条件を使う）
+        return JfHttp.post('/Inventory/Search', current ? { sessionId: current.id } : cond).then(function (d) {
             if (d.errorMessage) { showError(d.errorMessage); return; }
             rows = d.list;
             emptyText = '条件に当たる機体はありません';
+            if (d.session) { updateSession(d.session); }
             render();
             if (keepScroll) { byId('invList').scrollTop = scrollTop; } else { byId('invList').scrollTop = 0; }
             if (rows.length > 0 && !keepScroll) { setCollapsed(true); }
         }, function (e) {
-            showError('検索できませんでした（' + e.status + ' ' + e.statusText + '）。inventory_check テーブルが無いときは Ddl/create_inventory_check.sql を流してください。');
+            showError('検索できませんでした（' + e.status + ' ' + e.statusText + '）。テーブルが無いときは Ddl/create_inventory_check.sql と Ddl/create_inventory_session.sql を流してください。');
         }).finally(function () { byId('serach').disabled = false; });
     };
 
-    byId('serach').addEventListener('click', function () { search(false); });
+    // 「検索」。棚卸を開いていて欄の条件が変わっていたら、棚卸の条件を変えるか聞く
+    const onSearch = function () {
+        if (current && JSON.stringify(conditionData()) !== baseline) {
+            if (!confirm('棚卸「' + current.name + '」の条件を、いま入っている内容に変えますか？\n'
+                + '付けた目印は残ります。新しく条件に入った機体は未確認になります。\n'
+                + '（棚卸を変えずに別の条件で探すときは、上の「棚卸」の選択を外してください）')) { return; }
+            JfHttp.post('/Inventory/UpdateCondition', Object.assign({ sessionId: current.id }, conditionData())).then(function (d) {
+                updateSession(d.session);
+                baseline = JSON.stringify(conditionData());
+                search(false);
+            }, function () { toast('条件を保存できませんでした'); });
+            return;
+        }
+        search(false);
+    };
+
+    byId('serach').addEventListener('click', onSearch);
     ['RegistrationNumber', 'SpecialLiveryKeyword', 'RemarksKeyword'].forEach(function (id) {
         byId(id).addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' && !e.isComposing) { search(false); }
+            if (e.key === 'Enter' && !e.isComposing) { onSearch(); }
         });
     });
     byId('clear').addEventListener('click', function () {
@@ -498,7 +628,48 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
         byId('presetDisp').disabled = true;
     });
     byId('invReload').addEventListener('click', function () {
-        if (lastCondition) { applyCondition(lastCondition); search(true); }
+        if (current) { search(true); }
+        else if (lastCondition) { applyCondition(lastCondition); search(true); }
+    });
+
+    byId('invSession').addEventListener('change', function () {
+        const id = Number(byId('invSession').value);
+        if (id) {
+            openSession(id);
+        } else {
+            closeSession();
+        }
+    });
+    byId('invStart').addEventListener('click', function () {
+        const name = prompt('棚卸の名前を付けてください（例：ANA 2026年12月）');
+        if (name == null || !name.trim()) { return; }
+        JfHttp.post('/Inventory/Create', Object.assign({ name: name.trim() }, conditionData())).then(function (d) {
+            sessions.unshift(d.session);
+            current = d.session;
+            baseline = JSON.stringify(conditionData());
+            setUrl();
+            renderSessions();
+            search(true);
+            toast('棚卸「' + d.session.name + '」を始めました');
+        }, function (e) { toast('保存できませんでした（' + (e.responseText || e.status) + '）'); });
+    });
+    byId('invComplete').addEventListener('click', function () {
+        const completed = !current.completedAt;
+        const rest = current.total - current.checkedCount;
+        if (completed && rest > 0 && !confirm('未確認・要再確認が ' + rest + ' 機ありますが、「' + current.name + '」を完了にしますか？')) { return; }
+        JfHttp.post('/Inventory/SetCompleted', { sessionId: current.id, completed: completed }).then(function (d) {
+            updateSession(d.session);
+            toast('「' + d.session.name + '」を' + (completed ? '完了にしました' : '未完了に戻しました'));
+        }, function () { toast('保存できませんでした'); });
+    });
+    byId('invDelete').addEventListener('click', function () {
+        const s = current;
+        if (!confirm('棚卸「' + s.name + '」を削除します。付けた目印もすべて消え、元に戻せません。よろしいですか？')) { return; }
+        JfHttp.post('/Inventory/Delete', { sessionId: s.id }).then(function () {
+            sessions = sessions.filter(function (x) { return x.id !== s.id; });
+            closeSession();
+            toast('棚卸「' + s.name + '」を削除しました');
+        }, function () { toast('削除できませんでした'); });
     });
 
     let filterTimer = 0;
@@ -532,7 +703,7 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
     // regs の目印を付ける・外す。prev は取り消し用に元の状態を持っておく
     const setChecked = function (regs, on, withUndo) {
         const prev = regs.map(function (reg) { const r = findRow(reg); return { reg: reg, checkedAt: r.checkedAt, stale: r.stale }; });
-        return JfHttp.post('/Inventory/Check', { regs: regs, on: on }).then(function (d) {
+        return JfHttp.post('/Inventory/Check', { sessionId: current.id, regs: regs, on: on }).then(function (d) {
             const hide = byId('invHide').checked;
             regs.forEach(function (reg) {
                 const r = findRow(reg);
@@ -549,6 +720,8 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
                 const label = regs.length === 1 ? regs[0] : regs.length + ' 機';
                 toast(label + (on ? ' を確認済にしました' : ' の目印を外しました'), function () { restore(prev); });
             }
+            // 進み具合（と、全部確認済になったときの自動完了）を映す
+            updateSession(d.session);
         }, function () {
             toast('保存できませんでした。もう一度押してください');
             render();
@@ -601,7 +774,7 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
 
     byId('invBody').addEventListener('click', function (e) {
         const btn = e.target.closest('.inv-ck');
-        if (!btn) { return; }
+        if (!btn || !current) { return; }
         const r = findRow(btn.dataset.reg);
         btn.disabled = true;
         // 確認済なら外す。未確認・要再確認なら確認済にする
@@ -609,31 +782,33 @@ body > .container { width: auto; max-width: none; padding: 0 12px; }
     });
 
     byId('invCheckAll').addEventListener('click', function () {
+        if (!current) { return; }
         const regs = visibleRows().filter(function (r) { return state(r) !== 'ok'; }).map(function (r) { return r.reg; });
         if (regs.length === 0) { toast('表示中の機体はすべて確認済です'); return; }
         if (!confirm('表示中の ' + regs.length + ' 機を確認済にします。よろしいですか？')) { return; }
         setChecked(regs, true, true);
     });
     byId('invUncheckAll').addEventListener('click', function () {
+        if (!current) { return; }
         const regs = visibleRows().filter(function (r) { return r.checkedAt; }).map(function (r) { return r.reg; });
         if (regs.length === 0) { toast('表示中の機体に目印はありません'); return; }
         if (!confirm('表示中の ' + regs.length + ' 機の目印を外します。よろしいですか？')) { return; }
         setChecked(regs, false, true);
     });
 
-    // ---- 開いたとき: ?sc= の条件 → 前回の条件 の順で復元して検索する ----
-    let first = null;
-    if (INITIAL_CONDITION) {
-        try { first = JSON.parse(INITIAL_CONDITION); } catch (e) { first = null; }
-    }
-    if (!first) {
-        try { first = JSON.parse(store.get(STORE_COND) || 'null'); } catch (e) { first = null; }
-    }
+    // ---- 開いたとき: ?sc= の条件（棚卸にはしない）か、棚卸（?session= か最後に開いた未完了のもの）を開く ----
     render();
-    if (first) {
-        applyCondition(first);
-        search(false);
-    }
+    JfHttp.get('/Inventory/Sessions').then(function (d) {
+        sessions = d.sessions;
+        renderSessions();
+        if (INITIAL_SESSION && sessions.some(function (s) { return s.id === INITIAL_SESSION; })) {
+            openSession(INITIAL_SESSION);
+        } else if (INITIAL_CONDITION) {
+            try { applyCondition(JSON.parse(INITIAL_CONDITION)); search(false); } catch (e) { }
+        }
+    }, function (e) {
+        showError('棚卸の一覧を読めませんでした（' + e.status + '）。テーブルが無いときは Ddl/create_inventory_session.sql を流してください。');
+    });
 })();
 </script>
 }
